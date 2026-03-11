@@ -15,7 +15,6 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
-// --- COMPONENTE PRINCIPAL ---
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [vinilos, setVinilos] = useState<ViniloCatalogo[]>([]);
@@ -197,7 +196,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// --- SUB-COMPONENTE: LISTA DE PEDIDOS ---
+// --- SUB-COMPONENTE: LISTA DE PEDIDOS (CORREGIDO) ---
 function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,15 +207,39 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
       const res = await fetch(`${getApiUrl()}/api/pedidos`);
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) { 
+      console.error("Error al obtener pedidos:", error); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchOrders(); }, []);
 
   const finalizarPedido = async (id: number) => {
+    if (!id) {
+        alert("❌ ID de pedido no válido");
+        return;
+    }
+
     if (!confirm("¿Marcar este pedido como entregado/pagado?")) return;
-    await fetch(`${getApiUrl()}/api/pedidos/${id}/finalizar`, { method: 'PUT' });
-    fetchOrders();
+    
+    try {
+        const res = await fetch(`${getApiUrl()}/api/pedidos/${id}/finalizar`, { 
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (res.ok) {
+            alert("✅ Venta finalizada con éxito");
+            fetchOrders();
+        } else {
+            alert("❌ El servidor no pudo actualizar el pedido");
+        }
+    } catch (error) {
+        console.error("Error al finalizar pedido:", error);
+        alert("❌ Error de red al intentar finalizar el pedido");
+    }
   };
 
   if (loading) return <div className="text-center py-10 dark:text-slate-400">Cargando historial...</div>;
@@ -232,53 +255,61 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
         <div className="text-center py-20 text-slate-400">No hay pedidos registrados.</div>
       ) : (
         <div className="grid gap-3">
-          {orders.map(order => (
-            <div key={order.id} className={`p-4 rounded-xl border transition-all ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-white dark:bg-slate-800/50 border-amber-500/30 shadow-lg shadow-amber-500/5'}`}>
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-amber-500 text-slate-950 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Hash size={10} /> {order.numero_orden || 'S/N'}
+          {orders.map(order => {
+            // MAPEO CLAVE: Usamos id_pedido de tu base de datos
+            const orderId = order.id_pedido; 
+
+            return (
+              <div key={orderId} className={`p-4 rounded-xl border transition-all ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-white dark:bg-slate-800/50 border-amber-500/30 shadow-lg shadow-amber-500/5'}`}>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-black bg-amber-500 text-slate-950 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Hash size={10} /> {order.numero_orden || 'S/N'}
+                      </span>
+                      <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-slate-500">📱 {order.whatsapp_cliente}</p>
+                      <p className="text-xs text-slate-400 italic">Fecha: {new Date(order.fecha).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-mono font-bold text-amber-500">${order.total_pago}</p>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                      {order.estado}
                     </span>
-                    <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-slate-500">📱 {order.whatsapp_cliente}</p>
-                    <p className="text-xs text-slate-400 italic">Fecha: {new Date(order.fecha).toLocaleDateString()}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-mono font-bold text-amber-500">${order.total_pago}</p>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
-                    {order.estado}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
-                <a 
-                  href={`https://wa.me/${order.whatsapp_cliente.replace(/\D/g,'')}?text=${encodeURIComponent(`Hola ${order.nombre_cliente}, te hablo de Guacamayo Records por tu pedido #${order.numero_orden}`)}`} 
-                  target="_blank" 
-                  className="flex items-center gap-2 text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
-                >
-                  <MessageCircle size={14} /> CONTACTAR WHATSAPP
-                </a>
                 
-                {order.estado !== 'finalizado' && (
-                  <button onClick={() => finalizarPedido(order.id)} className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-transform active:scale-95">
-                    <CheckCircle size={14} /> FINALIZAR VENTA
-                  </button>
-                )}
+                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
+                  <a 
+                    href={`https://wa.me/${order.whatsapp_cliente.replace(/\D/g,'')}?text=${encodeURIComponent(`Hola ${order.nombre_cliente}, te hablo de Guacamayo Records por tu pedido #${order.numero_orden}`)}`} 
+                    target="_blank" 
+                    className="flex items-center gap-2 text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
+                  >
+                    <MessageCircle size={14} /> CONTACTAR WHATSAPP
+                  </a>
+                  
+                  {order.estado !== 'finalizado' && (
+                    <button 
+                      onClick={() => finalizarPedido(orderId)} 
+                      className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-transform active:scale-95"
+                    >
+                      <CheckCircle size={14} /> FINALIZAR VENTA
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-// --- SUB-COMPONENTE: BOTÓN DE PESTAÑA ---
+// ... TabButton y UserManual quedan igual ...
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
@@ -289,7 +320,6 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
   );
 }
 
-// --- SUB-COMPONENTE: MANUAL DE USUARIO ---
 function UserManual() {
   return (
     <div className="p-4 space-y-4 dark:text-slate-400 text-sm">
