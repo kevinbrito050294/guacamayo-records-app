@@ -23,10 +23,13 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [formEdit, setFormEdit] = useState<Partial<ViniloCatalogo>>({});
   const [subiendo, setSubiendo] = useState(false);
 
+  // CORRECCIÓN: URL de API robusta para producción
   const getApiUrl = () => {
-    return window.location.hostname === 'localhost' 
-      ? 'http://localhost:3001' 
-      : `${window.location.protocol}//${window.location.host.replace(':5173', ':3001')}`;
+    if (window.location.hostname === 'localhost') {
+      return 'http://localhost:3001';
+    }
+    // En Railway, el frontend y backend suelen compartir el mismo dominio o estar en subdominios claros
+    return 'https://guacamayorecords.up.railway.app';
   };
 
   const cargarVinilos = async () => {
@@ -196,7 +199,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// --- SUB-COMPONENTE: LISTA DE PEDIDOS (CORREGIDO) ---
+// --- SUB-COMPONENTE CORREGIDO ---
 function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,33 +219,33 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
 
   useEffect(() => { fetchOrders(); }, []);
 
-  const finalizarPedido = async (id: number) => {
-    if (!id) {
-        alert("❌ ID de pedido no válido");
+  const finalizarPedido = async (id_pedido: number) => {
+    if (!id_pedido) {
+        alert("❌ Error: No se encontró el ID del pedido.");
         return;
     }
 
-    if (!confirm("¿Marcar este pedido como entregado/pagado?")) return;
+    if (!confirm("¿Marcar este pedido como entregado y pagado?")) return;
     
     try {
-        const res = await fetch(`${getApiUrl()}/api/pedidos/${id}/finalizar`, { 
+        const res = await fetch(`${getApiUrl()}/api/pedidos/${id_pedido}/finalizar`, { 
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' }
         });
 
         if (res.ok) {
             alert("✅ Venta finalizada con éxito");
-            fetchOrders();
+            fetchOrders(); // Recargar lista
         } else {
-            alert("❌ El servidor no pudo actualizar el pedido");
+            const errData = await res.json();
+            alert(`❌ Error: ${errData.error || "No se pudo actualizar"}`);
         }
     } catch (error) {
-        console.error("Error al finalizar pedido:", error);
         alert("❌ Error de red al intentar finalizar el pedido");
     }
   };
 
-  if (loading) return <div className="text-center py-10 dark:text-slate-400">Cargando historial...</div>;
+  if (loading) return <div className="text-center py-10 dark:text-slate-400 font-mono text-xs">ACTUALIZANDO REGISTROS...</div>;
 
   return (
     <div className="space-y-4">
@@ -252,20 +255,20 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
       </div>
 
       {orders.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">No hay pedidos registrados.</div>
+        <div className="text-center py-20 text-slate-400">No hay pedidos registrados en el sistema.</div>
       ) : (
         <div className="grid gap-3">
           {orders.map(order => {
-            // MAPEO CLAVE: Usamos id_pedido de tu base de datos
-            const orderId = order.id_pedido; 
+            // USAR ID_PEDIDO (así viene de la DB)
+            const orderKey = order.id_pedido; 
 
             return (
-              <div key={orderId} className={`p-4 rounded-xl border transition-all ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-white dark:bg-slate-800/50 border-amber-500/30 shadow-lg shadow-amber-500/5'}`}>
+              <div key={orderKey} className={`p-4 rounded-xl border transition-all ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-white dark:bg-slate-800/50 border-amber-500/30 shadow-lg shadow-amber-500/5'}`}>
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-black bg-amber-500 text-slate-950 px-2 py-0.5 rounded flex items-center gap-1">
-                        <Hash size={10} /> {order.numero_orden || 'S/N'}
+                        <Hash size={10} /> {order.numero_orden || 'SIN NRO'}
                       </span>
                       <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
                     </div>
@@ -293,7 +296,7 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
                   
                   {order.estado !== 'finalizado' && (
                     <button 
-                      onClick={() => finalizarPedido(orderId)} 
+                      onClick={() => finalizarPedido(order.id_pedido)} 
                       className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-transform active:scale-95"
                     >
                       <CheckCircle size={14} /> FINALIZAR VENTA
@@ -309,7 +312,7 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
   );
 }
 
-// ... TabButton y UserManual quedan igual ...
+// ... TabButton y UserManual se mantienen igual ...
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
@@ -323,12 +326,12 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
 function UserManual() {
   return (
     <div className="p-4 space-y-4 dark:text-slate-400 text-sm">
-      <h3 className="font-bold text-slate-900 dark:text-white">Guía de Pedidos</h3>
+      <h3 className="font-bold text-slate-900 dark:text-white">Gestión de Pedidos</h3>
       <div className="space-y-2">
-        <p className="flex items-center gap-2">• <span className="bg-amber-500/20 text-amber-500 px-1 rounded font-mono">#GR-XXXX</span> Los pedidos aparecen automáticamente con su código único.</p>
-        <p>• Usa el botón de WhatsApp para coordinar la entrega directamente con el cliente.</p>
-        <p>• Marca como "Finalizar Venta" solo cuando el pago y la entrega estén completos.</p>
-        <p>• El stock de los productos se descuenta automáticamente al momento de la compra.</p>
+        <p className="flex items-center gap-2">• <span className="bg-amber-500/20 text-amber-500 px-1 rounded font-mono">#GR-XXXX</span> Es el código de seguimiento del pedido.</p>
+        <p>• El botón de WhatsApp abre el chat con el número del cliente automáticamente.</p>
+        <p>• Al presionar "Finalizar Venta", el estado cambia y el registro se archiva visualmente.</p>
+        <p>• El stock ya fue descontado al momento en que el cliente confirmó su carrito.</p>
       </div>
     </div>
   );

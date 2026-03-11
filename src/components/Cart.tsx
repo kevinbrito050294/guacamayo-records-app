@@ -48,9 +48,10 @@ export function Cart({
     setLoading(true);
     
     try {
+      // Configuración de URL limpia para evitar ERR_CONNECTION_REFUSED
       const API_BASE_URL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3001' 
-        : window.location.origin.replace(':5173', ':3001');
+        : 'https://guacamayorecords.up.railway.app';
 
       const datosPedido = {
         nombre_cliente: nombre,
@@ -58,10 +59,7 @@ export function Cart({
         total_pago: totalUsd,
         divisa_preferida: divisaPreferida,
         items: items.map(item => ({
-          vinilo: {
-            titulo: item.vinilo.titulo,
-            artista: item.vinilo.artista
-          },
+          id_vinilo: item.vinilo.id, // ID real para la DB
           cantidad: item.cantidad,
           precio_unitario: item.vinilo.precio_venta
         }))
@@ -80,9 +78,8 @@ export function Cart({
 
       const data = await response.json();
 
-      // 4. ENVÍO DE WHATSAPP CON NÚMERO DE ORDEN REAL
+      // Envío de WhatsApp
       const listaVinilos = items.map(i => `- ${i.cantidad}x *${i.vinilo.titulo}* (${i.vinilo.artista})`).join('\n');
-      
       const mensajeWA = `¡Hola Guacamayo Records! 🦜\n\n` +
         `📦 *PEDIDO REGISTRADO: #${data.numero_orden}*\n` +
         `👤 Cliente: ${nombre}\n` +
@@ -100,9 +97,9 @@ export function Cart({
 
     } catch (error: any) {
       console.error("❌ Error en el proceso de pedido:", error);
-      alert("Hubo un problema al registrar el pedido en el sistema, pero puedes enviarlo por WhatsApp igualmente.");
+      alert("Hubo un problema al registrar el pedido en el sistema. Por favor, intenta enviarlo directamente por WhatsApp.");
       
-      // Fallback sin número de orden si falla el servidor
+      // Fallback manual si el servidor falla
       const listaVinilos = items.map(i => `- ${i.cantidad}x ${i.vinilo.titulo}`).join('\n');
       const mensajeWA = `¡Hola Guacamayo!\nPedido de ${nombre}:\n${listaVinilos}\nTotal: USD ${totalUsd.toFixed(2)}`;
       window.open(`https://wa.me/5491164475028?text=${encodeURIComponent(mensajeWA)}`, '_blank');
