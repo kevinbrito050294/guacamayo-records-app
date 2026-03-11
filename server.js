@@ -2,7 +2,7 @@ import express from 'express';
 import mysql from 'mysql2';
 import cors from 'cors';
 import multer from 'multer';
-import path from 'path'; // <--- CORREGIDO: Antes decía 'multer'
+import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
@@ -24,8 +24,11 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use('/uploads', express.static(uploadDir));
 
+// --- SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND (VITE) ---
+// Esta línea le dice al servidor que busque los archivos visuales en 'dist'
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // --- CONFIGURACIÓN DE BASE DE DATOS ---
-// Railway usará automáticamente la variable que configuramos
 const RAILWAY_DB_URL = process.env.MYSQL_URL;
 
 const db = mysql.createConnection(RAILWAY_DB_URL);
@@ -50,7 +53,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- ENDPOINTS ---
+// --- ENDPOINTS API ---
 
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
@@ -86,12 +89,12 @@ app.get('/api/vinilos', (req, res) => {
 
 app.put('/api/vinilos/:id', (req, res) => {
   const { id } = req.params;
-  const { titulo, artista, precio_venta, stock_actual, imagen_url } = req.body;
+  const { titulo, artist, precio_venta, stock_actual, imagen_url } = req.body;
   const query = `
     UPDATE inventario_vinilos 
     SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ? , imagen_url = ? 
     WHERE id = ?`;
-  db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, id], (err, result) => {
+  db.query(query, [titulo, artist, precio_venta, stock_actual, imagen_url, id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Vinilo actualizado correctamente' });
   });
@@ -112,6 +115,12 @@ app.post('/api/pedidos', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Pedido guardado con éxito', id: result.insertId });
   });
+});
+
+// --- MANEJO DE RUTAS DEL FRONTEND ---
+// Si alguien entra a cualquier ruta que no sea de la API, le mostramos el index.html
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // --- INICIO DEL SERVIDOR ---
