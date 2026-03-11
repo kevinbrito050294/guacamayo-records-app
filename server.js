@@ -54,6 +54,7 @@ const upload = multer({ storage: storage });
 
 // --- ENDPOINTS API ---
 
+// Subida de imágenes
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const host = req.get('host'); 
@@ -62,6 +63,7 @@ app.post('/api/upload', upload.single('imagen'), (req, res) => {
   res.json({ url: imageUrl });
 });
 
+// Configuración de divisas
 app.get('/api/configuracion_divisas', (req, res) => {
   db.query('SELECT * FROM configuracion_divisas', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -79,6 +81,7 @@ app.put('/api/configuracion_divisas/:tipo', (req, res) => {
   });
 });
 
+// Inventario de Vinilos
 app.get('/api/vinilos', (req, res) => {
   db.query('SELECT * FROM inventario_vinilos', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -88,12 +91,12 @@ app.get('/api/vinilos', (req, res) => {
 
 app.put('/api/vinilos/:id', (req, res) => {
   const { id } = req.params;
-  const { titulo, artist, precio_venta, stock_actual, imagen_url } = req.body;
+  const { titulo, artista, precio_venta, stock_actual, imagen_url } = req.body;
   const query = `
     UPDATE inventario_vinilos 
     SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ? , imagen_url = ? 
     WHERE id = ?`;
-  db.query(query, [titulo, artist, precio_venta, stock_actual, imagen_url, id], (err, result) => {
+  db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Vinilo actualizado correctamente' });
   });
@@ -107,17 +110,45 @@ app.delete('/api/vinilos/:id', (req, res) => {
   });
 });
 
+// --- SISTEMA DE PEDIDOS (NUEVO / INTEGRADO) ---
+
+// 1. Guardar pedido (Desde el Carrito)
 app.post('/api/pedidos', (req, res) => {
   const { nombre_cliente, whatsapp_cliente, total_pago } = req.body;
-  const query = 'INSERT INTO pedidos (nombre_cliente, whatsapp_cliente, total_pago, fecha) VALUES (?, ?, ?, NOW())';
+  const query = 'INSERT INTO pedidos (nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, NOW(), "pendiente")';
+  
   db.query(query, [nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      console.error("❌ Error al guardar pedido:", err);
+      return res.status(500).json({ error: err.message });
+    }
     res.json({ message: 'Pedido guardado con éxito', id: result.insertId });
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND (CORRECCIÓN DEFINITIVA PARA NODE 22) ---
-// Usamos una expresión regular para que Express no intente procesar el '*' como parámetro
+// 2. Obtener todos los pedidos (Para el Admin Panel)
+app.get('/api/pedidos', (req, res) => {
+  const query = 'SELECT * FROM pedidos ORDER BY fecha DESC';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("❌ Error al obtener pedidos:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(results);
+  });
+});
+
+// 3. Finalizar un pedido (Desde el botón en Admin Panel)
+app.put('/api/pedidos/:id/finalizar', (req, res) => {
+  const { id } = req.params;
+  const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id_pedido = ?';
+  db.query(query, [id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Pedido marcado como finalizado' });
+  });
+});
+
+// --- MANEJO DE RUTAS DEL FRONTEND ---
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
