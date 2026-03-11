@@ -54,7 +54,6 @@ const upload = multer({ storage: storage });
 
 // --- ENDPOINTS API ---
 
-// Subida de imágenes
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const host = req.get('host'); 
@@ -63,7 +62,6 @@ app.post('/api/upload', upload.single('imagen'), (req, res) => {
   res.json({ url: imageUrl });
 });
 
-// Configuración de divisas
 app.get('/api/configuracion_divisas', (req, res) => {
   db.query('SELECT * FROM configuracion_divisas', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -81,7 +79,6 @@ app.put('/api/configuracion_divisas/:tipo', (req, res) => {
   });
 });
 
-// Inventario de Vinilos
 app.get('/api/vinilos', (req, res) => {
   db.query('SELECT * FROM inventario_vinilos', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -110,35 +107,61 @@ app.delete('/api/vinilos/:id', (req, res) => {
   });
 });
 
-// --- SISTEMA DE PEDIDOS (NUEVO / INTEGRADO) ---
+// --- SISTEMA DE PEDIDOS CON DESCUENTO DE STOCK ---
 
-// 1. Guardar pedido (Desde el Carrito)
 app.post('/api/pedidos', (req, res) => {
-  const { nombre_cliente, whatsapp_cliente, total_pago } = req.body;
-  const query = 'INSERT INTO pedidos (nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, NOW(), "pendiente")';
-  
-  db.query(query, [nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
-    if (err) {
-      console.error("❌ Error al guardar pedido:", err);
-      return res.status(500).json({ error: err.message });
-    }
-    res.json({ message: 'Pedido guardado con éxito', id: result.insertId });
+  const { nombre_cliente, whatsapp_cliente, total_pago, items } = req.body;
+
+  // Iniciamos transacción para asegurar consistencia
+  db.beginTransaction((err) => {
+    if (err) return res.status(500).json({ error: 'Error al iniciar transacción' });
+
+    // 1. Guardar el pedido
+    const queryPedido = 'INSERT INTO pedidos (nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, NOW(), "pendiente")';
+    
+    db.query(queryPedido, [nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
+      if (err) {
+        return db.rollback(() => res.status(500).json({ error: 'Error al guardar pedido' }));
+      }
+
+      // 2. Descontar stock para cada vinilo comprado
+      // Creamos un array de promesas para esperar a que todas las actualizaciones terminen
+      const promesasStock = items.map(item => {
+        return new Promise((resolve, reject) => {
+          const queryStock = 'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE titulo = ? AND artista = ?';
+          db.query(queryStock, [item.cantidad, item.titulo, item.artista], (err, resStock) => {
+            if (err) reject(err);
+            else resolve(resStock);
+          });
+        });
+      });
+
+      Promise.all(promesasStock)
+        .then(() => {
+          // Si todo salió bien, confirmamos los cambios en la DB
+          db.commit((err) => {
+            if (err) return db.rollback(() => res.status(500).json({ error: 'Error al confirmar cambios' }));
+            res.json({ message: 'Pedido registrado y stock actualizado con éxito', id: result.insertId });
+          });
+        })
+        .catch(error => {
+          // Si uno falla (ej: el vinilo no existe o error de red), deshacemos todo
+          db.rollback(() => {
+            console.error("❌ Error actualizando stock:", error);
+            res.status(500).json({ error: 'No se pudo actualizar el stock del inventario' });
+          });
+        });
+    });
   });
 });
 
-// 2. Obtener todos los pedidos (Para el Admin Panel)
 app.get('/api/pedidos', (req, res) => {
-  const query = 'SELECT * FROM pedidos ORDER BY fecha DESC';
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("❌ Error al obtener pedidos:", err);
-      return res.status(500).json({ error: err.message });
-    }
+  db.query('SELECT * FROM pedidos ORDER BY fecha DESC', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
 });
 
-// 3. Finalizar un pedido (Desde el botón en Admin Panel)
 app.put('/api/pedidos/:id/finalizar', (req, res) => {
   const { id } = req.params;
   const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id_pedido = ?';
