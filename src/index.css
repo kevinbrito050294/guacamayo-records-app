@@ -5,15 +5,27 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Fondo base para evitar destellos blancos */
+    @apply bg-slate-50 dark:bg-slate-950;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900;
+    /* Deep Dark y transiciones suaves */
+    @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 antialiased;
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  /* Clase para paneles con efecto blur (muy pro en Dark Mode) */
+  .glass-panel {
+    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800;
+  }
+
+  /* Inputs que no hacen zoom molesto en iPhone */
+  .input-guacamayo {
+    @apply w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 
+           bg-white dark:bg-slate-900 text-slate-900 dark:text-white 
+           focus:ring-2 focus:ring-amber-500 outline-none transition-all text-base;
   }
 }
