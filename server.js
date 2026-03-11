@@ -12,11 +12,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- CONFIGURACIÓN DE CORS ---
-// Esto permite que tu frontend (en local o en otro dominio) pueda hablar con el backend
+// --- MIDDLEWARES ---
 app.use(cors()); 
 app.use(express.json());
 
+// Carpetas de archivos estáticos
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
@@ -24,20 +24,18 @@ if (!fs.existsSync(uploadDir)) {
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- CONFIGURACIÓN DE BASE DE DATOS ---
+// --- CONFIGURACIÓN DE BASE DE DATOS (POOL) ---
 const RAILWAY_DB_URL = process.env.MYSQL_URL;
-
-// Usamos createPool en lugar de createConnection para mayor estabilidad en Railway
 const db = mysql.createPool(RAILWAY_DB_URL);
 
-console.log('🚀 Intentando conectar con la base de datos de Guacamayo...');
+console.log('🚀 Guacamayo Records: Conectando a la base de datos...');
 
 const generarNumeroOrden = () => {
     const random = Math.floor(1000 + Math.random() * 9000);
     return `GR-${random}`;
 };
 
-// --- MULTER ---
+// --- CONFIGURACIÓN DE MULTER (IMÁGENES) ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => { cb(null, 'uploads/'); },
   filename: (req, file, cb) => {
@@ -47,9 +45,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- ENDPOINTS API ---
-
-// Subida de imágenes
+// --- ENDPOINTS API: SUBIDA DE ARCHIVOS ---
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const host = req.get('host'); 
@@ -58,29 +54,27 @@ app.post('/api/upload', upload.single('imagen'), (req, res) => {
   res.json({ url: imageUrl });
 });
 
-// Obtener divisas (Aquí estaba el fallo de conexión)
+// --- ENDPOINTS API: CONFIGURACIÓN DE DIVISAS ---
 app.get('/api/configuracion_divisas', (req, res) => {
   db.query('SELECT * FROM configuracion_divisas', (err, results) => {
-    if (err) {
-      console.error("❌ Error en GET divisas:", err.message);
-      return res.status(500).json({ error: err.message });
-    }
+    if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
 });
 
-// Actualizar divisas
 app.put('/api/configuracion_divisas/:tipo', (req, res) => {
   const { tipo } = req.params;
   const { tasa } = req.body;
   const query = 'UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?';
-  db.query(query, [tasa, tipo], (err, result) => {
+  db.query(query, [tasa, tipo], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Tasa actualizada correctamente' });
   });
 });
 
-// Inventario
+// --- ENDPOINTS API: INVENTARIO DE VINILOS (CRUD) ---
+
+// 1. Obtener todos los vinilos
 app.get('/api/vinilos', (req, res) => {
   db.query('SELECT * FROM inventario_vinilos', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -88,9 +82,37 @@ app.get('/api/vinilos', (req, res) => {
   });
 });
 
-// ... (Resto de tus endpoints de vinilos y pedidos se mantienen igual)
+// 2. ACTUALIZAR VINILO (El que te daba error 404)
+app.put('/api/vinilos/:id', (req, res) => {
+  const { id } = req.params;
+  const { titulo, artista, precio_venta, stock_actual, imagen_url } = req.body;
 
-// --- SISTEMA DE PEDIDOS ---
+  // Nota: Si sigue dando 404 con 'id', cambia 'id = ?' por 'id_vinilo = ?'
+  const query = `
+    UPDATE inventario_vinilos 
+    SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ?, imagen_url = ? 
+    WHERE id = ?`; 
+
+  db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Vinilo no encontrado" });
+    }
+    res.json({ message: 'Vinilo actualizado correctamente' });
+  });
+});
+
+// 3. Eliminar vinilo
+app.delete('/api/vinilos/:id', (req, res) => {
+  const { id } = req.params;
+  db.query('DELETE FROM inventario_vinilos WHERE id = ?', [id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Vinilo eliminado correctamente' });
+  });
+});
+
+// --- ENDPOINTS API: SISTEMA DE PEDIDOS ---
+
 app.post('/api/pedidos', (req, res) => {
   const { nombre_cliente, whatsapp_cliente, total_pago, items } = req.body;
   const nroOrden = generarNumeroOrden();
@@ -117,7 +139,7 @@ app.post('/api/pedidos', (req, res) => {
         const promesasStock = items.map(item => {
           return new Promise((resolve, reject) => {
             const queryStock = 'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ?';
-            connection.query(queryStock, [item.cantidad, item.id_vinilo], (err, resStock) => {
+            connection.query(queryStock, [item.cantidad, item.id_vinilo || item.id], (err, resStock) => {
               if (err) reject(err);
               else resolve(resStock);
             });
@@ -146,7 +168,13 @@ app.post('/api/pedidos', (req, res) => {
   });
 });
 
-// Finalizar pedido (Ajuste de id_pedido)
+app.get('/api/pedidos', (req, res) => {
+  db.query('SELECT * FROM pedidos ORDER BY fecha DESC', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
 app.put('/api/pedidos/:id/finalizar', (req, res) => {
   const { id } = req.params;
   const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id_pedido = ?';
@@ -156,6 +184,7 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
   });
 });
 
+// --- MANEJO DE RUTAS DEL FRONTEND (SPA) ---
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
