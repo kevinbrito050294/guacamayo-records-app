@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Catalog } from './components/Catalog';
 import { Cart } from './components/Cart';
 import { AdminPanel } from './components/AdminPanel';
-import { CurrencySelector } from './components/CurrencySelector'; // Importamos el selector
+import { CurrencySelector } from './components/CurrencySelector';
 import { CarritoItem, ViniloCatalogo } from './types/database';
 import { ShoppingCart, Settings, Disc, Moon, Sun } from 'lucide-react';
 import { AdminLogin } from './components/AdminLogin';
@@ -20,11 +20,8 @@ function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
-  
-  // ESTADO DE DIVISA (ARS como moneda principal)
   const [divisa, setDivisa] = useState<Divisa>('ARS');
 
-  // MODO OSCURO PERSISTENTE
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -33,14 +30,12 @@ function App() {
     }
   }, [isDarkMode]);
 
-  // CONFIGURACIÓN DE URL DE API
   const getApiUrl = useCallback(() => {
     return window.location.hostname === 'localhost' 
       ? 'http://localhost:3001' 
       : 'https://guacamayorecords.up.railway.app';
   }, []);
 
-  // CARGA DE DATOS CENTRALIZADA
   const cargarVinilos = useCallback(async () => {
     try {
       setLoading(true);
@@ -96,67 +91,72 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans overflow-x-hidden selection:bg-amber-500/30">
       
-      {/* NAVBAR */}
+      {/* NAVBAR CORREGIDA PARA MÓVIL */}
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 shadow-sm w-full">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-1 md:gap-4">
           
           {/* LOGO */}
           <div 
-            className="flex items-center gap-2 cursor-pointer group active:scale-95 transition-all min-w-0" 
+            className="flex items-center gap-2 cursor-pointer group active:scale-95 transition-all flex-shrink-0" 
             onClick={handleLogoClick}
           >
-            <div className="relative w-10 h-10 flex-shrink-0 overflow-hidden rounded-full border-2 border-slate-100 dark:border-slate-700 shadow-sm group-hover:border-amber-500 transition-colors">
+            <div className="relative w-9 h-9 md:w-10 md:h-10 flex-shrink-0 overflow-hidden rounded-full border-2 border-slate-100 dark:border-slate-700 shadow-sm group-hover:border-amber-500 transition-colors">
               <img 
                 src={logoImg} 
                 alt="Logo Guacamayo" 
                 className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
               />
             </div>
-            <div className="flex flex-col truncate">
-              <span className="text-lg md:text-xl font-black leading-none tracking-tighter text-slate-900 dark:text-white uppercase">
+            {/* Texto del logo: se oculta en pantallas muy pequeñas para evitar solapamiento */}
+            <div className="hidden xs:flex flex-col truncate">
+              <span className="text-sm md:text-xl font-black leading-none tracking-tighter text-slate-900 dark:text-white uppercase">
                 GUACAMAYO
               </span>
-              <span className="text-[9px] font-bold text-amber-500 tracking-widest uppercase">
+              <span className="text-[8px] md:text-[9px] font-bold text-amber-500 tracking-widest uppercase">
                 Records
               </span>
             </div>
           </div>
 
           {/* ACCIONES DE NAVBAR */}
-          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1 md:gap-3 ml-auto flex-shrink-0">
             
-            {/* SELECTOR DE MONEDA CORREGIDO */}
-            <CurrencySelector 
-              divisaActual={divisa} 
-              onDivisaChange={setDivisa} 
-            />
+            {/* SELECTOR DE MONEDA: Con ancho máximo para móvil */}
+            <div className="max-w-[100px] xs:max-w-[130px] sm:max-w-[180px]">
+              <CurrencySelector 
+                divisaActual={divisa} 
+                onDivisaChange={setDivisa} 
+              />
+            </div>
 
-            <button 
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-amber-400 transition-all"
-              title="Cambiar tema"
-            >
-              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+            <div className="flex items-center">
+              <button 
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className="p-1.5 sm:p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-amber-400 transition-all"
+                title="Cambiar tema"
+              >
+                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
 
-            <button 
-              onClick={() => setCurrentPage('cart')} 
-              className="relative p-2 text-slate-500 dark:text-slate-300 hover:text-amber-500 transition-colors"
-            >
-              <ShoppingCart className="w-6 h-6" />
-              {carrito.length > 0 && (
-                <span className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[10px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 animate-in zoom-in">
-                  {carrito.length}
-                </span>
-              )}
-            </button>
+              <button 
+                onClick={() => setCurrentPage('cart')} 
+                className="relative p-1.5 sm:p-2 text-slate-500 dark:text-slate-300 hover:text-amber-500 transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5 sm:w-6 h-6" />
+                {carrito.length > 0 && (
+                  <span className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
+                    {carrito.length}
+                  </span>
+                )}
+              </button>
 
-            <button 
-              onClick={() => setCurrentPage('admin')} 
-              className="p-2 text-slate-500 dark:text-slate-300 hover:text-amber-500 transition-colors"
-            >
-              <Settings className="w-6 h-6" />
-            </button>
+              <button 
+                onClick={() => setCurrentPage('admin')} 
+                className="p-1.5 sm:p-2 text-slate-500 dark:text-slate-300 hover:text-amber-500 transition-colors"
+              >
+                <Settings className="w-5 h-5 sm:w-6 h-6" />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -170,7 +170,6 @@ function App() {
           </div>
         ) : (
           <div className="w-full">
-            {/* PASAMOS LA DIVISA AL CATALOGO */}
             {currentPage === 'catalog' && (
               <Catalog 
                 vinilos={vinilos} 
@@ -179,7 +178,6 @@ function App() {
               />
             )}
             
-            {/* PASAMOS LA DIVISA AL CARRITO */}
             {currentPage === 'cart' && (
               <Cart 
                 items={carrito} 
