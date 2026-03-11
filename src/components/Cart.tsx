@@ -80,7 +80,7 @@ export function Cart({
       const mensajeWA = `¡Hola Guacamayo!\nPedido de ${nombre}:\n${listaVinilos}\nTotal: USD ${totalUsd.toFixed(2)}\nPreferencia: ${divisaPreferida}`;
       
       // Número de contacto de la tienda
-      window.open(`https://wa.me/5491122334455?text=${encodeURIComponent(mensajeWA)}`, '_blank');
+      window.open(`https://wa.me/5491164475028?text=${encodeURIComponent(mensajeWA)}`, '_blank');
 
       onClear();
       onBack();
