@@ -25,7 +25,6 @@ if (!fs.existsSync(uploadDir)) {
 app.use('/uploads', express.static(uploadDir));
 
 // --- SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND (VITE) ---
-// Esta línea le dice al servidor que busque los archivos visuales en 'dist'
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- CONFIGURACIÓN DE BASE DE DATOS ---
@@ -117,9 +116,9 @@ app.post('/api/pedidos', (req, res) => {
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND ---
-// Si alguien entra a cualquier ruta que no sea de la API, le mostramos el index.html
-app.get('*', (req, res) => {
+// --- MANEJO DE RUTAS DEL FRONTEND (CORREGIDO) ---
+// Usamos (.*) en lugar de * para evitar errores en Node v22+
+app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
