@@ -2,7 +2,7 @@ import express from 'express';
 import mysql from 'mysql2';
 import cors from 'cors';
 import multer from 'multer';
-import path from 'multer';
+import path from 'path'; // <--- CORREGIDO: Antes decía 'multer'
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
@@ -12,13 +12,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // --- CONFIGURACIÓN DE SEGURIDAD Y PUERTO ---
-// Railway asigna un puerto dinámico, lo capturamos con process.env.PORT
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
-// Asegurar que la carpeta uploads existe en el servidor
+// Asegurar que la carpeta uploads existe
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
@@ -26,8 +25,8 @@ if (!fs.existsSync(uploadDir)) {
 app.use('/uploads', express.static(uploadDir));
 
 // --- CONFIGURACIÓN DE BASE DE DATOS ---
-// Usamos process.env.MYSQL_URL para no exponer credenciales en el código
-const RAILWAY_DB_URL = process.env.MYSQL_URL || 'mysql://root:sjacAwVjJYQTmZITZhtwJMIqkKkitfOp@yamabiko.proxy.rlwy.net:20556/railway';
+// Railway usará automáticamente la variable que configuramos
+const RAILWAY_DB_URL = process.env.MYSQL_URL;
 
 const db = mysql.createConnection(RAILWAY_DB_URL);
 
@@ -55,8 +54,6 @@ const upload = multer({ storage: storage });
 
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
-  
-  // En Railway, usamos el host dinámico para la URL de la imagen
   const host = req.get('host'); 
   const protocol = req.protocol === 'http' && host.includes('railway') ? 'https' : req.protocol;
   const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
@@ -118,7 +115,6 @@ app.post('/api/pedidos', (req, res) => {
 });
 
 // --- INICIO DEL SERVIDOR ---
-// Importante: Escuchar en 0.0.0.0 para que Railway pueda trackear el tráfico
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor de Guacamayo Records activo en el puerto ${PORT}`);
 });
