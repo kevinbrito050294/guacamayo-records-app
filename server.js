@@ -116,9 +116,10 @@ app.post('/api/pedidos', (req, res) => {
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND (CORREGIDO) ---
-// Usamos (.*) en lugar de * para evitar errores en Node v22+
-app.get('(.*)', (req, res) => {
+// --- MANEJO DE RUTAS DEL FRONTEND (CORREGIDO PARA NODE 22) ---
+// Usamos '*' sin paréntesis. En las versiones nuevas, 
+// si se usan paréntesis deben llevar nombre (ej: :catchAll(.*))
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
