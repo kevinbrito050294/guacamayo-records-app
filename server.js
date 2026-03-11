@@ -16,11 +16,16 @@ const PORT = process.env.PORT || 3001;
 app.use(cors()); 
 app.use(express.json());
 
-// Carpetas de archivos estáticos
-const uploadDir = path.join(__dirname, 'uploads');
+// --- CONFIGURACIÓN DE CARPETA DE SUBIDAS (PERSISTENCIA) ---
+// path.resolve asegura que la ruta sea absoluta y compatible con el volumen de Railway
+const uploadDir = path.resolve(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
+    console.log('📁 Creando carpeta de uploads para almacenamiento persistente...');
+    fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+// Servimos los archivos estáticos
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'dist')));
 
@@ -37,9 +42,12 @@ const generarNumeroOrden = () => {
 
 // --- CONFIGURACIÓN DE MULTER (IMÁGENES) ---
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => { cb(null, 'uploads/'); },
+  destination: (req, file, cb) => { 
+    cb(null, uploadDir); // Usamos la ruta absoluta resuelta arriba
+  },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
+    // Reemplazamos espacios y caracteres raros para evitar errores en URLs de móvil
+    const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
     cb(null, uniqueSuffix);
   }
 });
@@ -48,9 +56,10 @@ const upload = multer({ storage: storage });
 // --- ENDPOINTS API: SUBIDA DE ARCHIVOS ---
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
-  const host = req.get('host'); 
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+  
+  // IMPORTANTE: Devolvemos una ruta relativa. 
+  // Esto evita que se guarde "localhost" o "dominio.com" fijo en la DB.
+  const imageUrl = `/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
 
@@ -74,7 +83,6 @@ app.put('/api/configuracion_divisas/:tipo', (req, res) => {
 
 // --- ENDPOINTS API: INVENTARIO DE VINILOS (CRUD) ---
 
-// 1. Obtener todos los vinilos
 app.get('/api/vinilos', (req, res) => {
   db.query('SELECT * FROM inventario_vinilos', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -82,12 +90,10 @@ app.get('/api/vinilos', (req, res) => {
   });
 });
 
-// 2. ACTUALIZAR VINILO (El que te daba error 404)
 app.put('/api/vinilos/:id', (req, res) => {
   const { id } = req.params;
   const { titulo, artista, precio_venta, stock_actual, imagen_url } = req.body;
 
-  // Nota: Si sigue dando 404 con 'id', cambia 'id = ?' por 'id_vinilo = ?'
   const query = `
     UPDATE inventario_vinilos 
     SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ?, imagen_url = ? 
@@ -102,7 +108,6 @@ app.put('/api/vinilos/:id', (req, res) => {
   });
 });
 
-// 3. Eliminar vinilo
 app.delete('/api/vinilos/:id', (req, res) => {
   const { id } = req.params;
   db.query('DELETE FROM inventario_vinilos WHERE id = ?', [id], (err) => {
