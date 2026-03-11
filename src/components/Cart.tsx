@@ -48,27 +48,25 @@ export function Cart({
     setLoading(true);
     
     try {
-      // 1. DETERMINAR URL DEL BACKEND (Mejorado para Railway)
-      // Si estamos en producción, usamos la misma URL del sitio pero con el puerto del server o la URL de Railway directamente
       const API_BASE_URL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3001' 
-        : window.location.origin.replace('5173', '3001'); // Ajuste dinámico para túneles o producción
+        : window.location.origin.replace(':5173', ':3001');
 
-      // 2. ESTRUCTURA DE DATOS
       const datosPedido = {
         nombre_cliente: nombre,
         whatsapp_cliente: whatsapp,
         total_pago: totalUsd,
         divisa_preferida: divisaPreferida,
         items: items.map(item => ({
-          titulo: item.vinilo.titulo,
-          artista: item.vinilo.artista,
+          vinilo: {
+            titulo: item.vinilo.titulo,
+            artista: item.vinilo.artista
+          },
           cantidad: item.cantidad,
           precio_unitario: item.vinilo.precio_venta
         }))
       };
 
-      // 3. ENVÍO A LA BASE DE DATOS
       const response = await fetch(`${API_BASE_URL}/api/pedidos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,29 +74,37 @@ export function Cart({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error del servidor: ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al procesar el pedido');
       }
 
-      // 4. SI SE GUARDÓ, ENVIAR WHATSAPP
-      const listaVinilos = items.map(i => `- ${i.cantidad}x ${i.vinilo.titulo}`).join('\n');
-      const mensajeWA = `¡Hola Guacamayo!\nPedido de ${nombre}:\n${listaVinilos}\nTotal: USD ${totalUsd.toFixed(2)}\nPreferencia: ${divisaPreferida}`;
+      const data = await response.json();
+
+      // 4. ENVÍO DE WHATSAPP CON NÚMERO DE ORDEN REAL
+      const listaVinilos = items.map(i => `- ${i.cantidad}x *${i.vinilo.titulo}* (${i.vinilo.artista})`).join('\n');
       
-      // Número de contacto de la tienda (Formato limpio)
+      const mensajeWA = `¡Hola Guacamayo Records! 🦜\n\n` +
+        `📦 *PEDIDO REGISTRADO: #${data.numero_orden}*\n` +
+        `👤 Cliente: ${nombre}\n` +
+        `🎸 Discos:\n${listaVinilos}\n\n` +
+        `💰 *TOTAL: USD ${totalUsd.toFixed(2)}*\n` +
+        `💳 Pago preferido: ${divisaPreferida}\n\n` +
+        `¿Me confirman los datos para concretar el pago?`;
+      
       const telTienda = "5491164475028";
       window.open(`https://wa.me/${telTienda}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
 
       onClear();
       onBack();
-      alert("✅ Pedido registrado con éxito.");
+      alert(`✅ ¡Pedido #${data.numero_orden} enviado con éxito!`);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Error en el proceso de pedido:", error);
-      alert("No se pudo registrar el pedido en el panel de control, pero puedes enviarlo por WhatsApp manualmente.");
+      alert("Hubo un problema al registrar el pedido en el sistema, pero puedes enviarlo por WhatsApp igualmente.");
       
-      // Fallback: Si falla la DB, al menos que envíe el WhatsApp para no perder la venta
+      // Fallback sin número de orden si falla el servidor
       const listaVinilos = items.map(i => `- ${i.cantidad}x ${i.vinilo.titulo}`).join('\n');
-      const mensajeWA = `(Error de Registro) ¡Hola Guacamayo!\nPedido de ${nombre}:\n${listaVinilos}\nTotal: USD ${totalUsd.toFixed(2)}`;
+      const mensajeWA = `¡Hola Guacamayo!\nPedido de ${nombre}:\n${listaVinilos}\nTotal: USD ${totalUsd.toFixed(2)}`;
       window.open(`https://wa.me/5491164475028?text=${encodeURIComponent(mensajeWA)}`, '_blank');
     } finally {
       setLoading(false);

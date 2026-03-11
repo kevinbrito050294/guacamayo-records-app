@@ -40,6 +40,12 @@ db.connect(err => {
   console.log('🚀 ¡Guacamayo Records conectado exitosamente a la nube!');
 });
 
+// --- FUNCIÓN AUXILIAR: GENERAR NÚMERO DE ORDEN ---
+const generarNumeroOrden = () => {
+    const random = Math.floor(1000 + Math.random() * 9000);
+    return `GR-${random}`;
+};
+
 // --- MULTER (SUBIDA DE IMÁGENES) ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -107,29 +113,31 @@ app.delete('/api/vinilos/:id', (req, res) => {
   });
 });
 
-// --- SISTEMA DE PEDIDOS CON DESCUENTO DE STOCK ---
+// --- SISTEMA DE PEDIDOS INTEGRADO CON NÚMERO DE ORDEN ---
 
 app.post('/api/pedidos', (req, res) => {
   const { nombre_cliente, whatsapp_cliente, total_pago, items } = req.body;
+  const nroOrden = generarNumeroOrden(); // 1. Generamos el código GR-XXXX
 
-  // Iniciamos transacción para asegurar consistencia
   db.beginTransaction((err) => {
     if (err) return res.status(500).json({ error: 'Error al iniciar transacción' });
 
-    // 1. Guardar el pedido
-    const queryPedido = 'INSERT INTO pedidos (nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, NOW(), "pendiente")';
+    // 2. Insertamos el pedido incluyendo el nuevo campo numero_orden
+    const queryPedido = 'INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, ?, NOW(), "pendiente")';
     
-    db.query(queryPedido, [nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
+    db.query(queryPedido, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
       if (err) {
-        return db.rollback(() => res.status(500).json({ error: 'Error al guardar pedido' }));
+        return db.rollback(() => {
+            console.error("❌ Error al insertar pedido:", err);
+            res.status(500).json({ error: 'Error al guardar pedido en DB' });
+        });
       }
 
-      // 2. Descontar stock para cada vinilo comprado
-      // Creamos un array de promesas para esperar a que todas las actualizaciones terminen
+      // 3. Descontar stock
       const promesasStock = items.map(item => {
         return new Promise((resolve, reject) => {
           const queryStock = 'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE titulo = ? AND artista = ?';
-          db.query(queryStock, [item.cantidad, item.titulo, item.artista], (err, resStock) => {
+          db.query(queryStock, [item.cantidad, item.vinilo.titulo, item.vinilo.artista], (err, resStock) => {
             if (err) reject(err);
             else resolve(resStock);
           });
@@ -138,14 +146,19 @@ app.post('/api/pedidos', (req, res) => {
 
       Promise.all(promesasStock)
         .then(() => {
-          // Si todo salió bien, confirmamos los cambios en la DB
           db.commit((err) => {
             if (err) return db.rollback(() => res.status(500).json({ error: 'Error al confirmar cambios' }));
-            res.json({ message: 'Pedido registrado y stock actualizado con éxito', id: result.insertId });
+            
+            // 4. Devolvemos éxito y el nroOrden para que el frontend dispare el WhatsApp
+            res.json({ 
+                success: true,
+                message: 'Pedido registrado con éxito', 
+                id: result.insertId,
+                numero_orden: nroOrden 
+            });
           });
         })
         .catch(error => {
-          // Si uno falla (ej: el vinilo no existe o error de red), deshacemos todo
           db.rollback(() => {
             console.error("❌ Error actualizando stock:", error);
             res.status(500).json({ error: 'No se pudo actualizar el stock del inventario' });
@@ -164,7 +177,8 @@ app.get('/api/pedidos', (req, res) => {
 
 app.put('/api/pedidos/:id/finalizar', (req, res) => {
   const { id } = req.params;
-  const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id_pedido = ?';
+  // Cambiado id_pedido por id según la estructura habitual de tus tablas, ajusta si es necesario
+  const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id = ?';
   db.query(query, [id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Pedido marcado como finalizado' });

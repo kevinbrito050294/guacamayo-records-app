@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Settings, Plus, Upload, Book, ArrowLeft, List, Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, Clock } from 'lucide-react';
+import { 
+  Settings, Plus, Upload, Book, ArrowLeft, List, 
+  Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
+  Hash, MessageCircle 
+} from 'lucide-react';
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -11,6 +15,7 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
+// --- COMPONENTE PRINCIPAL ---
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [vinilos, setVinilos] = useState<ViniloCatalogo[]>([]);
@@ -98,7 +103,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
           </button>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Panel de Control</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Panel de Control</h1>
         </div>
       </header>
 
@@ -192,6 +197,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
+// --- SUB-COMPONENTE: LISTA DE PEDIDOS ---
 function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,37 +223,50 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold dark:text-white mb-6">Registro de Pedidos</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold dark:text-white uppercase tracking-tight">Registro de Pedidos</h2>
+        <button onClick={fetchOrders} className="text-xs text-amber-500 font-bold hover:underline">REFRESCAR</button>
+      </div>
+
       {orders.length === 0 ? (
         <div className="text-center py-20 text-slate-400">No hay pedidos registrados.</div>
       ) : (
         <div className="grid gap-3">
           {orders.map(order => (
-            <div key={order.id_pedido} className={`p-4 rounded-xl border ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 opacity-60' : 'bg-white dark:bg-slate-800 border-indigo-100 dark:border-indigo-900'}`}>
-              <div className="flex justify-between">
-                <div>
-                  <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
-                  <div className="flex items-center gap-1.5">
+            <div key={order.id} className={`p-4 rounded-xl border transition-all ${order.estado === 'finalizado' ? 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-white dark:bg-slate-800/50 border-amber-500/30 shadow-lg shadow-amber-500/5'}`}>
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-black bg-amber-500 text-slate-950 px-2 py-0.5 rounded flex items-center gap-1">
+                      <Hash size={10} /> {order.numero_orden || 'S/N'}
+                    </span>
+                    <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
                     <p className="text-sm text-slate-500">📱 {order.whatsapp_cliente}</p>
-                    {order.estado !== 'finalizado' && (
-                      <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded">
-                        <Clock size={10} /> ESPERA
-                      </span>
-                    )}
+                    <p className="text-xs text-slate-400 italic">Fecha: {new Date(order.fecha).toLocaleDateString()}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-mono font-bold text-indigo-600 dark:text-amber-500">${order.total_pago}</p>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${order.estado === 'finalizado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <p className="text-xl font-mono font-bold text-amber-500">${order.total_pago}</p>
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
                     {order.estado}
                   </span>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t dark:border-slate-700 flex justify-between items-center">
-                <a href={`https://wa.me/${order.whatsapp_cliente.replace(/\D/g,'')}`} target="_blank" className="text-xs font-bold text-emerald-600">WHATSAPP</a>
+              
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
+                <a 
+                  href={`https://wa.me/${order.whatsapp_cliente.replace(/\D/g,'')}?text=${encodeURIComponent(`Hola ${order.nombre_cliente}, te hablo de Guacamayo Records por tu pedido #${order.numero_orden}`)}`} 
+                  target="_blank" 
+                  className="flex items-center gap-2 text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
+                >
+                  <MessageCircle size={14} /> CONTACTAR WHATSAPP
+                </a>
+                
                 {order.estado !== 'finalizado' && (
-                  <button onClick={() => finalizarPedido(order.id_pedido)} className="flex items-center gap-1 px-3 py-1 bg-emerald-500 text-white rounded text-xs">
-                    <CheckCircle size={14} /> FINALIZAR
+                  <button onClick={() => finalizarPedido(order.id)} className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-xs transition-transform active:scale-95">
+                    <CheckCircle size={14} /> FINALIZAR VENTA
                   </button>
                 )}
               </div>
@@ -259,6 +278,7 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
   );
 }
 
+// --- SUB-COMPONENTE: BOTÓN DE PESTAÑA ---
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
@@ -269,13 +289,17 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
   );
 }
 
+// --- SUB-COMPONENTE: MANUAL DE USUARIO ---
 function UserManual() {
   return (
     <div className="p-4 space-y-4 dark:text-slate-400 text-sm">
       <h3 className="font-bold text-slate-900 dark:text-white">Guía de Pedidos</h3>
-      <p>• Los pedidos aparecen aquí automáticamente al ser confirmados en el carrito.</p>
-      <p>• Usa el botón de WhatsApp para coordinar la entrega directamente con el cliente.</p>
-      <p>• Marca como "Finalizar" solo cuando el pago y la entrega estén completos.</p>
+      <div className="space-y-2">
+        <p className="flex items-center gap-2">• <span className="bg-amber-500/20 text-amber-500 px-1 rounded font-mono">#GR-XXXX</span> Los pedidos aparecen automáticamente con su código único.</p>
+        <p>• Usa el botón de WhatsApp para coordinar la entrega directamente con el cliente.</p>
+        <p>• Marca como "Finalizar Venta" solo cuando el pago y la entrega estén completos.</p>
+        <p>• El stock de los productos se descuenta automáticamente al momento de la compra.</p>
+      </div>
     </div>
   );
 }
