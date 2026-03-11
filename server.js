@@ -116,10 +116,9 @@ app.post('/api/pedidos', (req, res) => {
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND (CORRECCIÓN FINAL PARA NODE 22) ---
-// La sintaxis "/:any*" crea un parámetro con nombre que acepta cualquier ruta.
-// Esto evita el PathError [TypeError]: Missing parameter name.
-app.get('/:any*', (req, res) => {
+// --- MANEJO DE RUTAS DEL FRONTEND (CORRECCIÓN DEFINITIVA PARA NODE 22) ---
+// Usamos una expresión regular para que Express no intente procesar el '*' como parámetro
+app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
