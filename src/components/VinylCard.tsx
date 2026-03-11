@@ -5,10 +5,27 @@ interface VinylCardProps {
   vinilo: ViniloCatalogo;
   precios?: PreciosConvertidos;
   onAdd: () => void;
+  divisaActiva: 'USD' | 'ARS' | 'USDT'; // Agregamos la prop de divisa activa
 }
 
-export function VinylCard({ vinilo, precios, onAdd }: VinylCardProps) {
+export function VinylCard({ vinilo, precios, onAdd, divisaActiva }: VinylCardProps) {
   const sinStock = vinilo.stock_actual === 0;
+
+  // Función para renderizar el precio principal según la divisa seleccionada
+  const renderPrecioPrincipal = () => {
+    if (!precios) return `USD ${Number(vinilo.precio_venta).toFixed(2)}`;
+
+    switch (divisaActiva) {
+      case 'ARS':
+        return precios.ars > 0 
+          ? `$${Math.round(precios.ars).toLocaleString('es-AR')}` 
+          : 'Consultar';
+      case 'USDT':
+        return `${precios.usdt.toFixed(2)} USDT`;
+      default:
+        return `USD ${Number(vinilo.precio_venta).toFixed(2)}`;
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-2xl dark:hover:border-amber-500/30 transition-all duration-300 group">
@@ -21,7 +38,7 @@ export function VinylCard({ vinilo, precios, onAdd }: VinylCardProps) {
           className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${sinStock ? 'grayscale opacity-50' : ''}`}
         />
         
-        {/* BADGE DE CALIDAD / ESTADO */}
+        {/* BADGE DE CALIDAD */}
         <div className={`absolute top-4 right-4 ${sinStock ? 'bg-red-500' : 'bg-slate-900/90 dark:bg-amber-500'} text-white dark:text-slate-950 text-[10px] px-3 py-1 rounded-full font-black backdrop-blur-sm uppercase tracking-wider shadow-lg`}>
           {sinStock ? 'Agotado' : vinilo.calidad || 'Nuevo'}
         </div>
@@ -39,21 +56,24 @@ export function VinylCard({ vinilo, precios, onAdd }: VinylCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
-              Precio Final
+              {divisaActiva === 'ARS' ? 'Precio en Pesos' : 'Precio Final'}
             </span>
             
             {sinStock ? (
-              <p className="text-xl font-bold text-slate-400 dark:text-slate-600 line-through">
-                USD {Number(vinilo.precio_venta).toFixed(2)}
+              <p className="text-xl font-bold text-slate-400 dark:text-slate-600 line-through tracking-tighter">
+                {renderPrecioPrincipal()}
               </p>
             ) : (
               <>
-                <p className="text-2xl font-black text-slate-900 dark:text-amber-500 leading-none transition-colors">
-                  USD {Number(vinilo.precio_venta).toFixed(2)}
+                {/* PRECIO PRINCIPAL (GRANDE) */}
+                <p className="text-2xl font-black text-slate-900 dark:text-amber-500 leading-none transition-colors tracking-tighter">
+                  {renderPrecioPrincipal()}
                 </p>
-                {precios && precios.ars > 0 && (
-                  <p className="text-[13px] text-emerald-600 dark:text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
-                    <span className="opacity-70">≈</span> ARS {Math.round(precios.ars).toLocaleString('es-AR')}
+
+                {/* REFERENCIA EN DÓLARES (PEQUEÑA) */}
+                {divisaActiva !== 'USD' && (
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-bold mt-1.5 flex items-center gap-1 uppercase tracking-tighter">
+                    <span className="opacity-50">Ref:</span> USD {Number(vinilo.precio_venta).toFixed(2)}
                   </p>
                 )}
               </>
@@ -64,7 +84,6 @@ export function VinylCard({ vinilo, precios, onAdd }: VinylCardProps) {
           <button 
             onClick={onAdd}
             disabled={sinStock}
-            title={sinStock ? "Sin stock disponible" : "Agregar al carrito"}
             className={`p-4 rounded-2xl transition-all shadow-lg active:scale-90 flex items-center justify-center
               ${sinStock 
                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none' 

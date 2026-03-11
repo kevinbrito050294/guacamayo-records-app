@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { ConfiguracionDivisa } from '../../types/database';
-import { Save, AlertCircle, Check } from 'lucide-react';
+import { Save, AlertCircle, Check, TrendingUp, Clock } from 'lucide-react';
 
 export function CurrencyManager() {
   const [tasas, setTasas] = useState<ConfiguracionDivisa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Helper para la URL de la API (Local vs Railway)
+  const getApiUrl = () => {
+    return window.location.hostname === 'localhost' 
+      ? 'http://localhost:3001' 
+      : 'https://guacamayorecords.up.railway.app';
+  };
 
   useEffect(() => {
     cargarTasas();
@@ -15,14 +22,14 @@ export function CurrencyManager() {
   async function cargarTasas() {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/configuracion_divisas');
-      if (!response.ok) throw new Error('Error al conectar con MySQL');
+      const response = await fetch(`${getApiUrl()}/api/configuracion_divisas`);
+      if (!response.ok) throw new Error('Error al conectar con el servidor');
       
       const data = await response.json();
       setTasas(data || []);
     } catch (error) {
       console.error('Error loading rates:', error);
-      setMessage({ type: 'error', text: 'Error al cargar las tasas de MySQL' });
+      setMessage({ type: 'error', text: 'Error al cargar las tasas de la base de datos' });
     } finally {
       setLoading(false);
     }
@@ -36,13 +43,13 @@ export function CurrencyManager() {
 
     try {
       setSaving(true);
-      const response = await fetch(`http://localhost:3001/api/configuracion_divisas/${tipo}`, {
+      const response = await fetch(`${getApiUrl()}/api/configuracion_divisas/${tipo}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tasa: nuevaTasa })
       });
 
-      if (!response.ok) throw new Error('No se pudo actualizar en MySQL');
+      if (!response.ok) throw new Error('No se pudo actualizar');
 
       setMessage({ type: 'success', text: `Tasa ${tipo} actualizada correctamente` });
       setTimeout(() => setMessage(null), 3000);
@@ -57,9 +64,9 @@ export function CurrencyManager() {
 
   if (loading) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin text-2xl mb-2">⏳</div>
-        <p>Cargando tasas de cambio...</p>
+      <div className="flex flex-col items-center justify-center py-20 dark:text-slate-400">
+        <div className="animate-spin text-3xl mb-4">💿</div>
+        <p className="font-mono text-xs tracking-widest uppercase">Consultando tipos de cambio...</p>
       </div>
     );
   }
@@ -70,68 +77,83 @@ export function CurrencyManager() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-bold text-slate-900 mb-6">Gestor de Tasas de Cambio (MySQL)</h2>
+    <div className="space-y-6">
+      {/* Encabezado Estilizado */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-amber-500 rounded-lg text-slate-950">
+          <TrendingUp size={20} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold dark:text-white uppercase tracking-tight">Gestor de Divisas</h2>
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Cotizaciones en tiempo real</p>
+        </div>
+      </div>
 
       {message && (
         <div
-          className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
+          className={`p-4 rounded-xl flex items-center gap-3 transition-all animate-in slide-in-from-top-2 ${
             message.type === 'success'
-              ? 'bg-green-50 text-green-700 border border-green-200'
-              : 'bg-red-50 text-red-700 border border-red-200'
+              ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20'
+              : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20'
           }`}
         >
-          {message.type === 'success' ? (
-            <Check className="w-5 h-5" />
-          ) : (
-            <AlertCircle className="w-5 h-5" />
-          )}
-          {message.text}
+          {message.type === 'success' ? <Check className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <span className="text-sm font-medium">{message.text}</span>
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
         {tasas.map((tasa) => (
           <div
             key={tasa.id}
-            className="border border-slate-200 rounded-lg p-4 flex items-end gap-4"
+            className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all"
           >
-            <div className="flex-grow">
-              <label className="block text-sm font-semibold text-slate-900 mb-2">
-                {etiquetas[tasa.tipo]}
+            <div className="mb-4">
+              <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">
+                {etiquetas[tasa.tipo] || tasa.tipo}
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={tasa.tasa}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setTasas(prev => prev.map(t => 
-                    t.id === tasa.id ? { ...t, tasa: isNaN(val) ? 0 : val } : t
-                  ));
-                }}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Última actualización: {new Date(tasa.ultima_actualizacion).toLocaleString('es-AR')}
-              </p>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={tasa.tasa}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setTasas(prev => prev.map(t => 
+                      t.id === tasa.id ? { ...t, tasa: isNaN(val) ? 0 : val } : t
+                    ));
+                  }}
+                  className="w-full pl-7 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white font-mono text-lg transition-all"
+                />
+              </div>
             </div>
-            <button
-              onClick={() => handleSaveTasa(tasa.tipo, tasa.tasa)}
-              disabled={saving}
-              className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? '...' : 'Guardar'}
-            </button>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <Clock size={12} />
+                <span className="text-[10px] uppercase font-medium">
+                  {new Date(tasa.ultima_actualizacion).toLocaleDateString('es-AR')}
+                </span>
+              </div>
+              
+              <button
+                onClick={() => handleSaveTasa(tasa.tipo, tasa.tasa)}
+                disabled={saving}
+                className="bg-slate-900 dark:bg-amber-500 hover:bg-slate-800 dark:hover:bg-amber-600 disabled:opacity-50 text-white dark:text-slate-950 px-5 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition-all active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? '...' : 'ACTUALIZAR'}
+              </button>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>💡 Tip:</strong> Los precios en el catálogo se actualizan automáticamente al cambiar estas tasas.
+      <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+        <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
+          <strong>💡 Nota Importante:</strong> Al modificar estos valores, el precio de todos los vinilos en el catálogo (que están en USD) se recalculará instantáneamente a Pesos Argentinos para los clientes.
         </p>
       </div>
     </div>

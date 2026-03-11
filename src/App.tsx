@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Catalog } from './components/Catalog';
 import { Cart } from './components/Cart';
 import { AdminPanel } from './components/AdminPanel';
+import { CurrencySelector } from './components/CurrencySelector'; // Importamos el selector
 import { CarritoItem, ViniloCatalogo } from './types/database';
 import { ShoppingCart, Settings, Disc, Moon, Sun } from 'lucide-react';
 import { AdminLogin } from './components/AdminLogin';
@@ -9,6 +10,7 @@ import { AdminLogin } from './components/AdminLogin';
 import logoImg from './assets/logo.png';
 
 type Page = 'catalog' | 'cart' | 'admin';
+type Divisa = 'USD' | 'ARS' | 'USDT';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('catalog');
@@ -18,6 +20,9 @@ function App() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // ESTADO DE DIVISA (ARS como moneda principal)
+  const [divisa, setDivisa] = useState<Divisa>('ARS');
 
   // MODO OSCURO PERSISTENTE
   useEffect(() => {
@@ -117,8 +122,15 @@ function App() {
             </div>
           </div>
 
-          {/* ACCIONES */}
+          {/* ACCIONES DE NAVBAR */}
           <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+            
+            {/* SELECTOR DE MONEDA CORREGIDO */}
+            <CurrencySelector 
+              divisaActual={divisa} 
+              onDivisaChange={setDivisa} 
+            />
+
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-amber-400 transition-all"
@@ -158,10 +170,16 @@ function App() {
           </div>
         ) : (
           <div className="w-full">
+            {/* PASAMOS LA DIVISA AL CATALOGO */}
             {currentPage === 'catalog' && (
-              <Catalog vinilos={vinilos} onAddToCart={handleAddToCart} />
+              <Catalog 
+                vinilos={vinilos} 
+                onAddToCart={handleAddToCart} 
+                divisaActiva={divisa} 
+              />
             )}
             
+            {/* PASAMOS LA DIVISA AL CARRITO */}
             {currentPage === 'cart' && (
               <Cart 
                 items={carrito} 
@@ -169,7 +187,7 @@ function App() {
                 onUpdateCantidad={handleUpdateCantidad}
                 onBack={() => setCurrentPage('catalog')}
                 onClear={() => setCarrito([])}
-                divisaPreferida="ARS"
+                divisaPreferida={divisa}
               />
             )}
 
@@ -188,7 +206,6 @@ function App() {
         )}
       </main>
 
-      {/* FOOTER SIMPLE */}
       <footer className="py-8 text-center border-t border-slate-200 dark:border-slate-900 mt-20">
         <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em]">
           Guacamayo Records &copy; 2026 | Vinilos y Cultura
