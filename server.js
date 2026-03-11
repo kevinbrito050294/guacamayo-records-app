@@ -116,10 +116,10 @@ app.post('/api/pedidos', (req, res) => {
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND (CORREGIDO PARA NODE 22) ---
-// Usamos '*' sin paréntesis. En las versiones nuevas, 
-// si se usan paréntesis deben llevar nombre (ej: :catchAll(.*))
-app.get('*', (req, res) => {
+// --- MANEJO DE RUTAS DEL FRONTEND (CORRECCIÓN FINAL PARA NODE 22) ---
+// La sintaxis "/:any*" crea un parámetro con nombre que acepta cualquier ruta.
+// Esto evita el PathError [TypeError]: Missing parameter name.
+app.get('/:any*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
