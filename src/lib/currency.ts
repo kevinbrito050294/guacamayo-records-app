@@ -3,6 +3,11 @@ import { ConfiguracionDivisa, PreciosConvertidos } from '../types/database';
 let tasasCache: { [key: string]: number } = {};
 let lastFetch = 0;
 
+// Determinamos la URL base dinámicamente
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001' 
+  : 'https://guacamayorecords.up.railway.app';
+
 // Consultamos a nuestro propio servidor Node.js (MySQL)
 async function obtenerTasas() {
   const ahora = Date.now();
@@ -13,7 +18,9 @@ async function obtenerTasas() {
   }
 
   try {
-    const response = await fetch('http://localhost:3001/api/configuracion_divisas');
+    // Usamos la URL dinámica aquí
+    const response = await fetch(`${API_BASE_URL}/api/configuracion_divisas`);
+    
     if (!response.ok) throw new Error('No se pudo conectar con el servidor de tasas');
     
     const data: ConfiguracionDivisa[] = await response.json();
@@ -27,29 +34,32 @@ async function obtenerTasas() {
     lastFetch = ahora;
     return tasasCache;
   } catch (error) {
-    console.error('Error fetching exchange rates from MySQL:', error);
-    // Si falla la red, devolvemos valores por defecto para que la app no rompa
-    return { 'DOLAR_BLUE': tasasCache['DOLAR_BLUE'] || 1200, 'USDT': tasasCache['USDT'] || 1150 };
+    console.error('⚠️ Error fetching exchange rates:', error);
+    
+    // Fallback inteligente: si falla, intenta usar la caché vieja o valores seguros
+    return { 
+      'DOLAR_BLUE': tasasCache['DOLAR_BLUE'] || 1250, 
+      'USDT': tasasCache['USDT'] || 1200 
+    };
   }
 }
 
 export async function convertirPrecio(precioUSD: number): Promise<PreciosConvertidos> {
   const tasas = await obtenerTasas();
   
-  // Obtenemos los valores de las tasas (asegurándonos de que existan)
-  const blue = tasas['DOLAR_BLUE'] || 1200;
-  const usdt = tasas['USDT'] || 1150;
+  const blue = tasas['DOLAR_BLUE'] || 1250;
+  const usdt = tasas['USDT'] || 1200;
 
   return {
     usd: Math.round(precioUSD * 100) / 100,
     ars: Math.round(precioUSD * blue * 100) / 100,
-    usdt: Math.round((precioUSD * blue / usdt) * 10000) / 10000,
+    // Cálculo de USDT: Precio USD original ajustado a la tasa USDT
+    usdt: Math.round((precioUSD * (blue / usdt)) * 10000) / 10000,
   };
 }
 
-// Esta función ahora también usa FETCH para actualizar MySQL
 export async function actualizarTasa(tipo: 'DOLAR_BLUE' | 'USDT', nuevaTasa: number) {
-  const response = await fetch(`http://localhost:3001/api/configuracion_divisas/${tipo}`, {
+  const response = await fetch(`${API_BASE_URL}/api/configuracion_divisas/${tipo}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tasa: nuevaTasa })
@@ -59,18 +69,25 @@ export async function actualizarTasa(tipo: 'DOLAR_BLUE' | 'USDT', nuevaTasa: num
     throw new Error('Error al actualizar la tasa en MySQL');
   }
 
-  // Limpiamos la caché para que la próxima consulta traiga el valor nuevo
   lastFetch = 0;
   tasasCache = {}; 
   return obtenerTasas();
 }
 
 export function formatearPrecio(precio: number, divisa: 'USD' | 'ARS' | 'USDT' = 'ARS'): string {
-  const config = new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: divisa === 'ARS' ? 'ARS' : 'USD',
-    minimumFractionDigits: divisa === 'USDT' ? 4 : 2,
-  });
+  // Configuración especial para que el peso argentino se vea natural
+  if (divisa === 'ARS') {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0, // Los pesos solemos verlos sin centavos hoy en día
+      maximumFractionDigits: 0,
+    }).format(precio);
+  }
 
-  return config.format(precio);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: divisa === 'USDT' ? 4 : 2,
+  }).format(precio).replace('$', divisa === 'USDT' ? '₮ ' : '$ ');
 }
