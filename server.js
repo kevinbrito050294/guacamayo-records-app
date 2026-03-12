@@ -16,16 +16,20 @@ const PORT = process.env.PORT || 3001;
 app.use(cors()); 
 app.use(express.json());
 
-// --- CONFIGURACIÓN DE CARPETA DE SUBIDAS (PERSISTENCIA) ---
-// path.resolve asegura que la ruta sea absoluta y compatible con el volumen de Railway
-const uploadDir = path.resolve(__dirname, 'uploads');
+// --- LÓGICA DE CONTROL DE SESIÓN ÚNICA ---
+// Esta variable vive en la memoria del servidor
+let activeAdminSession = {
+    isLocked: false,
+    lastActivity: null
+};
 
+// --- CONFIGURACIÓN DE CARPETA DE SUBIDAS (PERSISTENCIA) ---
+const uploadDir = path.resolve(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     console.log('📁 Creando carpeta de uploads para almacenamiento persistente...');
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Servimos los archivos estáticos
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'dist')));
 
@@ -42,23 +46,61 @@ const generarNumeroOrden = () => {
 
 // --- CONFIGURACIÓN DE MULTER (IMÁGENES) ---
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => { 
-    cb(null, uploadDir); // Usamos la ruta absoluta resuelta arriba
-  },
+  destination: (req, file, cb) => { cb(null, uploadDir); },
   filename: (req, file, cb) => {
-    // Reemplazamos espacios y caracteres raros para evitar errores en URLs de móvil
     const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
     cb(null, uniqueSuffix);
   }
 });
 const upload = multer({ storage: storage });
 
+// --- ENDPOINTS DE ADMINISTRACIÓN (SESIÓN Y BLOQUEO) ---
+
+// 1. Intento de Login con validación de bloqueo
+app.post('/api/admin/login-check', (req, res) => {
+    const { password } = req.body;
+    const now = Date.now();
+
+    // Si pasaron más de 15 min desde la última actividad, liberamos el panel automáticamente
+    if (activeAdminSession.isLocked && (now - activeAdminSession.lastActivity > 15 * 60 * 1000)) {
+        activeAdminSession.isLocked = false;
+    }
+
+    if (password === 'CONCHILIS2026') {
+        if (!activeAdminSession.isLocked) {
+            activeAdminSession.isLocked = true;
+            activeAdminSession.lastActivity = now;
+            res.json({ success: true });
+        } else {
+            // Código 423: Locked (Bloqueado)
+            res.status(423).json({ error: 'Panel ocupado. Solo un administrador puede editar a la vez.' });
+        }
+    } else {
+        res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+});
+
+// 2. Heartbeat: El frontend avisa que el usuario sigue activo
+app.post('/api/admin/heartbeat', (req, res) => {
+    if (activeAdminSession.isLocked) {
+        activeAdminSession.lastActivity = Date.now();
+        res.json({ status: 'mantenido' });
+    } else {
+        res.status(401).json({ error: 'Sesión no activa' });
+    }
+});
+
+// 3. Logout Manual: Libera el panel inmediatamente
+app.post('/api/admin/logout', (req, res) => {
+    activeAdminSession.isLocked = false;
+    activeAdminSession.lastActivity = null;
+    console.log('🔓 Panel de administración liberado manualmente.');
+    res.json({ message: 'Panel liberado correctamente' });
+});
+
 // --- ENDPOINTS API: SUBIDA DE ARCHIVOS ---
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
-  
-  // IMPORTANTE: Devolvemos una ruta relativa. 
-  // Esto evita que se guarde "localhost" o "dominio.com" fijo en la DB.
   const imageUrl = `/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
@@ -93,17 +135,10 @@ app.get('/api/vinilos', (req, res) => {
 app.put('/api/vinilos/:id', (req, res) => {
   const { id } = req.params;
   const { titulo, artista, precio_venta, stock_actual, imagen_url } = req.body;
-
-  const query = `
-    UPDATE inventario_vinilos 
-    SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ?, imagen_url = ? 
-    WHERE id = ?`; 
-
+  const query = `UPDATE inventario_vinilos SET titulo = ?, artista = ?, precio_venta = ?, stock_actual = ?, imagen_url = ? WHERE id = ?`; 
   db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, id], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (result.affectedRows === 0) {
-        return res.status(404).json({ message: "Vinilo no encontrado" });
-    }
+    if (result.affectedRows === 0) return res.status(404).json({ message: "Vinilo no encontrado" });
     res.json({ message: 'Vinilo actualizado correctamente' });
   });
 });
@@ -124,50 +159,31 @@ app.post('/api/pedidos', (req, res) => {
 
   db.getConnection((err, connection) => {
     if (err) return res.status(500).json({ error: 'Error de conexión' });
-
     connection.beginTransaction((err) => {
-      if (err) {
-        connection.release();
-        return res.status(500).json({ error: 'Error al iniciar transacción' });
-      }
+      if (err) { connection.release(); return res.status(500).json({ error: 'Error al iniciar' }); }
 
       const queryPedido = 'INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, ?, NOW(), "pendiente")';
-      
       connection.query(queryPedido, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
-        if (err) {
-          return connection.rollback(() => {
-              connection.release();
-              res.status(500).json({ error: 'Error al guardar pedido' });
-          });
-        }
+        if (err) return connection.rollback(() => { connection.release(); res.status(500).json({ error: 'Error' }); });
 
         const promesasStock = items.map(item => {
           return new Promise((resolve, reject) => {
             const queryStock = 'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ?';
             connection.query(queryStock, [item.cantidad, item.id_vinilo || item.id], (err, resStock) => {
-              if (err) reject(err);
-              else resolve(resStock);
+              if (err) reject(err); else resolve(resStock);
             });
           });
         });
 
-        Promise.all(promesasStock)
-          .then(() => {
-            connection.commit((err) => {
-              if (err) return connection.rollback(() => {
-                connection.release();
-                res.status(500).json({ error: 'Error al confirmar' });
-              });
-              connection.release();
-              res.json({ success: true, message: 'Pedido registrado', id: result.insertId, numero_orden: nroOrden });
-            });
-          })
-          .catch(error => {
-            connection.rollback(() => {
-              connection.release();
-              res.status(500).json({ error: 'No se pudo actualizar el stock' });
-            });
+        Promise.all(promesasStock).then(() => {
+          connection.commit((err) => {
+            if (err) return connection.rollback(() => { connection.release(); res.status(500).json({ error: 'Error' }); });
+            connection.release();
+            res.json({ success: true, message: 'Pedido registrado', id: result.insertId, numero_orden: nroOrden });
           });
+        }).catch(() => {
+          connection.rollback(() => { connection.release(); res.status(500).json({ error: 'Error stock' }); });
+        });
       });
     });
   });
@@ -183,7 +199,7 @@ app.get('/api/pedidos', (req, res) => {
 app.put('/api/pedidos/:id/finalizar', (req, res) => {
   const { id } = req.params;
   const query = 'UPDATE pedidos SET estado = "finalizado" WHERE id_pedido = ?';
-  db.query(query, [id], (err, result) => {
+  db.query(query, [id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Pedido finalizado' });
   });
