@@ -2,17 +2,16 @@ import { useState, useEffect } from 'react';
 import { ConfiguracionDivisa } from '../../types/database';
 import { Save, AlertCircle, Check, TrendingUp, Clock } from 'lucide-react';
 
-export function CurrencyManager() {
+// Definimos qué props recibe el componente para que TypeScript no se queje
+interface CurrencyManagerProps {
+  getApiUrl: () => string;
+}
+
+export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
   const [tasas, setTasas] = useState<ConfiguracionDivisa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const getApiUrl = () => {
-    return window.location.hostname === 'localhost' 
-      ? 'http://localhost:3001' 
-      : 'https://guacamayorecords.up.railway.app';
-  };
 
   useEffect(() => {
     cargarTasas();
@@ -27,17 +26,16 @@ export function CurrencyManager() {
       
       const data = await response.json();
 
-      // PROTECCIÓN: Verificamos que 'data' sea realmente un Array antes de setearlo
       if (Array.isArray(data)) {
         setTasas(data);
       } else {
         console.error('La API no devolvió un array:', data);
-        setTasas([]); // Seteamos array vacío para que .map no falle
+        setTasas([]);
         setMessage({ type: 'error', text: 'El servidor respondió con un formato inesperado' });
       }
     } catch (error) {
       console.error('Error loading rates:', error);
-      setTasas([]); // Evita que la interfaz se rompa
+      setTasas([]);
       setMessage({ type: 'error', text: 'Error al cargar las tasas de la base de datos' });
     } finally {
       setLoading(false);
@@ -111,7 +109,6 @@ export function CurrencyManager() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Usamos safe navigation o un array vacío por si acaso */}
         {(tasas || []).map((tasa) => (
           <div
             key={tasa.id}
@@ -168,7 +165,7 @@ export function CurrencyManager() {
 
       <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
         <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
-          <strong>💡 Nota Importante:</strong> Al modificar estos valores, el precio de todos los vinilos en el catálogo (que están en USD) se recalculará instantáneamente a Pesos Argentinos para los clientes.
+          <strong>💡 Nota Importante:</strong> Al modificar estos valores, el precio de todos los vinilos en el catálogo se recalculará automáticamente.
         </p>
       </div>
     </div>

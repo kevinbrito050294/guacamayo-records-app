@@ -313,7 +313,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           {activeTab === 'coupons' && <CouponManager getApiUrl={getApiUrl} />}
           {activeTab === 'form' && <VinylForm onSuccess={cargarVinilos} />}
           {activeTab === 'bulk' && <BulkImporter />}
-          {activeTab === 'currency' && <CurrencyManager />}
+          {activeTab === 'currency' && <CurrencyManager getApiUrl={getApiUrl} />}
           {activeTab === 'manual' && <UserManual />}
         </div>
       </main>
