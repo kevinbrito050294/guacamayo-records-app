@@ -4,6 +4,9 @@ import {
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
   Hash, MessageCircle, Layers, Disc, Star, Clock, History, Search, Download, Ticket
 } from 'lucide-react';
+
+// Si tienes estos componentes en archivos separados, mantén los imports. 
+// Si no, deberás integrarlos también aquí abajo.
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -53,21 +56,30 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    
     const formData = new FormData();
     Array.from(files).forEach(file => { formData.append('imagenes', file); });
 
     try {
       setSubiendo(true);
-      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { method: 'POST', body: formData });
+      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { 
+        method: 'POST', 
+        body: formData 
+      });
+
       if (!res.ok) throw new Error("Error en la subida");
-      const data = await res.json();
+      
+      const data = await res.json(); 
+      const nuevasFotos = Array.isArray(data.urls) ? data.urls : [];
+      
       const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
-      const nuevasFotos = data.url.split(',');
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
+      
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
-      alert(`✅ Imágenes añadidas`);
+      alert(`✅ ${nuevasFotos.length} imágenes añadidas correctamente`);
     } catch (error) {
-      alert("❌ Error al subir");
+      console.error("Error subiendo:", error);
+      alert("❌ Error al subir imagen");
     } finally {
       setSubiendo(false);
     }
@@ -117,6 +129,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     } catch (error) { alert("❌ Error al eliminar"); }
   };
 
+  const renderImage = (url: string | undefined) => {
+    if (!url) return '';
+    return url.startsWith('http') ? url : `${getApiUrl()}${url}`;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
       <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-40 border-b dark:border-slate-800">
@@ -129,6 +146,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* NAVEGACIÓN DE TABS */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
@@ -200,7 +218,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                   <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                                     {formEdit.imagen_url?.split(',').filter(u => u !== '').map((url, idx) => (
                                       <div key={idx} className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${idx === 0 ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-transparent'}`}>
-                                        <img src={url} className="w-full h-full object-cover" alt="Preview" />
+                                        <img src={renderImage(url)} className="w-full h-full object-cover" alt="Preview" />
                                         <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                           {idx !== 0 && <button onClick={() => hacerPrincipal(idx)} className="p-1.5 bg-amber-500 text-slate-950 rounded-lg"><Star size={14}/></button>}
                                           <button onClick={() => eliminarFoto(idx)} className="p-1.5 bg-red-500 text-white rounded-lg"><Trash2 size={14}/></button>
@@ -221,7 +239,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                               <td className="py-4 px-2">
                                 <div className="flex items-center gap-3">
                                   <div className="relative">
-                                    <img src={v.imagen_url?.split(',')[0] || ''} className="w-14 h-14 rounded-xl object-cover shadow-md" alt={v.titulo} />
+                                    <img src={renderImage(v.imagen_url?.split(',')[0])} className="w-14 h-14 rounded-xl object-cover shadow-md" alt={v.titulo} />
                                     {v.imagen_url && v.imagen_url.split(',').length > 1 && (
                                       <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[8px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
                                         <Layers size={10} />
@@ -380,7 +398,7 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
       let detalleProductos = "";
       try {
         const itemsObj = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-        detalleProductos = Array.isArray(itemsObj) ? itemsObj.map(i => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
+        detalleProductos = Array.isArray(itemsObj) ? itemsObj.map((i: any) => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
       } catch (e) { detalleProductos = "Error formato"; }
 
       return [
