@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck
+  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut
 } from 'lucide-react';
 
 // Componentes administrativos
@@ -25,6 +25,30 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [formEdit, setFormEdit] = useState<Partial<ViniloCatalogo>>({});
   const [subiendo, setSubiendo] = useState(false);
   const [busquedaInv, setBusquedaInv] = useState('');
+  
+  // --- LÓGICA DE INACTIVIDAD (15 MINUTOS) ---
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetTimer = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      alert("Sesión finalizada por inactividad (15 min)");
+      onBack(); // Cierra el panel
+    }, 15 * 60 * 1000); // 15 minutos
+  };
+
+  useEffect(() => {
+    // Eventos que resetean el contador
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+    resetTimer();
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+    };
+  }, []);
+  // ------------------------------------------
 
   const getApiUrl = () => {
     return window.location.hostname === 'localhost' 
@@ -107,7 +131,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         stock_actual: Number(formEdit.stock_actual || 0),
         imagen_url: formEdit.imagen_url || '',
         genero: formEdit.genero || '',
-        calidad: formEdit.calidad // INTEGRADO AQUÍ
+        calidad: formEdit.calidad
       };
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, {
         method: 'PUT',
@@ -138,11 +162,22 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
       <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-40 border-b dark:border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-            <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+              <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
+            </button>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Panel de Control</h1>
+          </div>
+          
+          {/* BOTÓN CERRAR SESIÓN RESTAURADO */}
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-lg shadow-red-500/20"
+          >
+            <LogOut size={16} />
+            Finalizar Sesión
           </button>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Panel de Control</h1>
         </div>
       </header>
 
@@ -201,7 +236,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     </div>
                                   </div>
                                   
-                                  {/* SECCIÓN CORREGIDA CON CALIDAD */}
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
@@ -220,7 +254,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       >
                                         <option value="M">M</option>
                                         <option value="NM">NM</option>
-                                        <option value="EX">EX (Excellent)</option>
+                                        <option value="EX">EX</option>
                                         <option value="VG+">VG+</option>
                                         <option value="VG">VG</option>
                                         <option value="G">G</option>
@@ -313,6 +347,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
+// ... (El resto de sub-componentes TabButton, CouponManager, OrdersList y UserManual se mantienen igual)
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
@@ -323,7 +358,6 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
   );
 }
 
-// ... (Sub-componentes CouponManager, OrdersList y UserManual se mantienen iguales)
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   const [cupones, setCupones] = useState<any[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
