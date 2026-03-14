@@ -5,7 +5,7 @@ import {
   Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck
 } from 'lucide-react';
 
-// Si estos componentes están en la carpeta admin, los mantenemos
+// Componentes administrativos
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -107,7 +107,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         stock_actual: Number(formEdit.stock_actual || 0),
         imagen_url: formEdit.imagen_url || '',
         genero: formEdit.genero || '',
-        calidad: formEdit.calidad as any
+        calidad: formEdit.calidad // INTEGRADO AQUÍ
       };
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, {
         method: 'PUT',
@@ -176,7 +176,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                   <thead>
                     <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-black">
                       <th className="pb-4 px-2">Producto / Galería</th>
-                      <th className="pb-4 px-2 text-center">Precio/Stock</th>
+                      <th className="pb-4 px-2 text-center">Precio/Stock/Calidad</th>
                       <th className="pb-4 px-2 text-right">Acciones</th>
                     </tr>
                   </thead>
@@ -200,16 +200,33 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
                                     </div>
                                   </div>
+                                  
+                                  {/* SECCIÓN CORREGIDA CON CALIDAD */}
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
-                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
+                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
                                     </div>
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Stock</label>
-                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
+                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="flex-1">
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Calidad</label>
+                                      <select 
+                                        className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold text-amber-500"
+                                        value={formEdit.calidad || ''}
+                                        onChange={e => setFormEdit({...formEdit, calidad: e.target.value as any})}
+                                      >
+                                        <option value="M">M</option>
+                                        <option value="NM">NM</option>
+                                        <option value="VG+">VG+</option>
+                                        <option value="VG">VG</option>
+                                        <option value="G">G</option>
+                                      </select>
                                     </div>
                                   </div>
+
                                   <div className="flex gap-2 pt-4">
                                     <button onClick={() => handleSave(v.id)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><Save size={16}/> GUARDAR</button>
                                     <button onClick={() => setEditandoId(null)} className="px-4 bg-slate-300 dark:bg-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter"><X size={16}/></button>
@@ -305,6 +322,7 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
   );
 }
 
+// ... (Sub-componentes CouponManager, OrdersList y UserManual se mantienen iguales)
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   const [cupones, setCupones] = useState<any[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
