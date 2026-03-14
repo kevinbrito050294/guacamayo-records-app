@@ -216,6 +216,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                         <option value="">Seleccionar...</option>
                                         <option value="Mint">Mint (M)</option>
                                         <option value="Near Mint">Near Mint (NM)</option>
+                                        <option value="Excellent">Excellent (EX)</option>
                                         <option value="Very Good Plus">Very Good Plus (VG+)</option>
                                         <option value="Very Good">Very Good (VG)</option>
                                         <option value="Good">Good (G)</option>
