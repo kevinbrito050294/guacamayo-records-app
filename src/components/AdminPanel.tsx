@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc
+  Hash, MessageCircle, Layers, Disc, Star
 } from 'lucide-react';
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
@@ -44,6 +44,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   useEffect(() => { cargarVinilos(); }, []);
 
+  // --- GESTIÓN DE IMÁGENES ---
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -63,13 +64,33 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       if (!res.ok) throw new Error("Error en la subida");
       
       const data = await res.json();
-      setFormEdit(prev => ({ ...prev, imagen_url: data.url }));
-      alert(`✅ ${files.length} imágenes listas para guardar`);
+      
+      // Combinar las fotos nuevas con las que ya estaban en el formulario
+      const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
+      const nuevasFotos = data.url.split(',');
+      const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
+      
+      setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
+      alert(`✅ Imágenes añadidas a la galería`);
     } catch (error) {
       alert("❌ Error al subir imágenes");
     } finally {
       setSubiendo(false);
     }
+  };
+
+  const hacerPrincipal = (index: number) => {
+    const fotos = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
+    const nuevas = [...fotos];
+    const [fotoSeleccionada] = nuevas.splice(index, 1);
+    nuevas.unshift(fotoSeleccionada); // Mover al principio
+    setFormEdit({ ...formEdit, imagen_url: nuevas.join(',') });
+  };
+
+  const eliminarFoto = (index: number) => {
+    const fotos = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
+    const nuevas = fotos.filter((_, i) => i !== index);
+    setFormEdit({ ...formEdit, imagen_url: nuevas.join(',') });
   };
 
   const handleSave = async (id: string) => {
@@ -89,7 +110,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       if (res.ok) {
         setVinilos(vinilos.map(v => v.id === id ? { ...v, ...payload } as ViniloCatalogo : v));
         setEditandoId(null);
-        alert("✅ Cambios guardados");
+        alert("✅ Cambios guardados en Guacamayo Records");
       }
     } catch (error) { alert("❌ Error de conexión"); }
   };
@@ -109,7 +130,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
           </button>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Panel de Control</h1>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Panel de Control</h1>
         </div>
       </header>
 
@@ -129,7 +150,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
               <table className="w-full text-left border-separate border-spacing-y-2">
                 <thead>
                   <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-black">
-                    <th className="pb-4 px-2">Producto</th>
+                    <th className="pb-4 px-2">Producto / Galería</th>
                     <th className="pb-4 px-2 text-center">Precio/Stock</th>
                     <th className="pb-4 px-2 text-right">Acciones</th>
                   </tr>
@@ -138,30 +159,67 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                   {loading ? (
                     <tr><td colSpan={3} className="text-center py-20 opacity-50"><Disc className="animate-spin mx-auto mb-2 text-amber-500" /> CARGANDO...</td></tr>
                   ) : vinilos.map((v) => (
-                    <tr key={v.id} className="bg-white dark:bg-slate-800/40 border-y dark:border-slate-800 group">
+                    <tr key={v.id} className="bg-white dark:bg-slate-800/40 border-y dark:border-slate-800 group align-top">
                       {editandoId === v.id ? (
-                        <>
-                          <td className="py-4 px-2">
-                            <div className="flex flex-col gap-2">
-                              <input className="font-bold border rounded p-1 dark:bg-slate-900 dark:text-white" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
-                              <input className="text-xs border rounded p-1 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
-                              <label className="text-[10px] bg-amber-500 text-slate-950 p-2 rounded cursor-pointer text-center font-black flex items-center justify-center gap-1 hover:bg-amber-400 transition-colors">
-                                <Upload size={12} /> {subiendo ? 'SUBIENDO...' : 'SUBIR FOTOS (MÚLTIPLE)'}
-                                <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
-                              </label>
+                        <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {/* Inputs de Texto */}
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
+                                <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
+                                <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
+                              </div>
+                              <div className="flex gap-4">
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
+                                  <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
+                                </div>
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Stock</label>
+                                  <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-4">
+                                <button onClick={() => handleSave(v.id)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><Save size={16}/> GUARDAR</button>
+                                <button onClick={() => setEditandoId(null)} className="px-4 bg-slate-300 dark:bg-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter"><X size={16}/></button>
+                              </div>
                             </div>
-                          </td>
-                          <td className="text-center">
-                            <input type="number" className="w-20 border rounded p-1 dark:bg-slate-900 mb-1" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
-                            <input type="number" className="w-20 border rounded p-1 dark:bg-slate-900" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
-                          </td>
-                          <td className="text-right px-2">
-                            <div className="flex gap-2 justify-end">
-                              <button onClick={() => handleSave(v.id)} className="p-2 bg-emerald-500 text-white rounded-lg"><Save size={18}/></button>
-                              <button onClick={() => setEditandoId(null)} className="p-2 bg-slate-200 dark:bg-slate-700 rounded-lg"><X size={18}/></button>
+
+                            {/* Galería Interactiva */}
+                            <div className="md:col-span-2 space-y-3">
+                              <label className="text-[10px] font-black uppercase text-slate-500 block">Galería (La primera es la Principal)</label>
+                              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                {formEdit.imagen_url?.split(',').filter(u => u !== '').map((url, idx) => (
+                                  <div key={idx} className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${idx === 0 ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-transparent'}`}>
+                                    <img src={url} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
+                                    {idx === 0 && (
+                                      <div className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded shadow-md flex items-center gap-1">
+                                        <Star size={8} fill="currentColor"/> PORTADA
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                      {idx !== 0 && (
+                                        <button onClick={() => hacerPrincipal(idx)} className="p-1.5 bg-amber-500 text-slate-950 rounded-lg hover:scale-110 transition-transform"><Star size={14}/></button>
+                                      )}
+                                      <button onClick={() => eliminarFoto(idx)} className="p-1.5 bg-red-500 text-white rounded-lg hover:scale-110 transition-transform"><Trash2 size={14}/></button>
+                                    </div>
+                                  </div>
+                                ))}
+                                
+                                <label className="aspect-square rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-500/5 hover:border-amber-500 transition-all text-slate-400 hover:text-amber-500">
+                                  <Plus size={24} />
+                                  <span className="text-[8px] font-black uppercase mt-1">Añadir</span>
+                                  <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
+                                </label>
+                              </div>
+                              {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS A CLOUDINARY...</p>}
                             </div>
-                          </td>
-                        </>
+                          </div>
+                        </td>
                       ) : (
                         <>
                           <td className="py-4 px-2">
@@ -175,14 +233,16 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                 )}
                               </div>
                               <div>
-                                <div className="font-bold dark:text-white">{v.titulo}</div>
-                                <div className="text-xs text-slate-500">{v.artista}</div>
+                                <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
+                                <div className="text-xs text-slate-500 font-medium">{v.artista}</div>
                               </div>
                             </div>
                           </td>
                           <td className="text-center">
-                            <div className="text-amber-500 font-black text-lg">${Number(v.precio_venta).toLocaleString()}</div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">{v.stock_actual} EN STOCK</div>
+                            <div className="text-amber-500 font-black text-lg font-mono">${Number(v.precio_venta).toLocaleString()}</div>
+                            <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>
+                              {v.stock_actual} EN STOCK
+                            </div>
                           </td>
                           <td className="text-right px-2">
                             <div className="flex justify-end gap-1">
@@ -210,7 +270,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// --- SUB-COMPONENTES AUXILIARES ---
+// ... (Resto de los sub-componentes TabButton, OrdersList y UserManual permanecen igual)
 
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
@@ -292,7 +352,8 @@ function UserManual() {
       <div className="space-y-2">
         <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2"><Layers size={18} className="text-amber-500"/> Imágenes Múltiples</h3>
         <p>• Al editar un producto, podés seleccionar varias fotos a la vez.</p>
-        <p>• El sistema mostrará un indicador numérico en la tabla si el producto tiene más de una imagen.</p>
+        <p>• La primera foto de la cuadrícula es la **PRINCIPAL** (Portada).</p>
+        <p>• Usá el icono de la estrella para cambiar la foto de portada.</p>
       </div>
     </div>
   );
