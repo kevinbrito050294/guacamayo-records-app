@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Search, Download, Ticket, Music, ShieldCheck
+  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck
 } from 'lucide-react';
 
-// Si tienes estos componentes en archivos separados, mantén los imports. 
+// Si estos componentes están en la carpeta admin, los mantenemos
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -48,8 +48,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   useEffect(() => { cargarVinilos(); }, []);
 
   const vinilosFiltrados = vinilos.filter(v => 
-    v.titulo.toLowerCase().includes(busquedaInv.toLowerCase()) ||
-    v.artista.toLowerCase().includes(busquedaInv.toLowerCase())
+    v.titulo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+    v.artista?.toLowerCase().includes(busquedaInv.toLowerCase())
   );
 
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,7 +107,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         stock_actual: Number(formEdit.stock_actual || 0),
         imagen_url: formEdit.imagen_url || '',
         genero: formEdit.genero || '',
-        calidad: formEdit.calidad as any // Casting para compatibilidad de tipos
+        calidad: formEdit.calidad as any
       };
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, {
         method: 'PUT',
@@ -200,32 +200,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
                                     </div>
                                   </div>
-
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
-                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" placeholder="Ej: Rock, Salsa..." value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Calidad</label>
-                                      <select 
-                                        className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300 appearance-none cursor-pointer"
-                                        value={formEdit.calidad || ''} 
-                                        onChange={e => setFormEdit({...formEdit, calidad: e.target.value as any})}
-                                      >
-                                        <option value="">Seleccionar...</option>
-                                        <option value="Mint">Mint (M)</option>
-                                        <option value="Near Mint">Near Mint (NM)</option>
-                                        <option value="Excellent">Excellent (EX)</option>
-                                        <option value="Very Good Plus">Very Good Plus (VG+)</option>
-                                        <option value="Very Good">Very Good (VG)</option>
-                                        <option value="Good">Good (G)</option>
-                                        <option value="Fair">Fair (F)</option>
-                                        <option value="Poor">Poor (P)</option>
-                                      </select>
-                                    </div>
-                                  </div>
-
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
@@ -258,7 +232,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
                                     </label>
                                   </div>
-                                  {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS...</p>}
+                                  {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest mt-2 uppercase">Subiendo imágenes...</p>}
                                 </div>
                               </div>
                             </td>
@@ -321,7 +295,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// --- COMPONENTES AUXILIARES ---
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
@@ -335,6 +308,7 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   const [cupones, setCupones] = useState<any[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
+  
   const fetchCupones = async () => {
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/cupones`);
@@ -343,6 +317,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
     } catch (e) { console.error(e); }
   };
   useEffect(() => { fetchCupones(); }, []);
+
   const crearCupon = async () => {
     if (!nuevo.codigo || !nuevo.valor) return alert("Completa código y valor");
     try {
@@ -358,6 +333,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       }
     } catch (e) { alert("Error al crear"); }
   };
+
   return (
     <div className="space-y-8">
       <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border dark:border-slate-800">
@@ -412,28 +388,6 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
   };
   useEffect(() => { fetchOrders(); }, []);
 
-  const exportarVentasCSV = () => {
-    const ventasFinalizadas = orders.filter(o => o.estado === 'finalizado');
-    if (ventasFinalizadas.length === 0) return alert("No hay ventas para exportar.");
-    const headers = ["Orden", "Fecha", "Cliente", "WhatsApp", "Total USD", "Productos", "Estado"];
-    const rows = ventasFinalizadas.map(o => {
-      let detalle = "";
-      try {
-        const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-        detalle = Array.isArray(items) ? items.map((i: any) => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
-      } catch (e) { detalle = "Error formato"; }
-      return [`#${o.numero_orden}`, new Date(o.fecha).toLocaleDateString(), o.nombre_cliente, o.whatsapp_cliente, o.total_pago, detalle, o.estado];
-    });
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(row => row.map(val => `"${val}"`).join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `ventas_guacamayo_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const finalizarPedido = async (id: number) => {
     if (!confirm("¿Finalizar?")) return;
     try {
@@ -465,7 +419,6 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
           <button onClick={() => setFilterTab('pending')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-500'}`}>PENDIENTES</button>
           <button onClick={() => setFilterTab('history')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}>HISTORIAL</button>
         </div>
-        <button onClick={exportarVentasCSV} className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Download size={14} /> Exportar</button>
       </div>
       <div className="space-y-4">
         {currentOrders.map(order => (
