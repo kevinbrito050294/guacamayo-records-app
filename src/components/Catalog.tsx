@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ViniloCatalogo, PreciosConvertidos } from '../types/database';
+import { ViniloCatalogo, PreciosConvertidos, CarritoItem } from '../types/database'; // Importamos CarritoItem
 import { VinylCard } from './VinylCard';
 import { convertirPrecio } from '../lib/currency';
 import { Search, SlidersHorizontal, Loader2, Disc } from 'lucide-react'; 
@@ -10,9 +10,10 @@ interface CatalogProps {
   vinilos: ViniloCatalogo[];
   onAddToCart: (vinilo: ViniloCatalogo) => void;
   divisaActiva: 'USD' | 'ARS' | 'USDT';
+  carrito: CarritoItem[]; // <-- Agregamos el carrito a las props
 }
 
-export function Catalog({ vinilos, onAddToCart, divisaActiva }: CatalogProps) {
+export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: CatalogProps) {
   const [preciosMap, setPreciosMap] = useState<{ [key: string]: PreciosConvertidos }>({});
   const [busqueda, setBusqueda] = useState('');
   const [cargandoPrecios, setCargandoPrecios] = useState(true);
@@ -28,14 +29,13 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva }: CatalogProps) {
         setCargandoPrecios(true);
         const nuevosPrecios: { [key: string]: PreciosConvertidos } = {};
         
-        // Ejecutamos las conversiones en paralelo para que el catálogo sea instantáneo
+        // Ejecutamos las conversiones en paralelo
         await Promise.all(
           vinilos.map(async (v) => {
             try {
               const conversion = await convertirPrecio(v.precio_venta);
               nuevosPrecios[v.id] = conversion;
             } catch (err) {
-              // Fallback si la API de divisas falla
               nuevosPrecios[v.id] = { usd: v.precio_venta, ars: 0, usdt: 0 };
             }
           })
@@ -107,6 +107,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva }: CatalogProps) {
                 precios={preciosMap[vinilo.id]}
                 onAdd={() => onAddToCart(vinilo)}
                 divisaActiva={divisaActiva}
+                carrito={carrito} // <--- Pasamos el carrito a la tarjeta
               />
             ))}
           </div>

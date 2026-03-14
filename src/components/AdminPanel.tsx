@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star
+  Hash, MessageCircle, Layers, Disc, Star, Clock, History
 } from 'lucide-react';
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
@@ -274,14 +274,14 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
 function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onOrderUpdate: () => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterTab, setFilterTab] = useState<'pending' | 'history'>('pending');
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const res = await fetch(`${getApiUrl()}/api/pedidos`);
       const data = await res.json();
-      const sortedData = Array.isArray(data) ? data.sort((a, _) => (a.estado === 'cancelado' ? 1 : -1)) : [];
-      setOrders(sortedData);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
@@ -297,74 +297,99 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
 
   const cancelarPedido = async (order: any) => {
     if (!confirm(`⚠️ ¿Cancelar el pedido de ${order.nombre_cliente}? El stock se devolverá automáticamente.`)) return;
-    
     try {
-      // Intentamos recuperar los items guardados en el pedido (si los hay)
-      // Como por ahora no tienes tabla detalles, el backend requiere que le mandes qué devolver.
       const itemsADevolver = order.items ? JSON.parse(order.items) : [];
-
       const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: itemsADevolver }) 
       });
-
       if (res.ok) {
-        alert("✅ Pedido cancelado y stock restablecido");
+        alert("✅ Pedido cancelado");
         fetchOrders();
-        onOrderUpdate(); // Refresca la lista de vinilos también
+        onOrderUpdate();
       }
     } catch (error) { alert("❌ Error al cancelar"); }
   };
 
+  // --- FILTRADO POR PESTAÑAS ---
+  const pendingOrders = orders.filter(o => o.estado === 'pendiente');
+  const historyOrders = orders.filter(o => o.estado === 'finalizado' || o.estado === 'cancelado');
+  
+  const currentOrders = filterTab === 'pending' ? pendingOrders : historyOrders;
+
   if (loading) return <div className="text-center py-10 font-mono text-xs opacity-50 tracking-widest">ACTUALIZANDO REGISTROS...</div>;
 
   return (
-    <div className="space-y-4">
-      {orders.length === 0 ? (
-        <p className="text-center text-slate-500 py-10">No hay pedidos registrados.</p>
-      ) : orders.map(order => {
-        const isCancelado = order.estado === 'cancelado';
-        const isFinalizado = order.estado === 'finalizado';
+    <div className="space-y-6">
+      {/* SELECTOR DE PESTAÑAS DE PEDIDOS */}
+      <div className="flex p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-full max-w-md mx-auto">
+        <button 
+          onClick={() => setFilterTab('pending')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-600 shadow-sm' : 'text-slate-500'}`}
+        >
+          <Clock size={14}/> PENDIENTES ({pendingOrders.length})
+        </button>
+        <button 
+          onClick={() => setFilterTab('history')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
+        >
+          <History size={14}/> HISTORIAL ({historyOrders.length})
+        </button>
+      </div>
 
-        return (
-          <div key={order.id_pedido} className={`p-5 rounded-2xl border transition-all flex justify-between items-center group ${isCancelado ? 'bg-slate-100 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-slate-50 dark:bg-slate-800/30 dark:border-slate-800 hover:border-amber-500/30'}`}>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className={`text-[9px] font-black px-1.5 rounded flex items-center gap-0.5 ${isCancelado ? 'bg-slate-400 text-white' : 'bg-amber-500 text-slate-950'}`}>
-                  <Hash size={8}/> {order.numero_orden}
-                </span>
-                <p className={`font-bold text-lg ${isCancelado ? 'line-through text-slate-500' : 'dark:text-white'}`}>{order.nombre_cliente}</p>
-                {isCancelado && <span className="text-[10px] font-black text-red-500 uppercase ml-2 italic">Cancelado</span>}
-              </div>
-              <p className="text-xs text-slate-500 flex items-center gap-1 font-mono uppercase tracking-tighter">FECHA: {new Date(order.fecha).toLocaleDateString()}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className={`font-black text-xl font-mono ${isCancelado ? 'text-slate-400' : 'text-amber-500'}`}>${order.total_pago}</p>
-              </div>
-              <div className="flex gap-2">
-                {!isCancelado && !isFinalizado && (
-                  <>
-                    <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
-                      <MessageCircle size={20} />
-                    </a>
-                    <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">
-                      <CheckCircle size={20}/>
-                    </button>
-                    <button onClick={() => cancelarPedido(order)} className="p-2.5 bg-white dark:bg-slate-900 text-red-500 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm">
-                      <X size={20}/>
-                    </button>
-                  </>
-                )}
-                {isFinalizado && (
-                  <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-2 rounded-xl uppercase tracking-widest border border-emerald-500/20">Completado</span>
-                )}
-              </div>
-            </div>
+      <div className="space-y-4">
+        {currentOrders.length === 0 ? (
+          <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+             <ShoppingBag className="mx-auto mb-3 text-slate-300 dark:text-slate-700" size={40}/>
+             <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No hay pedidos en esta sección</p>
           </div>
-        );
-      })}
+        ) : currentOrders.map(order => {
+          const isCancelado = order.estado === 'cancelado';
+          const isFinalizado = order.estado === 'finalizado';
+
+          return (
+            <div key={order.id_pedido} className={`p-5 rounded-2xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group ${isCancelado ? 'bg-slate-100 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-slate-50 dark:bg-slate-800/30 dark:border-slate-800 hover:border-amber-500/30'}`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-black px-1.5 rounded flex items-center gap-0.5 ${isCancelado ? 'bg-slate-400 text-white' : isFinalizado ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-950'}`}>
+                    <Hash size={8}/> {order.numero_orden}
+                  </span>
+                  <p className={`font-bold text-lg ${isCancelado ? 'line-through text-slate-500' : 'dark:text-white'}`}>{order.nombre_cliente}</p>
+                  {isCancelado && <span className="text-[10px] font-black text-red-500 uppercase ml-2 italic">Cancelado</span>}
+                </div>
+                <p className="text-xs text-slate-500 flex items-center gap-1 font-mono uppercase tracking-tighter">FECHA: {new Date(order.fecha).toLocaleDateString()}</p>
+              </div>
+
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                <div className="text-right">
+                  <p className={`font-black text-xl font-mono ${isCancelado ? 'text-slate-400' : isFinalizado ? 'text-emerald-500' : 'text-amber-500'}`}>${order.total_pago}</p>
+                </div>
+                <div className="flex gap-2">
+                  {!isCancelado && !isFinalizado && (
+                    <>
+                      <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
+                        <MessageCircle size={20} />
+                      </a>
+                      <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">
+                        <CheckCircle size={20}/>
+                      </button>
+                      <button onClick={() => cancelarPedido(order)} className="p-2.5 bg-white dark:bg-slate-900 text-red-500 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm">
+                        <X size={20}/>
+                      </button>
+                    </>
+                  )}
+                  {isFinalizado && (
+                    <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-2 rounded-xl uppercase tracking-widest border border-emerald-500/20 flex items-center gap-2">
+                      <CheckCircle size={14}/> Completado
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

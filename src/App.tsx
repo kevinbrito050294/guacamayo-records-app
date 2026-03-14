@@ -37,7 +37,6 @@ function App() {
       : 'https://guacamayorecords.up.railway.app';
   }, []);
 
-  // --- LÓGICA DE LOGOUT Y LIBERACIÓN DE PANEL ---
   const handleLogout = useCallback(async () => {
     try {
       await fetch(`${getApiUrl()}/api/admin/logout`, { method: 'POST' });
@@ -49,7 +48,6 @@ function App() {
     setLoginError('');
   }, [getApiUrl]);
 
-  // --- CONTROL DE INACTIVIDAD (SOLO EN ADMIN) ---
   useEffect(() => {
     if (!isAdminAuthenticated || currentPage !== 'admin') return;
 
@@ -60,10 +58,9 @@ function App() {
         handleLogout();
         alert("Sesión cerrada por inactividad (15 min). Panel liberado.");
       } else {
-        // Heartbeat para que el servidor sepa que seguimos aquí
         fetch(`${getApiUrl()}/api/admin/heartbeat`, { method: 'POST' });
       }
-    }, 30000); // Check cada 30 segundos
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isAdminAuthenticated, currentPage, lastActivity, handleLogout, getApiUrl]);
@@ -125,6 +122,11 @@ function App() {
   const handleAddToCart = (vinilo: ViniloCatalogo) => {
     setCarrito(prev => {
       const existe = prev.find(item => item.vinilo.id === vinilo.id);
+      const cantidadActual = existe ? existe.cantidad : 0;
+
+      // Validación de Stock (Blindaje QA)
+      if (cantidadActual >= vinilo.stock_actual) return prev;
+
       if (existe) {
         return prev.map(item => 
           item.vinilo.id === vinilo.id ? { ...item, cantidad: item.cantidad + 1 } : item
@@ -135,7 +137,9 @@ function App() {
   };
 
   const handleUpdateCantidad = (id: string, cant: number) => {
-    if (cant < 1) return;
+    const viniloRef = vinilos.find(v => v.id === id);
+    if (!viniloRef || cant < 1 || cant > viniloRef.stock_actual) return;
+    
     setCarrito(prev => prev.map(item => 
       item.vinilo.id === id ? { ...item, cantidad: cant } : item
     ));
@@ -144,7 +148,8 @@ function App() {
   return (
     <div 
       onMouseMove={registrarActividad} 
-      onTouchStart={registrarActividad}
+      onPointerDown={registrarActividad}
+      onScroll={registrarActividad}
       className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans overflow-x-hidden selection:bg-amber-500/30"
     >
       
@@ -201,7 +206,12 @@ function App() {
         ) : (
           <div className="w-full">
             {currentPage === 'catalog' && (
-              <Catalog vinilos={vinilos} onAddToCart={handleAddToCart} divisaActiva={divisa} />
+              <Catalog 
+                vinilos={vinilos} 
+                onAddToCart={handleAddToCart} 
+                divisaActiva={divisa} 
+                carrito={carrito} 
+              />
             )}
             
             {currentPage === 'cart' && (
