@@ -17,7 +17,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- LÓGICA DE CONTROL DE SESIÓN ÚNICA ---
-// Esta variable vive en la memoria del servidor
 let activeAdminSession = {
     isLocked: false,
     lastActivity: null
@@ -48,6 +47,7 @@ const generarNumeroOrden = () => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => { cb(null, uploadDir); },
   filename: (req, file, cb) => {
+    // Limpieza de nombre de archivo para evitar errores en URLs
     const uniqueSuffix = Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
     cb(null, uniqueSuffix);
   }
@@ -56,23 +56,18 @@ const upload = multer({ storage: storage });
 
 // --- ENDPOINTS DE ADMINISTRACIÓN (SESIÓN Y BLOQUEO) ---
 
-// 1. Intento de Login con validación de bloqueo
 app.post('/api/admin/login-check', (req, res) => {
     const { password } = req.body;
     const now = Date.now();
-
-    // Si pasaron más de 15 min desde la última actividad, liberamos el panel automáticamente
     if (activeAdminSession.isLocked && (now - activeAdminSession.lastActivity > 15 * 60 * 1000)) {
         activeAdminSession.isLocked = false;
     }
-
     if (password === 'CONCHILIS2026') {
         if (!activeAdminSession.isLocked) {
             activeAdminSession.isLocked = true;
             activeAdminSession.lastActivity = now;
             res.json({ success: true });
         } else {
-            // Código 423: Locked (Bloqueado)
             res.status(423).json({ error: 'Panel ocupado. Solo un administrador puede editar a la vez.' });
         }
     } else {
@@ -80,7 +75,6 @@ app.post('/api/admin/login-check', (req, res) => {
     }
 });
 
-// 2. Heartbeat: El frontend avisa que el usuario sigue activo
 app.post('/api/admin/heartbeat', (req, res) => {
     if (activeAdminSession.isLocked) {
         activeAdminSession.lastActivity = Date.now();
@@ -90,15 +84,26 @@ app.post('/api/admin/heartbeat', (req, res) => {
     }
 });
 
-// 3. Logout Manual: Libera el panel inmediatamente
 app.post('/api/admin/logout', (req, res) => {
     activeAdminSession.isLocked = false;
     activeAdminSession.lastActivity = null;
-    console.log('🔓 Panel de administración liberado manualmente.');
     res.json({ message: 'Panel liberado correctamente' });
 });
 
-// --- ENDPOINTS API: SUBIDA DE ARCHIVOS ---
+// --- ENDPOINTS API: SUBIDA DE ARCHIVOS (MÚLTIPLES) ---
+
+// Nuevo endpoint para subir hasta 5 imágenes a la vez
+app.post('/api/upload-multiple', upload.array('imagenes', 5), (req, res) => {
+  if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No se subieron archivos' });
+  }
+  
+  // Mapeamos los archivos a sus rutas relativas y los unimos por comas
+  const imageUrls = req.files.map(file => `/uploads/${file.filename}`).join(',');
+  res.json({ url: imageUrls });
+});
+
+// Mantenemos el single por compatibilidad si es necesario
 app.post('/api/upload', upload.single('imagen'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const imageUrl = `/uploads/${req.file.filename}`;
@@ -205,7 +210,6 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
   });
 });
 
-// --- MANEJO DE RUTAS DEL FRONTEND (SPA) ---
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
