@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, AlertCircle, ShieldAlert } from 'lucide-react';
 
 interface AdminLoginProps {
   onLogin: (pass: string) => void;
@@ -8,17 +8,50 @@ interface AdminLoginProps {
 
 export function AdminLogin({ onLogin, error }: AdminLoginProps) {
   const [password, setPassword] = useState('');
+  const [isBlocked, setIsBlocked] = useState(false);
+
+  // Verificar si ya hay una sesión activa al cargar el componente
+  useEffect(() => {
+    const sessionActive = localStorage.getItem('admin_session_active');
+    if (sessionActive === 'true') {
+      setIsBlocked(true);
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Si está bloqueado, no permitir el intento de login
+    if (isBlocked) return;
     onLogin(password);
   };
+
+  if (isBlocked) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] animate-in fade-in zoom-in duration-500 px-4">
+        <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl border border-red-100 dark:border-red-900/30 w-full max-w-md text-center">
+          <div className="bg-red-50 dark:bg-red-500/10 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+            <ShieldAlert className="w-12 h-12 text-red-500" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4 uppercase italic">Acceso Denegado</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
+            Ya existe una sesión de administración abierta en otra pestaña o ventana. 
+            Cierra la otra pestaña para poder ingresar aquí.
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white py-4 rounded-2xl font-black text-xs uppercase"
+          >
+            REINTENTAR CONEXIÓN
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] animate-in fade-in zoom-in duration-500 px-4">
       <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl dark:shadow-none border border-slate-100 dark:border-slate-800 w-full max-w-md text-center transition-colors">
         
-        {/* ICONO CON ESTILO GUACAMAYO */}
         <div className="bg-amber-50 dark:bg-amber-500/10 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 rotate-3 shadow-inner">
           <Lock className="w-12 h-12 text-amber-500 dark:text-amber-400" />
         </div>
