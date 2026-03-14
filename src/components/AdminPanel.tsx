@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Clock, History, Search, Download
+  Hash, MessageCircle, Layers, Disc, Star, Clock, History, Search, Download, Ticket
 } from 'lucide-react';
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
 import { ViniloCatalogo } from '../types/database';
 
-type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders';
+type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -129,9 +129,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
+          <TabButton active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} icon={<Ticket />} title="Cupones" sub="Promos" />
           <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')} icon={<Plus />} title="Nuevo" sub="Carga" />
           <TabButton active={activeTab === 'bulk'} onClick={() => setActiveTab('bulk')} icon={<Upload />} title="Importar" sub="CSV" />
           <TabButton active={activeTab === 'currency'} onClick={() => setActiveTab('currency')} icon={<Settings />} title="Tasas" sub="Dólar/ARS" />
@@ -259,6 +260,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           )}
 
           {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} />}
+          {activeTab === 'coupons' && <CouponManager getApiUrl={getApiUrl} />}
           {activeTab === 'form' && <VinylForm onSuccess={cargarVinilos} />}
           {activeTab === 'bulk' && <BulkImporter />}
           {activeTab === 'currency' && <CurrencyManager />}
@@ -278,6 +280,75 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
       <p className="font-bold text-xs">{title}</p>
       <p className="text-[10px] uppercase opacity-60 tracking-tighter">{sub}</p>
     </button>
+  );
+}
+
+function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
+  const [cupones, setCupones] = useState<any[]>([]);
+  const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
+
+  const fetchCupones = async () => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/cupones`);
+      const data = await res.json();
+      setCupones(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { fetchCupones(); }, []);
+
+  const crearCupon = async () => {
+    if (!nuevo.codigo || !nuevo.valor) return alert("Completa código y valor");
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/cupones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevo)
+      });
+      if (res.ok) {
+        alert("✅ Cupón creado");
+        setNuevo({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
+        fetchCupones();
+      }
+    } catch (e) { alert("Error al crear"); }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border dark:border-slate-800">
+        <h3 className="text-xs font-black uppercase tracking-widest mb-4 text-amber-500">Crear Nuevo Cupón</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <input placeholder="CÓDIGO" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none uppercase font-bold" value={nuevo.codigo} onChange={e => setNuevo({...nuevo, codigo: e.target.value})} />
+          <select className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.tipo} onChange={e => setNuevo({...nuevo, tipo: e.target.value})}>
+            <option value="porcentaje">% Porcentaje</option>
+            <option value="fijo">Monto Fijo (USD)</option>
+          </select>
+          <input type="number" placeholder="Valor" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.valor} onChange={e => setNuevo({...nuevo, valor: e.target.value})} />
+          <input type="date" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none text-slate-400" value={nuevo.fecha_expiracion} onChange={e => setNuevo({...nuevo, fecha_expiracion: e.target.value})} />
+          <button onClick={crearCupon} className="bg-amber-500 text-slate-950 font-black rounded-xl hover:bg-amber-600 transition-all flex items-center justify-center gap-2"><Plus size={18}/> CREAR</button>
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-2xl border dark:border-slate-800">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <tr><th className="p-4">Código</th><th className="p-4">Beneficio</th><th className="p-4">Expiración</th><th className="p-4 text-center">Usos</th><th className="p-4 text-right">Estado</th></tr>
+          </thead>
+          <tbody className="divide-y dark:divide-slate-800">
+            {cupones.map(c => (
+              <tr key={c.id} className="dark:text-slate-300">
+                <td className="p-4 font-bold text-amber-500">{c.codigo}</td>
+                <td className="p-4">{c.tipo === 'porcentaje' ? `${c.valor}%` : `USD ${c.valor}`}</td>
+                <td className="p-4 text-xs">{c.fecha_expiracion ? new Date(c.fecha_expiracion).toLocaleDateString() : '∞ Sin límite'}</td>
+                <td className="p-4 text-center text-xs font-mono">{c.usos_actuales} / {c.uso_maximo || '∞'}</td>
+                <td className="p-4 text-right">
+                  <span className={`text-[9px] font-black px-2 py-1 rounded ${c.activo ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{c.activo ? 'ACTIVO' : 'INACTIVO'}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -375,26 +446,17 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
             <History size={14} className="inline mr-1"/> HISTORIAL ({historyOrders.length})
           </button>
         </div>
-
-        <button 
-          onClick={exportarVentasCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black transition-all shadow-lg shadow-emerald-500/20 uppercase"
-        >
-          <Download size={14} />
-          Exportar Ventas
+        <button onClick={exportarVentasCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black transition-all shadow-lg shadow-emerald-500/20 uppercase">
+          <Download size={14} /> Exportar Ventas
         </button>
       </div>
-
       <div className="space-y-4">
         {currentOrders.length > 0 ? (
           currentOrders.map(order => (
             <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
               <div className="space-y-1">
                 <p className="font-bold text-lg dark:text-white leading-none">{order.nombre_cliente}</p>
-                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-black uppercase">
-                  <Hash size={10} className="text-amber-500"/>
-                  <span>Orden #{order.numero_orden}</span>
-                </div>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-black uppercase"><Hash size={10} className="text-amber-500"/><span>Orden #{order.numero_orden}</span></div>
               </div>
               <div className="flex items-center gap-3">
                 <p className="font-mono font-black text-amber-500">${order.total_pago}</p>
@@ -405,17 +467,11 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
                     <button onClick={() => cancelarPedido(order)} className="p-2 bg-red-500/10 text-red-500 rounded-lg"><X size={18}/></button>
                   </div>
                 )}
-                {order.estado !== 'pendiente' && (
-                  <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                    {order.estado}
-                  </span>
-                )}
+                {order.estado !== 'pendiente' && <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{order.estado}</span>}
               </div>
             </div>
           ))
-        ) : (
-          <div className="text-center py-10 text-slate-400 text-[10px] font-black uppercase tracking-widest">No hay pedidos en esta sección</div>
-        )}
+        ) : (<div className="text-center py-10 text-slate-400 text-[10px] font-black uppercase tracking-widest">No hay pedidos en esta sección</div>)}
       </div>
     </div>
   );
