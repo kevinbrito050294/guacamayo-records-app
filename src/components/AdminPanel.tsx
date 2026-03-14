@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Clock, History, Search, Download, Ticket
+  Hash, MessageCircle, Layers, Disc, Star, Search, Download, Ticket, Music, ShieldCheck
 } from 'lucide-react';
 
 // Si tienes estos componentes en archivos separados, mantén los imports. 
-// Si no, deberás integrarlos también aquí abajo.
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -106,7 +105,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         artista: formEdit.artista,
         precio_venta: Number(formEdit.precio_venta || 0),
         stock_actual: Number(formEdit.stock_actual || 0),
-        imagen_url: formEdit.imagen_url || '' 
+        imagen_url: formEdit.imagen_url || '',
+        genero: formEdit.genero || '',
+        calidad: formEdit.calidad as any // Casting para compatibilidad de tipos
       };
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, {
         method: 'PUT',
@@ -146,7 +147,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* NAVEGACIÓN DE TABS */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
@@ -190,14 +190,41 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                             <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div className="space-y-4">
-                                  <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
-                                    <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
+                                      <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
+                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
+                                    </div>
                                   </div>
-                                  <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
-                                    <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
+                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" placeholder="Ej: Rock, Salsa..." value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Calidad</label>
+                                      <select 
+                                        className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300 appearance-none cursor-pointer"
+                                        value={formEdit.calidad || ''} 
+                                        onChange={e => setFormEdit({...formEdit, calidad: e.target.value as any})}
+                                      >
+                                        <option value="">Seleccionar...</option>
+                                        <option value="Mint">Mint (M)</option>
+                                        <option value="Near Mint">Near Mint (NM)</option>
+                                        <option value="Very Good Plus">Very Good Plus (VG+)</option>
+                                        <option value="Very Good">Very Good (VG)</option>
+                                        <option value="Good">Good (G)</option>
+                                        <option value="Fair">Fair (F)</option>
+                                        <option value="Poor">Poor (P)</option>
+                                      </select>
+                                    </div>
                                   </div>
+
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
@@ -248,7 +275,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                   </div>
                                   <div>
                                     <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
-                                    <div className="text-xs text-slate-500 font-medium">{v.artista}</div>
+                                    <div className="text-xs text-slate-500 font-medium mb-1">{v.artista}</div>
+                                    <div className="flex gap-2">
+                                      {v.genero && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Music size={8}/> {v.genero}</span>}
+                                      {v.calidad && <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded flex items-center gap-1 font-black uppercase"><ShieldCheck size={8}/> {v.calidad}</span>}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -290,7 +321,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 }
 
 // --- COMPONENTES AUXILIARES ---
-
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
@@ -304,7 +334,6 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   const [cupones, setCupones] = useState<any[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
-
   const fetchCupones = async () => {
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/cupones`);
@@ -312,9 +341,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       setCupones(Array.isArray(data) ? data : []);
     } catch (e) { console.error(e); }
   };
-
   useEffect(() => { fetchCupones(); }, []);
-
   const crearCupon = async () => {
     if (!nuevo.codigo || !nuevo.valor) return alert("Completa código y valor");
     try {
@@ -330,7 +357,6 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       }
     } catch (e) { alert("Error al crear"); }
   };
-
   return (
     <div className="space-y-8">
       <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border dark:border-slate-800">
@@ -383,40 +409,21 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
       setOrders(Array.isArray(data) ? data : []);
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
-
   useEffect(() => { fetchOrders(); }, []);
 
   const exportarVentasCSV = () => {
     const ventasFinalizadas = orders.filter(o => o.estado === 'finalizado');
-    if (ventasFinalizadas.length === 0) {
-      alert("No hay ventas finalizadas para exportar.");
-      return;
-    }
-
+    if (ventasFinalizadas.length === 0) return alert("No hay ventas para exportar.");
     const headers = ["Orden", "Fecha", "Cliente", "WhatsApp", "Total USD", "Productos", "Estado"];
     const rows = ventasFinalizadas.map(o => {
-      let detalleProductos = "";
+      let detalle = "";
       try {
-        const itemsObj = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-        detalleProductos = Array.isArray(itemsObj) ? itemsObj.map((i: any) => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
-      } catch (e) { detalleProductos = "Error formato"; }
-
-      return [
-        `#${o.numero_orden}`,
-        new Date(o.fecha).toLocaleDateString(),
-        o.nombre_cliente,
-        o.whatsapp_cliente,
-        o.total_pago,
-        detalleProductos,
-        o.estado
-      ];
+        const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+        detalle = Array.isArray(items) ? items.map((i: any) => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
+      } catch (e) { detalle = "Error formato"; }
+      return [`#${o.numero_orden}`, new Date(o.fecha).toLocaleDateString(), o.nombre_cliente, o.whatsapp_cliente, o.total_pago, detalle, o.estado];
     });
-
-    const csvContent = "\uFEFF" + [
-      headers.join(","),
-      ...rows.map(row => row.map(val => `"${val}"`).join(","))
-    ].join("\n");
-
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(row => row.map(val => `"${val}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -447,49 +454,37 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
     } catch (error) { alert("Error"); }
   };
 
-  const pendingOrders = orders.filter(o => o.estado === 'pendiente');
-  const historyOrders = orders.filter(o => o.estado === 'finalizado' || o.estado === 'cancelado');
-  const currentOrders = filterTab === 'pending' ? pendingOrders : historyOrders;
+  const currentOrders = filterTab === 'pending' ? orders.filter(o => o.estado === 'pendiente') : orders.filter(o => o.estado !== 'pendiente');
 
   if (loading) return <div className="text-center py-10 text-[10px] opacity-50 font-black">CARGANDO...</div>;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-full max-w-md">
-          <button onClick={() => setFilterTab('pending')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-500'}`}>
-            <Clock size={14} className="inline mr-1"/> PENDIENTES ({pendingOrders.length})
-          </button>
-          <button onClick={() => setFilterTab('history')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}>
-            <History size={14} className="inline mr-1"/> HISTORIAL ({historyOrders.length})
-          </button>
+          <button onClick={() => setFilterTab('pending')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-500'}`}>PENDIENTES</button>
+          <button onClick={() => setFilterTab('history')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}>HISTORIAL</button>
         </div>
-        <button onClick={exportarVentasCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black transition-all shadow-lg shadow-emerald-500/20 uppercase">
-          <Download size={14} /> Exportar Ventas
-        </button>
+        <button onClick={exportarVentasCSV} className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Download size={14} /> Exportar</button>
       </div>
       <div className="space-y-4">
-        {currentOrders.length > 0 ? (
-          currentOrders.map(order => (
-            <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
-              <div className="space-y-1">
-                <p className="font-bold text-lg dark:text-white leading-none">{order.nombre_cliente}</p>
-                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-black uppercase"><Hash size={10} className="text-amber-500"/><span>Orden #{order.numero_orden}</span></div>
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="font-mono font-black text-amber-500">${order.total_pago}</p>
-                {order.estado === 'pendiente' && (
-                  <div className="flex gap-2">
-                    <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><MessageCircle size={18}/></a>
-                    <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2 bg-emerald-500 text-white rounded-lg"><CheckCircle size={18}/></button>
-                    <button onClick={() => cancelarPedido(order)} className="p-2 bg-red-500/10 text-red-500 rounded-lg"><X size={18}/></button>
-                  </div>
-                )}
-                {order.estado !== 'pendiente' && <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{order.estado}</span>}
-              </div>
+        {currentOrders.map(order => (
+          <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
+            <div className="space-y-1">
+              <p className="font-bold text-lg dark:text-white leading-none">{order.nombre_cliente}</p>
+              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-black uppercase"><Hash size={10} className="text-amber-500"/><span>Orden #{order.numero_orden}</span></div>
             </div>
-          ))
-        ) : (<div className="text-center py-10 text-slate-400 text-[10px] font-black uppercase tracking-widest">No hay pedidos en esta sección</div>)}
+            <div className="flex items-center gap-3">
+              <p className="font-mono font-black text-amber-500">${order.total_pago}</p>
+              {order.estado === 'pendiente' ? (
+                <div className="flex gap-2">
+                  <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><MessageCircle size={18}/></a>
+                  <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2 bg-emerald-500 text-white rounded-lg"><CheckCircle size={18}/></button>
+                  <button onClick={() => cancelarPedido(order)} className="p-2 bg-red-500/10 text-red-500 rounded-lg"><X size={18}/></button>
+                </div>
+              ) : <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{order.estado}</span>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -499,9 +494,8 @@ function UserManual() {
   return (
     <div className="p-4 space-y-4 text-sm dark:text-slate-400">
       <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda rápida</h3>
-      <p>• El buscador filtra por título o artista en tiempo real sobre el inventario cargado.</p>
-      <p>• El icono de capas (<Layers size={14} className="inline"/>) indica productos con galería de imágenes.</p>
-      <p>• Usa <strong>Exportar Ventas</strong> para descargar un CSV con todo el historial detallado de las ventas finalizadas.</p>
+      <p>• El buscador filtra por título o artista en tiempo real.</p>
+      <p>• Los iconos de <strong>Música</strong> y <strong>Escudo</strong> indican el género y calidad cargados.</p>
     </div>
   );
 }
