@@ -8,7 +8,6 @@ export function CurrencyManager() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Helper para la URL de la API (Local vs Railway)
   const getApiUrl = () => {
     return window.location.hostname === 'localhost' 
       ? 'http://localhost:3001' 
@@ -23,12 +22,22 @@ export function CurrencyManager() {
     try {
       setLoading(true);
       const response = await fetch(`${getApiUrl()}/api/configuracion_divisas`);
+      
       if (!response.ok) throw new Error('Error al conectar con el servidor');
       
       const data = await response.json();
-      setTasas(data || []);
+
+      // PROTECCIÓN: Verificamos que 'data' sea realmente un Array antes de setearlo
+      if (Array.isArray(data)) {
+        setTasas(data);
+      } else {
+        console.error('La API no devolvió un array:', data);
+        setTasas([]); // Seteamos array vacío para que .map no falle
+        setMessage({ type: 'error', text: 'El servidor respondió con un formato inesperado' });
+      }
     } catch (error) {
       console.error('Error loading rates:', error);
+      setTasas([]); // Evita que la interfaz se rompa
       setMessage({ type: 'error', text: 'Error al cargar las tasas de la base de datos' });
     } finally {
       setLoading(false);
@@ -78,7 +87,6 @@ export function CurrencyManager() {
 
   return (
     <div className="space-y-6">
-      {/* Encabezado Estilizado */}
       <div className="flex items-center gap-3">
         <div className="p-2 bg-amber-500 rounded-lg text-slate-950">
           <TrendingUp size={20} />
@@ -103,7 +111,8 @@ export function CurrencyManager() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {tasas.map((tasa) => (
+        {/* Usamos safe navigation o un array vacío por si acaso */}
+        {(tasas || []).map((tasa) => (
           <div
             key={tasa.id}
             className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all"
@@ -134,7 +143,7 @@ export function CurrencyManager() {
               <div className="flex items-center gap-1.5 text-slate-400">
                 <Clock size={12} />
                 <span className="text-[10px] uppercase font-medium">
-                  {new Date(tasa.ultima_actualizacion).toLocaleDateString('es-AR')}
+                  {tasa.ultima_actualizacion ? new Date(tasa.ultima_actualizacion).toLocaleDateString('es-AR') : '---'}
                 </span>
               </div>
               
@@ -149,6 +158,12 @@ export function CurrencyManager() {
             </div>
           </div>
         ))}
+
+        {tasas.length === 0 && !loading && (
+          <div className="col-span-2 text-center py-10 bg-slate-100 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No se encontraron configuraciones de divisas en la DB</p>
+          </div>
+        )}
       </div>
 
       <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
