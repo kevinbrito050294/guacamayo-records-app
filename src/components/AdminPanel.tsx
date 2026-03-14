@@ -247,16 +247,29 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                             <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div className="space-y-4">
+                                  {/* Título en su propia fila */}
+                                  <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
+                                    <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
+                                  </div>
+                                  
+                                  {/* Artista y Género compartiendo fila */}
                                   <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
-                                      <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
-                                    </div>
                                     <div>
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
                                       <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
                                     </div>
+                                    <div>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
+                                      <input 
+                                        className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" 
+                                        value={formEdit.genero || ''} 
+                                        onChange={e => setFormEdit({...formEdit, genero: e.target.value})} 
+                                        placeholder="Ej: Rock"
+                                      />
+                                    </div>
                                   </div>
+
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
