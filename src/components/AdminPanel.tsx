@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Clock, History
+  Hash, MessageCircle, Layers, Disc, Star, Clock, History, Search, Download
 } from 'lucide-react';
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
@@ -22,6 +22,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [formEdit, setFormEdit] = useState<Partial<ViniloCatalogo>>({});
   const [subiendo, setSubiendo] = useState(false);
+  const [busquedaInv, setBusquedaInv] = useState('');
 
   const getApiUrl = () => {
     return window.location.hostname === 'localhost' 
@@ -44,31 +45,29 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   useEffect(() => { cargarVinilos(); }, []);
 
-  // --- GESTIÓN DE IMÁGENES ---
+  const vinilosFiltrados = vinilos.filter(v => 
+    v.titulo.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+    v.artista.toLowerCase().includes(busquedaInv.toLowerCase())
+  );
+
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
     const formData = new FormData();
-    Array.from(files).forEach(file => {
-      formData.append('imagenes', file);
-    });
+    Array.from(files).forEach(file => { formData.append('imagenes', file); });
 
     try {
       setSubiendo(true);
-      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { 
-        method: 'POST', 
-        body: formData 
-      });
+      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { method: 'POST', body: formData });
       if (!res.ok) throw new Error("Error en la subida");
       const data = await res.json();
       const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
       const nuevasFotos = data.url.split(',');
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
-      alert(`✅ Imágenes añadidas a la galería`);
+      alert(`✅ Imágenes añadidas`);
     } catch (error) {
-      alert("❌ Error al subir imágenes");
+      alert("❌ Error al subir");
     } finally {
       setSubiendo(false);
     }
@@ -105,7 +104,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       if (res.ok) {
         setVinilos(vinilos.map(v => v.id === id ? { ...v, ...payload } as ViniloCatalogo : v));
         setEditandoId(null);
-        alert("✅ Cambios guardados en Guacamayo Records");
+        alert("✅ Cambios guardados");
       }
     } catch (error) { alert("❌ Error de conexión"); }
   };
@@ -141,112 +140,121 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
           {activeTab === 'list' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-black">
-                    <th className="pb-4 px-2">Producto / Galería</th>
-                    <th className="pb-4 px-2 text-center">Precio/Stock</th>
-                    <th className="pb-4 px-2 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan={3} className="text-center py-20 opacity-50"><Disc className="animate-spin mx-auto mb-2 text-amber-500" /> CARGANDO...</td></tr>
-                  ) : vinilos.map((v) => (
-                    <tr key={v.id} className="bg-white dark:bg-slate-800/40 border-y dark:border-slate-800 group align-top">
-                      {editandoId === v.id ? (
-                        <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
-                                <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
-                              </div>
-                              <div>
-                                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
-                                <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
-                              </div>
-                              <div className="flex gap-4">
-                                <div className="flex-1">
-                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
-                                  <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
-                                </div>
-                                <div className="flex-1">
-                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Stock</label>
-                                  <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
-                                </div>
-                              </div>
-                              <div className="flex gap-2 pt-4">
-                                <button onClick={() => handleSave(v.id)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><Save size={16}/> GUARDAR</button>
-                                <button onClick={() => setEditandoId(null)} className="px-4 bg-slate-300 dark:bg-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter"><X size={16}/></button>
-                              </div>
-                            </div>
-                            <div className="md:col-span-2 space-y-3">
-                              <label className="text-[10px] font-black uppercase text-slate-500 block">Galería (La primera es la Principal)</label>
-                              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                                {formEdit.imagen_url?.split(',').filter(u => u !== '').map((url, idx) => (
-                                  <div key={idx} className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${idx === 0 ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-transparent'}`}>
-                                    <img src={url} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
-                                    {idx === 0 && (
-                                      <div className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded shadow-md flex items-center gap-1">
-                                        <Star size={8} fill="currentColor"/> PORTADA
-                                      </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      {idx !== 0 && (
-                                        <button onClick={() => hacerPrincipal(idx)} className="p-1.5 bg-amber-500 text-slate-950 rounded-lg hover:scale-110 transition-transform"><Star size={14}/></button>
-                                      )}
-                                      <button onClick={() => eliminarFoto(idx)} className="p-1.5 bg-red-500 text-white rounded-lg hover:scale-110 transition-transform"><Trash2 size={14}/></button>
+            <div className="space-y-6">
+              <div className="relative w-full md:w-1/3">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Buscar en inventario..."
+                  value={busquedaInv}
+                  onChange={(e) => setBusquedaInv(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium"
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-separate border-spacing-y-2">
+                  <thead>
+                    <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-black">
+                      <th className="pb-4 px-2">Producto / Galería</th>
+                      <th className="pb-4 px-2 text-center">Precio/Stock</th>
+                      <th className="pb-4 px-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={3} className="text-center py-20 opacity-50"><Disc className="animate-spin mx-auto mb-2 text-amber-500" /> CARGANDO...</td></tr>
+                    ) : vinilosFiltrados.length > 0 ? (
+                      vinilosFiltrados.map((v) => (
+                        <tr key={v.id} className="bg-white dark:bg-slate-800/40 border-y dark:border-slate-800 group align-top">
+                          {editandoId === v.id ? (
+                            <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
+                                    <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
+                                    <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
+                                  </div>
+                                  <div className="flex gap-4">
+                                    <div className="flex-1">
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
+                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.precio_venta || 0} onChange={e => setFormEdit({...formEdit, precio_venta: Number(e.target.value)})} />
+                                    </div>
+                                    <div className="flex-1">
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Stock</label>
+                                      <input type="number" className="w-full border-none rounded-xl p-3 dark:bg-slate-900" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({...formEdit, stock_actual: Number(e.target.value)})} />
                                     </div>
                                   </div>
-                                ))}
-                                <label className="aspect-square rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-500/5 hover:border-amber-500 transition-all text-slate-400 hover:text-amber-500">
-                                  <Plus size={24} />
-                                  <span className="text-[8px] font-black uppercase mt-1">Añadir</span>
-                                  <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
-                                </label>
+                                  <div className="flex gap-2 pt-4">
+                                    <button onClick={() => handleSave(v.id)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all"><Save size={16}/> GUARDAR</button>
+                                    <button onClick={() => setEditandoId(null)} className="px-4 bg-slate-300 dark:bg-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter"><X size={16}/></button>
+                                  </div>
+                                </div>
+                                <div className="md:col-span-2 space-y-3">
+                                  <label className="text-[10px] font-black uppercase text-slate-500 block">Galería</label>
+                                  <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                    {formEdit.imagen_url?.split(',').filter(u => u !== '').map((url, idx) => (
+                                      <div key={idx} className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${idx === 0 ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-transparent'}`}>
+                                        <img src={url} className="w-full h-full object-cover" alt="Preview" />
+                                        <div className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                          {idx !== 0 && <button onClick={() => hacerPrincipal(idx)} className="p-1.5 bg-amber-500 text-slate-950 rounded-lg"><Star size={14}/></button>}
+                                          <button onClick={() => eliminarFoto(idx)} className="p-1.5 bg-red-500 text-white rounded-lg"><Trash2 size={14}/></button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <label className="aspect-square rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer text-slate-400 hover:text-amber-500 transition-all">
+                                      <Plus size={24} />
+                                      <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
+                                    </label>
+                                  </div>
+                                  {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS...</p>}
+                                </div>
                               </div>
-                              {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS...</p>}
-                            </div>
-                          </div>
-                        </td>
-                      ) : (
-                        <>
-                          <td className="py-4 px-2">
-                            <div className="flex items-center gap-3">
-                              <div className="relative">
-                                <img src={v.imagen_url?.split(',')[0] || ''} className="w-14 h-14 rounded-xl object-cover shadow-md" alt={v.titulo} />
-                                {v.imagen_url && v.imagen_url.split(',').length > 1 && (
-                                  <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[8px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
-                                    <Layers size={10} /> {v.imagen_url.split(',').length}
-                                  </span>
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
-                                <div className="text-xs text-slate-500 font-medium">{v.artista}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-center">
-                            <div className="text-amber-500 font-black text-lg font-mono">${Number(v.precio_venta).toLocaleString()}</div>
-                            <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>
-                              {v.stock_actual} EN STOCK
-                            </div>
-                          </td>
-                          <td className="text-right px-2">
-                            <div className="flex justify-end gap-1">
-                              <button onClick={() => { setEditandoId(v.id); setFormEdit(v); }} className="p-2 text-slate-400 hover:text-amber-500 transition-colors"><Edit2 size={20}/></button>
-                              <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={20}/></button>
-                            </div>
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            </td>
+                          ) : (
+                            <>
+                              <td className="py-4 px-2">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative">
+                                    <img src={v.imagen_url?.split(',')[0] || ''} className="w-14 h-14 rounded-xl object-cover shadow-md" alt={v.titulo} />
+                                    {v.imagen_url && v.imagen_url.split(',').length > 1 && (
+                                      <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[8px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900">
+                                        <Layers size={10} />
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
+                                    <div className="text-xs text-slate-500 font-medium">{v.artista}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="text-center">
+                                <div className="text-amber-500 font-black text-lg font-mono">${Number(v.precio_venta).toLocaleString()}</div>
+                                <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>
+                                  {v.stock_actual} EN STOCK
+                                </div>
+                              </td>
+                              <td className="text-right px-2">
+                                <div className="flex justify-end gap-1">
+                                  <button onClick={() => { setEditandoId(v.id); setFormEdit(v); }} className="p-2 text-slate-400 hover:text-amber-500 transition-colors"><Edit2 size={20}/></button>
+                                  <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={20}/></button>
+                                </div>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={3} className="text-center py-20 text-slate-400 uppercase text-[10px] font-black tracking-widest">No hay resultados</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -260,6 +268,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     </div>
   );
 }
+
+// --- COMPONENTES AUXILIARES ---
 
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
@@ -287,108 +297,125 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
 
   useEffect(() => { fetchOrders(); }, []);
 
+  const exportarVentasCSV = () => {
+    const ventasFinalizadas = orders.filter(o => o.estado === 'finalizado');
+    if (ventasFinalizadas.length === 0) {
+      alert("No hay ventas finalizadas para exportar.");
+      return;
+    }
+
+    const headers = ["Orden", "Fecha", "Cliente", "WhatsApp", "Total USD", "Productos", "Estado"];
+    const rows = ventasFinalizadas.map(o => {
+      let detalleProductos = "";
+      try {
+        const itemsObj = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+        detalleProductos = Array.isArray(itemsObj) ? itemsObj.map(i => `${i.titulo} (${i.cantidad})`).join(" | ") : "Sin detalle";
+      } catch (e) { detalleProductos = "Error formato"; }
+
+      return [
+        `#${o.numero_orden}`,
+        new Date(o.fecha).toLocaleDateString(),
+        o.nombre_cliente,
+        o.whatsapp_cliente,
+        o.total_pago,
+        detalleProductos,
+        o.estado
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [
+      headers.join(","),
+      ...rows.map(row => row.map(val => `"${val}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ventas_guacamayo_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const finalizarPedido = async (id: number) => {
-    if (!confirm("¿Marcar venta como finalizada?")) return;
+    if (!confirm("¿Finalizar?")) return;
     try {
       const res = await fetch(`${getApiUrl()}/api/pedidos/${id}/finalizar`, { method: 'PUT' });
       if (res.ok) fetchOrders();
-    } catch (error) { alert("❌ Error al finalizar"); }
+    } catch (error) { alert("Error"); }
   };
 
   const cancelarPedido = async (order: any) => {
-    if (!confirm(`⚠️ ¿Cancelar el pedido de ${order.nombre_cliente}? El stock se devolverá automáticamente.`)) return;
+    if (!confirm("¿Cancelar?")) return;
     try {
-      const itemsADevolver = order.items ? JSON.parse(order.items) : [];
+      const items = order.items ? (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) : [];
       const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: itemsADevolver }) 
+        body: JSON.stringify({ items }) 
       });
-      if (res.ok) {
-        alert("✅ Pedido cancelado");
-        fetchOrders();
-        onOrderUpdate();
-      }
-    } catch (error) { alert("❌ Error al cancelar"); }
+      if (res.ok) { fetchOrders(); onOrderUpdate(); }
+    } catch (error) { alert("Error"); }
   };
 
-  // --- FILTRADO POR PESTAÑAS ---
   const pendingOrders = orders.filter(o => o.estado === 'pendiente');
   const historyOrders = orders.filter(o => o.estado === 'finalizado' || o.estado === 'cancelado');
-  
   const currentOrders = filterTab === 'pending' ? pendingOrders : historyOrders;
 
-  if (loading) return <div className="text-center py-10 font-mono text-xs opacity-50 tracking-widest">ACTUALIZANDO REGISTROS...</div>;
+  if (loading) return <div className="text-center py-10 text-[10px] opacity-50 font-black">CARGANDO...</div>;
 
   return (
     <div className="space-y-6">
-      {/* SELECTOR DE PESTAÑAS DE PEDIDOS */}
-      <div className="flex p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-full max-w-md mx-auto">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-full max-w-md">
+          <button onClick={() => setFilterTab('pending')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-500'}`}>
+            <Clock size={14} className="inline mr-1"/> PENDIENTES ({pendingOrders.length})
+          </button>
+          <button onClick={() => setFilterTab('history')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}>
+            <History size={14} className="inline mr-1"/> HISTORIAL ({historyOrders.length})
+          </button>
+        </div>
+
         <button 
-          onClick={() => setFilterTab('pending')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${filterTab === 'pending' ? 'bg-white dark:bg-slate-700 text-amber-600 shadow-sm' : 'text-slate-500'}`}
+          onClick={exportarVentasCSV}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black transition-all shadow-lg shadow-emerald-500/20 uppercase"
         >
-          <Clock size={14}/> PENDIENTES ({pendingOrders.length})
-        </button>
-        <button 
-          onClick={() => setFilterTab('history')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black transition-all ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500 shadow-sm' : 'text-slate-500'}`}
-        >
-          <History size={14}/> HISTORIAL ({historyOrders.length})
+          <Download size={14} />
+          Exportar Ventas
         </button>
       </div>
 
       <div className="space-y-4">
-        {currentOrders.length === 0 ? (
-          <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
-             <ShoppingBag className="mx-auto mb-3 text-slate-300 dark:text-slate-700" size={40}/>
-             <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No hay pedidos en esta sección</p>
-          </div>
-        ) : currentOrders.map(order => {
-          const isCancelado = order.estado === 'cancelado';
-          const isFinalizado = order.estado === 'finalizado';
-
-          return (
-            <div key={order.id_pedido} className={`p-5 rounded-2xl border transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group ${isCancelado ? 'bg-slate-100 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-slate-50 dark:bg-slate-800/30 dark:border-slate-800 hover:border-amber-500/30'}`}>
+        {currentOrders.length > 0 ? (
+          currentOrders.map(order => (
+            <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[9px] font-black px-1.5 rounded flex items-center gap-0.5 ${isCancelado ? 'bg-slate-400 text-white' : isFinalizado ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-950'}`}>
-                    <Hash size={8}/> {order.numero_orden}
-                  </span>
-                  <p className={`font-bold text-lg ${isCancelado ? 'line-through text-slate-500' : 'dark:text-white'}`}>{order.nombre_cliente}</p>
-                  {isCancelado && <span className="text-[10px] font-black text-red-500 uppercase ml-2 italic">Cancelado</span>}
+                <p className="font-bold text-lg dark:text-white leading-none">{order.nombre_cliente}</p>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-black uppercase">
+                  <Hash size={10} className="text-amber-500"/>
+                  <span>Orden #{order.numero_orden}</span>
                 </div>
-                <p className="text-xs text-slate-500 flex items-center gap-1 font-mono uppercase tracking-tighter">FECHA: {new Date(order.fecha).toLocaleDateString()}</p>
               </div>
-
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                <div className="text-right">
-                  <p className={`font-black text-xl font-mono ${isCancelado ? 'text-slate-400' : isFinalizado ? 'text-emerald-500' : 'text-amber-500'}`}>${order.total_pago}</p>
-                </div>
-                <div className="flex gap-2">
-                  {!isCancelado && !isFinalizado && (
-                    <>
-                      <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
-                        <MessageCircle size={20} />
-                      </a>
-                      <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">
-                        <CheckCircle size={20}/>
-                      </button>
-                      <button onClick={() => cancelarPedido(order)} className="p-2.5 bg-white dark:bg-slate-900 text-red-500 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm">
-                        <X size={20}/>
-                      </button>
-                    </>
-                  )}
-                  {isFinalizado && (
-                    <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-2 rounded-xl uppercase tracking-widest border border-emerald-500/20 flex items-center gap-2">
-                      <CheckCircle size={14}/> Completado
-                    </span>
-                  )}
-                </div>
+              <div className="flex items-center gap-3">
+                <p className="font-mono font-black text-amber-500">${order.total_pago}</p>
+                {order.estado === 'pendiente' && (
+                  <div className="flex gap-2">
+                    <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><MessageCircle size={18}/></a>
+                    <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2 bg-emerald-500 text-white rounded-lg"><CheckCircle size={18}/></button>
+                    <button onClick={() => cancelarPedido(order)} className="p-2 bg-red-500/10 text-red-500 rounded-lg"><X size={18}/></button>
+                  </div>
+                )}
+                {order.estado !== 'pendiente' && (
+                  <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {order.estado}
+                  </span>
+                )}
               </div>
             </div>
-          );
-        })}
+          ))
+        ) : (
+          <div className="text-center py-10 text-slate-400 text-[10px] font-black uppercase tracking-widest">No hay pedidos en esta sección</div>
+        )}
       </div>
     </div>
   );
@@ -396,17 +423,11 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
 
 function UserManual() {
   return (
-    <div className="p-4 space-y-6 dark:text-slate-400 text-sm">
-      <div className="space-y-2">
-        <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Gestión de Stock</h3>
-        <p>• Al cancelar un pedido, el sistema devolverá automáticamente los discos al stock.</p>
-        <p>• Editá precios y cantidades directamente desde la lista de inventario.</p>
-      </div>
-      <div className="space-y-2">
-        <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2"><Layers size={18} className="text-amber-500"/> Imágenes Múltiples</h3>
-        <p>• La primera foto de la cuadrícula es la **PRINCIPAL** (Portada).</p>
-        <p>• Usá el icono de la estrella para cambiar la foto de portada.</p>
-      </div>
+    <div className="p-4 space-y-4 text-sm dark:text-slate-400">
+      <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda rápida</h3>
+      <p>• El buscador filtra por título o artista en tiempo real sobre el inventario cargado.</p>
+      <p>• El icono de capas (<Layers size={14} className="inline"/>) indica productos con galería de imágenes.</p>
+      <p>• Usa <strong>Exportar Ventas</strong> para descargar un CSV con todo el historial detallado de las ventas finalizadas.</p>
     </div>
   );
 }

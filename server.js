@@ -70,8 +70,7 @@ app.put('/api/vinilos/:id', (req, res) => {
   });
 });
 
-// --- SISTEMA DE PEDIDOS CON RESTAURACIÓN DE STOCK ---
-
+// --- SISTEMA DE PEDIDOS ---
 app.post('/api/pedidos', (req, res) => {
   const { nombre_cliente, whatsapp_cliente, total_pago, items } = req.body;
   const nroOrden = generarNumeroOrden();
@@ -82,12 +81,10 @@ app.post('/api/pedidos', (req, res) => {
     connection.beginTransaction((err) => {
       if (err) { connection.release(); return res.status(500).json({ error: 'Error Transacción' }); }
 
-      // Insertamos el pedido. 
-      const queryPedido = 'INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, fecha, estado) VALUES (?, ?, ?, ?, NOW(), "pendiente")';
-      connection.query(queryPedido, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago], (err, result) => {
+      const queryPedido = 'INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, items, fecha, estado) VALUES (?, ?, ?, ?, ?, NOW(), "pendiente")';
+      connection.query(queryPedido, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago, JSON.stringify(items)], (err, result) => {
         if (err) return connection.rollback(() => { connection.release(); res.status(500).json({ error: err }); });
 
-        // Restamos stock de los items comprados
         const promesasStock = items.map(item => {
           return new Promise((resolve, reject) => {
             const queryStock = 'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ?';
@@ -115,22 +112,17 @@ app.get('/api/pedidos', (req, res) => {
   });
 });
 
-// CANCELAR Y DEVOLVER STOCK (Lógica manual simplificada)
-// Nota: Aquí el AdminPanel debería enviarnos los items a devolver 
-// o el servidor debería tener una tabla detalle_pedidos.
 app.put('/api/pedidos/:id/cancelar', (req, res) => {
   const { id } = req.params;
-  const { items } = req.body; // El AdminPanel ahora debe enviar los items del pedido
+  const { items } = req.body;
 
   db.getConnection((err, connection) => {
     if (err) return res.status(500).json({ error: 'Error DB' });
 
     connection.beginTransaction((err) => {
-      // 1. Cambiamos estado a cancelado
       connection.query('UPDATE pedidos SET estado = "cancelado" WHERE id_pedido = ?', [id], (err) => {
         if (err) return connection.rollback(() => { connection.release(); res.status(500).send(); });
 
-        // 2. Si recibimos items, devolvemos el stock
         if (items && Array.isArray(items)) {
           const promesasDevolucion = items.map(item => {
             return new Promise((resolve, reject) => {
@@ -145,8 +137,7 @@ app.put('/api/pedidos/:id/cancelar', (req, res) => {
             connection.commit(() => { connection.release(); res.json({ message: 'Pedido cancelado y stock devuelto' }); });
           }).catch(() => connection.rollback(() => { connection.release(); res.status(500).send(); }));
         } else {
-          // Si no hay items para devolver, solo cancelamos el pedido
-          connection.commit(() => { connection.release(); res.json({ message: 'Pedido cancelado (sin devolución de stock)' }); });
+          connection.commit(() => { connection.release(); res.json({ message: 'Pedido cancelado' }); });
         }
       });
     });
