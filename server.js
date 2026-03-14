@@ -15,6 +15,26 @@ const PORT = process.env.PORT || 3001;
 app.use(cors()); 
 app.use(express.json());
 
+// ==========================================
+// CONTROL DE SESIÓN ÚNICA (ESTADO EN MEMORIA)
+// ==========================================
+let adminSession = {
+    isActive: false,
+    lastHeartbeat: null,
+    token: null
+};
+
+// Limpiador: Si no hay señales en 30 segundos, libera el bloqueo
+setInterval(() => {
+    if (adminSession.isActive && adminSession.lastHeartbeat) {
+        if (Date.now() - adminSession.lastHeartbeat > 30000) {
+            console.log("Sesión administrativa expirada. Bloqueo liberado.");
+            adminSession.isActive = false;
+            adminSession.token = null;
+        }
+    }
+}, 10000);
+
 // --- CONFIGURACIÓN DE ALMACENAMIENTO DE IMÁGENES ---
 const uploadDir = path.resolve(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -41,18 +61,16 @@ const db = mysql.createPool(RAILWAY_DB_URL);
 const generarNumeroOrden = () => `GR-${Math.floor(1000 + Math.random() * 9000)}`;
 
 // ==========================================
-// 1. GESTIÓN DE DIVISAS (CORREGIDO)
+// 1. GESTIÓN DE DIVISAS
 // ==========================================
 
-// Obtener todas las tasas (Dolar Blue, USDT, etc.)
 app.get('/api/configuracion_divisas', (req, res) => {
     db.query('SELECT * FROM configuracion_divisas', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(results || []); // Enviamos el array completo para el frontend
+        res.json(results || []);
     });
 });
 
-// Actualizar una tasa específica por su tipo
 app.put('/api/configuracion_divisas/:tipo', (req, res) => {
     const { tipo } = req.params;
     const { tasa } = req.body;
@@ -94,7 +112,6 @@ app.delete('/api/vinilos/:id', (req, res) => {
     });
 });
 
-// Carga de múltiples imágenes para la galería
 app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
     if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No se subieron archivos' });
     const urls = req.files.map(file => `/uploads/${file.filename}`);
@@ -131,7 +148,6 @@ app.post('/api/pedidos', (req, res) => {
             conn.query(q, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago, JSON.stringify(items), cupon_id], (err) => {
                 if (err) return conn.rollback(() => { conn.release(); res.status(500).send(); });
                 
-                // Descontar stock por cada item
                 const proms = items.map(i => new Promise((resolve, reject) => {
                     conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ?', [i.cantidad, i.id], e => e ? reject(e) : resolve());
                 }));
@@ -147,7 +163,7 @@ app.post('/api/pedidos', (req, res) => {
 });
 
 // ==========================================
-// 4. CUPONES Y SEGURIDAD
+// 4. CUPONES Y SEGURIDAD (INTEGRADO)
 // ==========================================
 
 app.get('/api/admin/cupones', (req, res) => {
@@ -166,16 +182,49 @@ app.post('/api/admin/cupones', (req, res) => {
     });
 });
 
+// Login con verificación de bloqueo de pestaña
 app.post('/api/admin/login-check', (req, res) => {
-    if (req.body.password === 'CONCHILIS2026') res.json({ success: true });
-    else res.status(401).json({ error: 'Credenciales inválidas' });
+    const { password } = req.body;
+
+    // Si ya hay una sesión activa en otro lado
+    if (adminSession.isActive) {
+        return res.status(423).json({ 
+            error: 'BLOQUEADO', 
+            message: 'Ya hay una sesión abierta en otra pestaña.' 
+        });
+    }
+
+    if (password === 'CONCHILIS2026') {
+        const newToken = Math.random().toString(36).substr(2);
+        adminSession = {
+            isActive: true,
+            lastHeartbeat: Date.now(),
+            token: newToken
+        };
+        res.json({ success: true, token: newToken });
+    } else {
+        res.status(401).json({ error: 'Credenciales inválidas' });
+    }
 });
 
+// Heartbeat para mantener el candado cerrado mientras la pestaña esté abierta
 app.post('/api/admin/heartbeat', (req, res) => {
-    res.json({ status: 'alive', lastActivity: new Date() });
+    const { token } = req.body;
+    if (adminSession.isActive && adminSession.token === token) {
+        adminSession.lastHeartbeat = Date.now();
+        return res.json({ status: 'alive' });
+    }
+    res.status(401).json({ status: 'session_lost' });
 });
 
-// SPA Handler (para que React maneje las rutas)
+// Logout manual para liberar el candado
+app.post('/api/admin/logout', (req, res) => {
+    adminSession.isActive = false;
+    adminSession.token = null;
+    res.json({ success: true });
+});
+
+// SPA Handler
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
