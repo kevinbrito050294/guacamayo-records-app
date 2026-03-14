@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut
+  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle
 } from 'lucide-react';
 
 // Componentes administrativos
@@ -25,31 +25,53 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [formEdit, setFormEdit] = useState<Partial<ViniloCatalogo>>({});
   const [subiendo, setSubiendo] = useState(false);
   const [busquedaInv, setBusquedaInv] = useState('');
-  
-  // --- LÓGICA DE INACTIVIDAD (15 MINUTOS) ---
+  const [sessionError, setSessionError] = useState(false); // Nuevo estado para bloqueo
+
+  // --- LÓGICA DE SESIÓN ÚNICA Y AUTO-LOGOUT ---
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const cerrarSesionTotal = () => {
+    localStorage.removeItem('admin_session_active'); // Liberamos el semáforo
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    onBack();
+  };
 
   const resetTimer = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       alert("Sesión finalizada por inactividad (15 min)");
-      onBack(); // Cierra el panel
-    }, 15 * 60 * 1000); // 15 minutos
+      cerrarSesionTotal();
+    }, 15 * 60 * 1000);
   };
 
   useEffect(() => {
-    // Eventos que resetean el contador
+    // 1. Verificar si ya hay una sesión activa en este navegador
+    if (localStorage.getItem('admin_session_active') === 'true') {
+      setSessionError(true);
+      return;
+    }
+
+    // 2. Si no hay, marcamos esta como activa
+    localStorage.setItem('admin_session_active', 'true');
+
+    // 3. Configurar eventos de inactividad
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     events.forEach(event => window.addEventListener(event, resetTimer));
     resetTimer();
 
+    // 4. Limpieza al cerrar pestaña o componente
+    const handleUnload = () => localStorage.removeItem('admin_session_active');
+    window.addEventListener('beforeunload', handleUnload);
+
     return () => {
+      handleUnload();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       events.forEach(event => window.removeEventListener(event, resetTimer));
+      window.removeEventListener('beforeunload', handleUnload);
     };
   }, []);
-  // ------------------------------------------
 
+  // --- MÉTODOS DE DATOS ---
   const getApiUrl = () => {
     return window.location.hostname === 'localhost' 
       ? 'http://localhost:3001' 
@@ -69,7 +91,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     }
   };
 
-  useEffect(() => { cargarVinilos(); }, []);
+  useEffect(() => { 
+    if (!sessionError) cargarVinilos(); 
+  }, [sessionError]);
 
   const vinilosFiltrados = vinilos.filter(v => 
     v.titulo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
@@ -159,20 +183,41 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     return url.startsWith('http') ? url : `${getApiUrl()}${url}`;
   };
 
+  // --- UI BLOQUEO POR DOBLE SESIÓN ---
+  if (sessionError) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+        <div className="max-w-md bg-white dark:bg-slate-900 p-8 rounded-3xl border border-red-200 dark:border-red-900/30 text-center shadow-2xl">
+          <AlertTriangle className="mx-auto mb-4 text-red-500" size={48} />
+          <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">Acceso Restringido</h2>
+          <p className="text-slate-500 text-sm mb-6">
+            Ya hay una sesión de administración abierta en otra pestaña. 
+            Cerrala para evitar errores de escritura y duplicación de datos.
+          </p>
+          <button 
+            onClick={onBack} 
+            className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase"
+          >
+            VOLVER AL INICIO
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
       <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-40 border-b dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+            <button onClick={cerrarSesionTotal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
               <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
             </button>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Panel de Control</h1>
           </div>
           
-          {/* BOTÓN CERRAR SESIÓN RESTAURADO */}
           <button 
-            onClick={onBack}
+            onClick={cerrarSesionTotal}
             className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-lg shadow-red-500/20"
           >
             <LogOut size={16} />
@@ -347,7 +392,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// ... (El resto de sub-componentes TabButton, CouponManager, OrdersList y UserManual se mantienen igual)
+// ... Subcomponentes TabButton, CouponManager, OrdersList y UserManual se mantienen iguales ...
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
@@ -503,6 +548,7 @@ function UserManual() {
       <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda rápida</h3>
       <p>• El buscador filtra por título o artista en tiempo real.</p>
       <p>• Los iconos de <strong>Música</strong> y <strong>Escudo</strong> indican el género y calidad cargados.</p>
+      <p>• <strong>Sesión Única:</strong> Solo se permite una pestaña de administración abierta para proteger los datos.</p>
     </div>
   );
 }
