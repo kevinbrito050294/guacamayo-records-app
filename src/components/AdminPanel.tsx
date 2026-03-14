@@ -220,6 +220,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       >
                                         <option value="M">M</option>
                                         <option value="NM">NM</option>
+                                        <option value="EX">EX (Excellent)</option>
                                         <option value="VG+">VG+</option>
                                         <option value="VG">VG</option>
                                         <option value="G">G</option>
