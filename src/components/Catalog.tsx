@@ -19,7 +19,6 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [cargandoPrecios, setCargandoPrecios] = useState(true);
 
-  // Referencias para el scroll automático
   const discosRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
@@ -51,13 +50,11 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
     cargarPrecios();
   }, [vinilos, divisaActiva]);
 
-  // Filtrado para la grilla principal
   const vinilosFiltrados = vinilos.filter(v => 
     v.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
     v.artista.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // Sugerencias visuales (máximo 5)
   const sugerencias = vinilos
     .filter(v => 
       v.titulo.toLowerCase().includes(busqueda.toLowerCase()) || 
@@ -65,17 +62,12 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
     )
     .slice(0, 5);
 
-  // Función para ir al disco
   const hacerScrollAlDisco = (id: string) => {
     const elemento = discosRefs.current[id];
     if (elemento) {
       setMostrarSugerencias(false);
-      setBusqueda(''); // Limpiamos para que se vea todo el catálogo nuevamente
-      
-      // Scroll suave
+      setBusqueda('');
       elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      // Resaltado visual temporal
       elemento.classList.add('ring-4', 'ring-amber-500', 'rounded-[2rem]', 'z-10');
       setTimeout(() => {
         elemento.classList.remove('ring-4', 'ring-amber-500');
@@ -104,7 +96,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
           </div>
         </div>
 
-        {/* BUSCADOR CON SUGERENCIAS MINIATURA */}
+        {/* BUSCADOR CON SUGERENCIAS EN PESOS/DIVISA */}
         <div className="relative w-full md:w-96 mt-4 md:mt-0 z-50">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -121,10 +113,8 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
             />
           </div>
 
-          {/* Panel de sugerencias visuales */}
           {mostrarSugerencias && busqueda.length > 0 && (
             <>
-              {/* Overlay transparente para cerrar al tocar fuera */}
               <div className="fixed inset-0 z-[-1]" onClick={() => setMostrarSugerencias(false)} />
               
               <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
@@ -149,8 +139,14 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito }: Catalog
                             {v.artista}
                           </p>
                         </div>
-                        <div className="text-[10px] font-black text-amber-500 font-mono">
-                          USD {v.precio_venta}
+                        
+                        {/* PRECIO CONVERTIDO EN LA MINIATURA */}
+                        <div className="text-[10px] font-black text-amber-500 font-mono whitespace-nowrap">
+                          {divisaActiva} {
+                            divisaActiva === 'ARS' 
+                              ? (preciosMap[v.id]?.ars ? Math.round(preciosMap[v.id].ars).toLocaleString('es-AR') : '...') 
+                              : (divisaActiva === 'USDT' ? preciosMap[v.id]?.usdt : v.precio_venta)
+                          }
                         </div>
                       </button>
                     ))}
