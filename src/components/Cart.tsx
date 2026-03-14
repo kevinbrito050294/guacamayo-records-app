@@ -52,15 +52,17 @@ export function Cart({
         ? 'http://localhost:3001' 
         : 'https://guacamayorecords.up.railway.app';
 
+      // NOTA: Enviamos 'items' como string JSON para que el server lo guarde y podamos 
+      // recuperarlo al cancelar para devolver el stock.
       const datosPedido = {
         nombre_cliente: nombre,
         whatsapp_cliente: whatsapp,
         total_pago: totalUsd,
         divisa_preferida: divisaPreferida,
         items: items.map(item => ({
-          id_vinilo: item.vinilo.id,
+          id: item.vinilo.id,
           cantidad: item.cantidad,
-          precio_unitario: item.vinilo.precio_venta
+          titulo: item.vinilo.titulo
         }))
       };
 
@@ -74,14 +76,12 @@ export function Cart({
 
       if (!response.ok) throw new Error(data.error || 'Error al procesar');
 
-      // Formateo de mensaje para WhatsApp
       const listaVinilos = items.map(i => `- ${i.cantidad}x *${i.vinilo.titulo}*`).join('\n');
       const mensajeWA = `¡Hola Guacamayo Records! 🦜\n\n` +
         `📦 *PEDIDO: #${data.numero_orden}*\n` +
         `👤 Cliente: ${nombre}\n` +
         `🎸 Discos:\n${listaVinilos}\n\n` +
         `💰 *TOTAL: USD ${totalUsd.toFixed(2)}*\n` +
-        `💳 Pago en: ${divisaPreferida}\n\n` +
         `¿Me confirman para coordinar el pago?`;
       
       const telTienda = "5491164475028";
@@ -92,8 +92,7 @@ export function Cart({
       alert(`✅ Pedido #${data.numero_orden} registrado con éxito.`);
 
     } catch (error: any) {
-      alert("Hubo un problema con el servidor, pero podés enviar el pedido igual por WhatsApp.");
-      window.open(`https://wa.me/5491164475028?text=${encodeURIComponent("Hola Guacamayo, quiero estos discos: " + items.map(i => i.vinilo.titulo).join(", "))}`, '_blank');
+      alert("❌ Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -102,7 +101,6 @@ export function Cart({
   return (
     <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row overflow-hidden my-4 transition-all">
       
-      {/* SECCIÓN IZQUIERDA: LISTA DE PRODUCTOS */}
       <div className="flex-grow p-6 md:p-10 border-r border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -123,44 +121,57 @@ export function Cart({
               <p className="font-bold uppercase tracking-widest text-xs">El carrito está vacío</p>
             </div>
           ) : (
-            items.map((item) => (
-              <div key={item.vinilo.id} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-transparent dark:border-slate-800 group hover:border-amber-500/30 transition-all">
-                {/* Ajuste para multi-imagen */}
-                <img 
-                  src={item.vinilo.imagen_url?.split(',')[0] || ''} 
-                  className="h-20 w-20 object-cover rounded-2xl shadow-md group-hover:rotate-3 transition-transform" 
-                  alt={item.vinilo.titulo} 
-                />
-                
-                <div className="flex-grow min-w-0">
-                  <h3 className="font-black text-slate-900 dark:text-white text-sm uppercase truncate leading-none mb-1">{item.vinilo.titulo}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{item.vinilo.artista}</p>
-                  <p className="text-[10px] text-amber-600 dark:text-amber-500 font-black mt-2 uppercase tracking-widest">
-                    Subtotal: ARS {Math.round((preciosMap[item.vinilo.id]?.ars || 0) * item.cantidad).toLocaleString('es-AR')}
-                  </p>
-                </div>
-                
-                {/* Controles de cantidad */}
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-1.5 shadow-sm">
-                  <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad - 1)} disabled={item.cantidad <= 1} className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20 transition-colors">
-                    <Minus size={14}/>
-                  </button>
-                  <span className="font-black text-xs w-4 text-center dark:text-white">{item.cantidad}</span>
-                  <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad + 1)} className="p-1 hover:text-amber-500 dark:text-slate-400 transition-colors">
-                    <Plus size={14}/>
-                  </button>
-                </div>
+            items.map((item) => {
+              // Validamos si hay stock disponible para subir
+              const tieneStockDisponible = item.cantidad < item.vinilo.stock_actual;
 
-                <button onClick={() => onRemoveItem(item.vinilo.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2">
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            ))
+              return (
+                <div key={item.vinilo.id} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-transparent dark:border-slate-800 group hover:border-amber-500/30 transition-all">
+                  <img 
+                    src={item.vinilo.imagen_url?.split(',')[0] || ''} 
+                    className="h-20 w-20 object-cover rounded-2xl shadow-md group-hover:rotate-3 transition-transform" 
+                    alt={item.vinilo.titulo} 
+                  />
+                  
+                  <div className="flex-grow min-w-0">
+                    <h3 className="font-black text-slate-900 dark:text-white text-sm uppercase truncate mb-1">{item.vinilo.titulo}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{item.vinilo.artista}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <p className="text-[10px] text-amber-600 dark:text-amber-500 font-black uppercase">
+                        Subtotal: ARS {Math.round((preciosMap[item.vinilo.id]?.ars || 0) * item.cantidad).toLocaleString('es-AR')}
+                      </p>
+                      <span className="text-[9px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">
+                        Stock: {item.vinilo.stock_actual}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-1.5 shadow-sm">
+                    <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad - 1)} disabled={item.cantidad <= 1} className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20">
+                      <Minus size={14}/>
+                    </button>
+                    <span className="font-black text-xs w-4 text-center dark:text-white">{item.cantidad}</span>
+                    <button 
+                      type="button" 
+                      onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad + 1)} 
+                      disabled={!tieneStockDisponible}
+                      className={`p-1 transition-colors ${tieneStockDisponible ? 'hover:text-amber-500 dark:text-slate-400' : 'text-slate-200 dark:text-slate-800 cursor-not-allowed'}`}
+                      title={!tieneStockDisponible ? "No hay más stock disponible" : ""}
+                    >
+                      <Plus size={14}/>
+                    </button>
+                  </div>
+
+                  <button onClick={() => onRemoveItem(item.vinilo.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2">
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* SECCIÓN DERECHA: PAGO */}
       {items.length > 0 && (
         <div className="w-full md:w-96 bg-slate-950 text-white p-8 md:p-10 flex flex-col justify-between">
           <div>
@@ -183,10 +194,6 @@ export function Cart({
               </div>
 
               <div className="mt-10 pt-8 border-t border-white/5 space-y-3">
-                <div className="flex justify-between items-center opacity-60">
-                  <span className="text-[10px] uppercase font-black tracking-widest">Moneda</span>
-                  <span className="text-xs font-black">{divisaPreferida}</span>
-                </div>
                 <div className="flex justify-between items-end">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Final</span>
                   <span className="text-3xl font-black text-white italic tracking-tighter">USD ${totalUsd.toFixed(2)}</span>
@@ -203,10 +210,8 @@ export function Cart({
             </form>
           </div>
           
-          <div className="mt-8 text-center">
-            <p className="text-[8px] text-slate-600 uppercase font-black tracking-[0.2em]">
-              Guacamayo Records &copy; 2026
-            </p>
+          <div className="mt-8 text-center opacity-20">
+            <p className="text-[8px] uppercase font-black tracking-[0.2em]">Guacamayo Records &copy; 2026</p>
           </div>
         </div>
       )}

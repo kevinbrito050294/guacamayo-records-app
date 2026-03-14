@@ -60,16 +60,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         method: 'POST', 
         body: formData 
       });
-      
       if (!res.ok) throw new Error("Error en la subida");
-      
       const data = await res.json();
-      
-      // Combinar las fotos nuevas con las que ya estaban en el formulario
       const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
       const nuevasFotos = data.url.split(',');
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
-      
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
       alert(`✅ Imágenes añadidas a la galería`);
     } catch (error) {
@@ -83,7 +78,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     const fotos = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
     const nuevas = [...fotos];
     const [fotoSeleccionada] = nuevas.splice(index, 1);
-    nuevas.unshift(fotoSeleccionada); // Mover al principio
+    nuevas.unshift(fotoSeleccionada);
     setFormEdit({ ...formEdit, imagen_url: nuevas.join(',') });
   };
 
@@ -163,7 +158,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                       {editandoId === v.id ? (
                         <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            {/* Inputs de Texto */}
                             <div className="space-y-4">
                               <div>
                                 <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
@@ -188,8 +182,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                 <button onClick={() => setEditandoId(null)} className="px-4 bg-slate-300 dark:bg-slate-700 rounded-xl text-xs font-black uppercase tracking-tighter"><X size={16}/></button>
                               </div>
                             </div>
-
-                            {/* Galería Interactiva */}
                             <div className="md:col-span-2 space-y-3">
                               <label className="text-[10px] font-black uppercase text-slate-500 block">Galería (La primera es la Principal)</label>
                               <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
@@ -209,14 +201,13 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     </div>
                                   </div>
                                 ))}
-                                
                                 <label className="aspect-square rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-500/5 hover:border-amber-500 transition-all text-slate-400 hover:text-amber-500">
                                   <Plus size={24} />
                                   <span className="text-[8px] font-black uppercase mt-1">Añadir</span>
                                   <input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} />
                                 </label>
                               </div>
-                              {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS A CLOUDINARY...</p>}
+                              {subiendo && <p className="text-[10px] font-black text-amber-500 animate-pulse tracking-widest">SUBIENDO ARCHIVOS...</p>}
                             </div>
                           </div>
                         </td>
@@ -259,7 +250,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             </div>
           )}
 
-          {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} />}
+          {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} />}
           {activeTab === 'form' && <VinylForm onSuccess={cargarVinilos} />}
           {activeTab === 'bulk' && <BulkImporter />}
           {activeTab === 'currency' && <CurrencyManager />}
@@ -269,8 +260,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     </div>
   );
 }
-
-// ... (Resto de los sub-componentes TabButton, OrdersList y UserManual permanecen igual)
 
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
@@ -282,7 +271,7 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
   );
 }
 
-function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
+function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onOrderUpdate: () => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -291,7 +280,8 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
       setLoading(true);
       const res = await fetch(`${getApiUrl()}/api/pedidos`);
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
+      const sortedData = Array.isArray(data) ? data.sort((a, _) => (a.estado === 'cancelado' ? 1 : -1)) : [];
+      setOrders(sortedData);
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
@@ -305,38 +295,76 @@ function OrdersList({ getApiUrl }: { getApiUrl: () => string }) {
     } catch (error) { alert("❌ Error al finalizar"); }
   };
 
+  const cancelarPedido = async (order: any) => {
+    if (!confirm(`⚠️ ¿Cancelar el pedido de ${order.nombre_cliente}? El stock se devolverá automáticamente.`)) return;
+    
+    try {
+      // Intentamos recuperar los items guardados en el pedido (si los hay)
+      // Como por ahora no tienes tabla detalles, el backend requiere que le mandes qué devolver.
+      const itemsADevolver = order.items ? JSON.parse(order.items) : [];
+
+      const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsADevolver }) 
+      });
+
+      if (res.ok) {
+        alert("✅ Pedido cancelado y stock restablecido");
+        fetchOrders();
+        onOrderUpdate(); // Refresca la lista de vinilos también
+      }
+    } catch (error) { alert("❌ Error al cancelar"); }
+  };
+
   if (loading) return <div className="text-center py-10 font-mono text-xs opacity-50 tracking-widest">ACTUALIZANDO REGISTROS...</div>;
 
   return (
     <div className="space-y-4">
       {orders.length === 0 ? (
-        <p className="text-center text-slate-500 py-10">No hay pedidos pendientes.</p>
-      ) : orders.map(order => (
-        <div key={order.id_pedido} className="p-5 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex justify-between items-center group hover:border-amber-500/30 transition-all">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 rounded flex items-center gap-0.5"><Hash size={8}/> {order.numero_orden}</span>
-              <p className="font-bold dark:text-white text-lg">{order.nombre_cliente}</p>
+        <p className="text-center text-slate-500 py-10">No hay pedidos registrados.</p>
+      ) : orders.map(order => {
+        const isCancelado = order.estado === 'cancelado';
+        const isFinalizado = order.estado === 'finalizado';
+
+        return (
+          <div key={order.id_pedido} className={`p-5 rounded-2xl border transition-all flex justify-between items-center group ${isCancelado ? 'bg-slate-100 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 opacity-60' : 'bg-slate-50 dark:bg-slate-800/30 dark:border-slate-800 hover:border-amber-500/30'}`}>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className={`text-[9px] font-black px-1.5 rounded flex items-center gap-0.5 ${isCancelado ? 'bg-slate-400 text-white' : 'bg-amber-500 text-slate-950'}`}>
+                  <Hash size={8}/> {order.numero_orden}
+                </span>
+                <p className={`font-bold text-lg ${isCancelado ? 'line-through text-slate-500' : 'dark:text-white'}`}>{order.nombre_cliente}</p>
+                {isCancelado && <span className="text-[10px] font-black text-red-500 uppercase ml-2 italic">Cancelado</span>}
+              </div>
+              <p className="text-xs text-slate-500 flex items-center gap-1 font-mono uppercase tracking-tighter">FECHA: {new Date(order.fecha).toLocaleDateString()}</p>
             </div>
-            <p className="text-xs text-slate-500 flex items-center gap-1 font-mono uppercase tracking-tighter">FECHA: {new Date(order.fecha).toLocaleDateString()}</p>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className={`font-black text-xl font-mono ${isCancelado ? 'text-slate-400' : 'text-amber-500'}`}>${order.total_pago}</p>
+              </div>
+              <div className="flex gap-2">
+                {!isCancelado && !isFinalizado && (
+                  <>
+                    <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
+                      <MessageCircle size={20} />
+                    </a>
+                    <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">
+                      <CheckCircle size={20}/>
+                    </button>
+                    <button onClick={() => cancelarPedido(order)} className="p-2.5 bg-white dark:bg-slate-900 text-red-500 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm">
+                      <X size={20}/>
+                    </button>
+                  </>
+                )}
+                {isFinalizado && (
+                  <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-2 rounded-xl uppercase tracking-widest border border-emerald-500/20">Completado</span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="font-black text-amber-500 text-xl font-mono">${order.total_pago}</p>
-            </div>
-            <div className="flex gap-2">
-              <a href={`https://wa.me/${order.whatsapp_cliente}`} target="_blank" className="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all">
-                <MessageCircle size={20} />
-              </a>
-              {order.estado !== 'finalizado' && (
-                <button onClick={() => finalizarPedido(order.id_pedido)} className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">
-                  <CheckCircle size={20}/>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -346,12 +374,11 @@ function UserManual() {
     <div className="p-4 space-y-6 dark:text-slate-400 text-sm">
       <div className="space-y-2">
         <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Gestión de Stock</h3>
+        <p>• Al cancelar un pedido, el sistema devolverá automáticamente los discos al stock.</p>
         <p>• Editá precios y cantidades directamente desde la lista de inventario.</p>
-        <p>• Los cambios se guardan en tiempo real en la base de datos de Guacamayo Records.</p>
       </div>
       <div className="space-y-2">
         <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2"><Layers size={18} className="text-amber-500"/> Imágenes Múltiples</h3>
-        <p>• Al editar un producto, podés seleccionar varias fotos a la vez.</p>
         <p>• La primera foto de la cuadrícula es la **PRINCIPAL** (Portada).</p>
         <p>• Usá el icono de la estrella para cambiar la foto de portada.</p>
       </div>
