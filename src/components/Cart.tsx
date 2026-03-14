@@ -42,6 +42,12 @@ export function Cart({
   }, [items]);
 
   const totalUsd = items.reduce((acc, item) => acc + (item.vinilo.precio_venta * item.cantidad), 0);
+  
+  // Calculamos el total en ARS sumando los subtotales ya convertidos
+  const totalArs = items.reduce((acc, item) => {
+    const precioArs = preciosMap[item.vinilo.id]?.ars || 0;
+    return acc + (precioArs * item.cantidad);
+  }, 0);
 
   const handleConfirmarPedido = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +58,6 @@ export function Cart({
         ? 'http://localhost:3001' 
         : 'https://guacamayorecords.up.railway.app';
 
-      // NOTA: Enviamos 'items' como string JSON para que el server lo guarde y podamos 
-      // recuperarlo al cancelar para devolver el stock.
       const datosPedido = {
         nombre_cliente: nombre,
         whatsapp_cliente: whatsapp,
@@ -73,16 +77,18 @@ export function Cart({
       });
 
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || 'Error al procesar');
 
       const listaVinilos = items.map(i => `- ${i.cantidad}x *${i.vinilo.titulo}*`).join('\n');
+      
+      // WhatsApp Mensaje: Prioridad a Pesos para el mercado Argentino
       const mensajeWA = `¡Hola Guacamayo Records! 🦜\n\n` +
         `📦 *PEDIDO: #${data.numero_orden}*\n` +
         `👤 Cliente: ${nombre}\n` +
         `🎸 Discos:\n${listaVinilos}\n\n` +
-        `💰 *TOTAL: USD ${totalUsd.toFixed(2)}*\n` +
-        `¿Me confirman para coordinar el pago?`;
+        `💰 *TOTAL A PAGAR: $${Math.round(totalArs).toLocaleString('es-AR')} ARS*\n` +
+        `_(Ref: USD ${totalUsd.toFixed(2)})_\n\n` +
+        `¿Me pasan los datos para la transferencia?`;
       
       const telTienda = "5491164475028";
       window.open(`https://wa.me/${telTienda}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
@@ -101,6 +107,7 @@ export function Cart({
   return (
     <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row overflow-hidden my-4 transition-all">
       
+      {/* Lado Izquierdo: Lista de Items */}
       <div className="flex-grow p-6 md:p-10 border-r border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -122,9 +129,7 @@ export function Cart({
             </div>
           ) : (
             items.map((item) => {
-              // Validamos si hay stock disponible para subir
               const tieneStockDisponible = item.cantidad < item.vinilo.stock_actual;
-
               return (
                 <div key={item.vinilo.id} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-transparent dark:border-slate-800 group hover:border-amber-500/30 transition-all">
                   <img 
@@ -138,11 +143,8 @@ export function Cart({
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{item.vinilo.artista}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <p className="text-[10px] text-amber-600 dark:text-amber-500 font-black uppercase">
-                        Subtotal: ARS {Math.round((preciosMap[item.vinilo.id]?.ars || 0) * item.cantidad).toLocaleString('es-AR')}
+                        Subtotal: ARS ${Math.round((preciosMap[item.vinilo.id]?.ars || 0) * item.cantidad).toLocaleString('es-AR')}
                       </p>
-                      <span className="text-[9px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">
-                        Stock: {item.vinilo.stock_actual}
-                      </span>
                     </div>
                   </div>
                   
@@ -156,7 +158,6 @@ export function Cart({
                       onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad + 1)} 
                       disabled={!tieneStockDisponible}
                       className={`p-1 transition-colors ${tieneStockDisponible ? 'hover:text-amber-500 dark:text-slate-400' : 'text-slate-200 dark:text-slate-800 cursor-not-allowed'}`}
-                      title={!tieneStockDisponible ? "No hay más stock disponible" : ""}
                     >
                       <Plus size={14}/>
                     </button>
@@ -172,6 +173,7 @@ export function Cart({
         </div>
       </div>
 
+      {/* Lado Derecho: Formulario y Totales (Invertido) */}
       {items.length > 0 && (
         <div className="w-full md:w-96 bg-slate-950 text-white p-8 md:p-10 flex flex-col justify-between">
           <div>
@@ -193,10 +195,18 @@ export function Cart({
                 />
               </div>
 
-              <div className="mt-10 pt-8 border-t border-white/5 space-y-3">
-                <div className="flex justify-between items-end">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Final</span>
-                  <span className="text-3xl font-black text-white italic tracking-tighter">USD ${totalUsd.toFixed(2)}</span>
+              {/* Sección de Totales Invertida */}
+              <div className="mt-10 pt-8 border-t border-white/5 space-y-4">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total a pagar (ARS)</span>
+                  <p className="text-4xl font-black text-white italic tracking-tighter leading-none">
+                    ${Math.round(totalArs).toLocaleString('es-AR')}
+                  </p>
+                </div>
+
+                <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase italic">Referencia:</span>
+                  <span className="text-sm font-mono font-black text-amber-500/80">USD ${totalUsd.toFixed(2)}</span>
                 </div>
               </div>
 
