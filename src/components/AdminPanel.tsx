@@ -45,24 +45,37 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   };
 
   useEffect(() => {
-    if (localStorage.getItem('admin_session_active') === 'true') {
+    const sessionActive = localStorage.getItem('admin_session_active');
+    
+    // Si ya hay una sesión activa Y no es esta pestaña la que la creó
+    if (sessionActive === 'true') {
       setSessionError(true);
       return;
     }
 
+    // Marcar sesión como activa
     localStorage.setItem('admin_session_active', 'true');
+    
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, resetTimer));
+    const resetTimerWrapper = () => resetTimer();
+    
+    events.forEach(event => window.addEventListener(event, resetTimerWrapper));
     resetTimer();
 
-    const handleUnload = () => localStorage.removeItem('admin_session_active');
+    // Limpieza al cerrar o recargar
+    const handleUnload = () => {
+      localStorage.removeItem('admin_session_active');
+    };
+
     window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('unload', handleUnload);
 
     return () => {
       handleUnload();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
+      events.forEach(event => window.removeEventListener(event, resetTimerWrapper));
       window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('unload', handleUnload);
     };
   }, []);
 
@@ -181,7 +194,16 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           <AlertTriangle className="mx-auto mb-4 text-red-500" size={48} />
           <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">Acceso Restringido</h2>
           <p className="text-slate-500 text-sm mb-6">Ya hay una sesión abierta en otra pestaña.</p>
-          <button onClick={onBack} className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase">VOLVER</button>
+          <button 
+            onClick={() => {
+              // Botón de emergencia: Limpia y vuelve
+              localStorage.removeItem('admin_session_active');
+              onBack();
+            }} 
+            className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase"
+          >
+            VOLVER Y LIBERAR SESIÓN
+          </button>
         </div>
       </div>
     );
@@ -247,13 +269,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                             <td colSpan={3} className="p-6 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div className="space-y-4">
-                                  {/* Título en su propia fila */}
                                   <div>
                                     <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
                                     <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
                                   </div>
-                                  
-                                  {/* Artista y Género compartiendo fila */}
                                   <div className="grid grid-cols-2 gap-4">
                                     <div>
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
@@ -269,7 +288,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       />
                                     </div>
                                   </div>
-
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
@@ -383,8 +401,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// --- SUBCOMPONENTES ---
-
+// (Siguen los subcomponentes igual que antes...)
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
