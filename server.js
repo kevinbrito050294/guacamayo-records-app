@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// CONTROL DE SESIÓN ÚNICA (ESTADO EN MEMORIA)
+// CONTROL DE SESIÓN ÚNICA (MEJORADO)
 // ==========================================
 let adminSession = {
     isActive: false,
@@ -28,14 +28,14 @@ let adminSession = {
 setInterval(() => {
     if (adminSession.isActive && adminSession.lastHeartbeat) {
         if (Date.now() - adminSession.lastHeartbeat > 30000) {
-            console.log("Sesión administrativa expirada. Bloqueo liberado.");
+            console.log("⚠️ Sesión administrativa expirada por inactividad. Bloqueo liberado.");
             adminSession.isActive = false;
             adminSession.token = null;
         }
     }
 }, 10000);
 
-// --- CONFIGURACIÓN DE ALMACENAMIENTO DE IMÁGENES ---
+// --- CONFIGURACIÓN DE ALMACENAMIENTO ---
 const uploadDir = path.resolve(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -54,7 +54,7 @@ const upload = multer({ storage });
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- CONEXIÓN A BASE DE DATOS (RAILWAY) ---
+// --- CONEXIÓN A BASE DE DATOS ---
 const RAILWAY_DB_URL = process.env.MYSQL_URL;
 const db = mysql.createPool(RAILWAY_DB_URL);
 
@@ -63,7 +63,6 @@ const generarNumeroOrden = () => `GR-${Math.floor(1000 + Math.random() * 9000)}`
 // ==========================================
 // 1. GESTIÓN DE DIVISAS
 // ==========================================
-
 app.get('/api/configuracion_divisas', (req, res) => {
     db.query('SELECT * FROM configuracion_divisas', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -74,11 +73,8 @@ app.get('/api/configuracion_divisas', (req, res) => {
 app.put('/api/configuracion_divisas/:tipo', (req, res) => {
     const { tipo } = req.params;
     const { tasa } = req.body;
-    const query = 'UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?';
-    
-    db.query(query, [tasa, tipo], (err, result) => {
+    db.query('UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?', [tasa, tipo], (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (result.affectedRows === 0) return res.status(404).json({ error: 'Divisa no encontrada' });
         res.json({ success: true });
     });
 });
@@ -86,11 +82,20 @@ app.put('/api/configuracion_divisas/:tipo', (req, res) => {
 // ==========================================
 // 2. GESTIÓN DE VINILOS (INVENTARIO)
 // ==========================================
-
 app.get('/api/vinilos', (req, res) => {
-    db.query('SELECT * FROM inventario_vinilos', (err, results) => {
+    db.query('SELECT * FROM inventario_vinilos ORDER BY id DESC', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results || []);
+    });
+});
+
+// NUEVO: Ruta para crear vinilo
+app.post('/api/vinilos', (req, res) => {
+    const { titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad } = req.body;
+    const query = `INSERT INTO inventario_vinilos (titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
     });
 });
 
@@ -119,9 +124,8 @@ app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
 });
 
 // ==========================================
-// 3. GESTIÓN DE PEDIDOS Y VENTAS
+// 3. GESTIÓN DE PEDIDOS
 // ==========================================
-
 app.get('/api/pedidos', (req, res) => {
     db.query('SELECT * FROM pedidos ORDER BY fecha DESC', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -137,25 +141,23 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
     });
 });
 
-app.post('/api/pedidos', (req, res) => {
-    const { nombre_cliente, whatsapp_cliente, total_pago, items, cupon_id } = req.body;
-    const nroOrden = generarNumeroOrden();
+// Ruta para cancelar y devolver stock
+app.put('/api/pedidos/:id/cancelar', (req, res) => {
+    const { id } = req.params;
+    const { items } = req.body; // Recibimos los items para devolver stock
     
     db.getConnection((err, conn) => {
         if (err) return res.status(500).send();
         conn.beginTransaction(() => {
-            const q = 'INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, items, cupon_id, fecha, estado) VALUES (?, ?, ?, ?, ?, ?, NOW(), "pendiente")';
-            conn.query(q, [nroOrden, nombre_cliente, whatsapp_cliente, total_pago, JSON.stringify(items), cupon_id], (err) => {
+            conn.query('UPDATE pedidos SET estado = "cancelado" WHERE id_pedido = ?', [id], (err) => {
                 if (err) return conn.rollback(() => { conn.release(); res.status(500).send(); });
                 
                 const proms = items.map(i => new Promise((resolve, reject) => {
-                    conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ?', [i.cantidad, i.id], e => e ? reject(e) : resolve());
+                    conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', [i.cantidad, i.vinilo.id], e => e ? reject(e) : resolve());
                 }));
                 
                 Promise.all(proms)
-                    .then(() => {
-                        conn.commit(() => { conn.release(); res.json({ success: true, numero_orden: nroOrden }); });
-                    })
+                    .then(() => conn.commit(() => { conn.release(); res.json({ success: true }); }))
                     .catch(() => conn.rollback(() => { conn.release(); res.status(500).send(); }));
             });
         });
@@ -163,39 +165,22 @@ app.post('/api/pedidos', (req, res) => {
 });
 
 // ==========================================
-// 4. CUPONES Y SEGURIDAD (INTEGRADO)
+// 4. SEGURIDAD Y LOGIN (OPTIMIZADO)
 // ==========================================
 
-app.get('/api/admin/cupones', (req, res) => {
-    db.query('SELECT * FROM cupones ORDER BY id DESC', (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-
-app.post('/api/admin/cupones', (req, res) => {
-    const { codigo, tipo, valor, fecha_expiracion, uso_maximo } = req.body;
-    const query = 'INSERT INTO cupones (codigo, tipo, valor, fecha_expiracion, uso_maximo) VALUES (?, ?, ?, ?, ?)';
-    db.query(query, [codigo.toUpperCase(), tipo, valor, fecha_expiracion, uso_maximo], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    });
-});
-
-// Login con verificación de bloqueo de pestaña
 app.post('/api/admin/login-check', (req, res) => {
     const { password } = req.body;
 
-    // Si ya hay una sesión activa en otro lado
-    if (adminSession.isActive) {
+    // Si ya hay una sesión activa Y el lastHeartbeat fue hace menos de 30 seg
+    if (adminSession.isActive && (Date.now() - adminSession.lastHeartbeat < 30000)) {
         return res.status(423).json({ 
             error: 'BLOQUEADO', 
-            message: 'Ya hay una sesión abierta en otra pestaña.' 
+            message: 'Ya hay una sesión abierta en otra pestaña o navegador.' 
         });
     }
 
     if (password === 'CONCHILIS2026') {
-        const newToken = Math.random().toString(36).substr(2);
+        const newToken = Math.random().toString(36).substr(2) + Date.now();
         adminSession = {
             isActive: true,
             lastHeartbeat: Date.now(),
@@ -207,7 +192,6 @@ app.post('/api/admin/login-check', (req, res) => {
     }
 });
 
-// Heartbeat para mantener el candado cerrado mientras la pestaña esté abierta
 app.post('/api/admin/heartbeat', (req, res) => {
     const { token } = req.body;
     if (adminSession.isActive && adminSession.token === token) {
@@ -217,7 +201,6 @@ app.post('/api/admin/heartbeat', (req, res) => {
     res.status(401).json({ status: 'session_lost' });
 });
 
-// Logout manual para liberar el candado
 app.post('/api/admin/logout', (req, res) => {
     adminSession.isActive = false;
     adminSession.token = null;
@@ -229,4 +212,4 @@ app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Servidor corriendo en puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Servidor Guacamayo corriendo en puerto ${PORT}`));

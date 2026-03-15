@@ -22,7 +22,6 @@ function App() {
   const [loginError, setLoginError] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [divisa, setDivisa] = useState<Divisa>('ARS');
-  
 
   const getApiUrl = useCallback(() => {
     return window.location.hostname === 'localhost' 
@@ -57,13 +56,19 @@ function App() {
     cargarDatosIniciales();
   }, [cargarDatosIniciales]);
 
+  // --- LOGOUT INTEGRADO CON SEGURIDAD ---
   const handleLogout = useCallback(async () => {
     try {
       await fetch(`${getApiUrl()}/api/admin/logout`, { method: 'POST' });
-    } catch (err) { console.error(err); }
-    setIsAdminAuthenticated(false);
-    setCurrentPage('catalog');
-    setLoginError('');
+    } catch (err) { 
+      console.error("Error al notificar logout al server:", err); 
+    } finally {
+      // Liberamos el candado de sesión activa para permitir futuros ingresos
+      localStorage.removeItem('admin_session_active');
+      setIsAdminAuthenticated(false);
+      setCurrentPage('catalog');
+      setLoginError('');
+    }
   }, [getApiUrl]);
 
   useEffect(() => {
@@ -71,6 +76,7 @@ function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
+  // --- LOGIN INTEGRADO CON SEGURIDAD ---
   const handleAdminLogin = async (pass: string) => {
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/login-check`, {
@@ -78,7 +84,10 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pass })
       });
+      
       if (res.ok) {
+        // Limpiamos rastro viejo antes de entrar al panel
+        localStorage.removeItem('admin_session_active');
         setIsAdminAuthenticated(true);
         setLoginError('');
       } else {
@@ -93,7 +102,7 @@ function App() {
   const handleAddToCart = (vinilo: ViniloCatalogo) => {
     setCarrito(prev => {
       const existe = prev.find(item => item.vinilo.id === vinilo.id);
-      if (existe && existe.cantidad >= vinilo.stock_actual) return prev;
+      if (existe && existe.cantidad >= (vinilo.stock_actual || 0)) return prev;
       if (existe) {
         return prev.map(item => item.vinilo.id === vinilo.id ? { ...item, cantidad: item.cantidad + 1 } : item);
       }
@@ -103,11 +112,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans">
-      {/* NAVBAR OPTIMIZADA PARA MÓVILES */}
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 shadow-sm w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
           
-          {/* LOGO: Más pequeño en móvil para ganar espacio */}
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentPage('catalog'); cargarDatosIniciales(); }}>
             <div className="w-8 h-8 sm:w-10 sm:h-10 overflow-hidden rounded-full border border-slate-100 dark:border-slate-700">
               <img src={logoImg} alt="Logo" className="w-full h-full object-cover" />
@@ -118,9 +125,7 @@ function App() {
             </div>
           </div>
 
-          {/* ACCIONES: Uso de gap-1 en móvil para evitar desbordamiento */}
           <div className="flex items-center gap-1 sm:gap-3">
-            {/* SELECTOR: Ancho flexible */}
             <div className="w-[85px] sm:w-[140px]">
               <CurrencySelector divisaActual={divisa} onDivisaChange={setDivisa} />
             </div>
@@ -158,7 +163,15 @@ function App() {
             )}
             
             {currentPage === 'cart' && (
-              <Cart items={carrito} onRemoveItem={(id) => setCarrito(prev => prev.filter(i => i.vinilo.id !== id))} onUpdateCantidad={(id, cant) => setCarrito(prev => prev.map(i => i.vinilo.id === id ? {...i, cantidad: cant} : i))} onBack={() => setCurrentPage('catalog')} onClear={() => setCarrito([])} divisaPreferida={divisa} tasas={tasas} />
+              <Cart 
+                items={carrito} 
+                onRemoveItem={(id) => setCarrito(prev => prev.filter(i => i.vinilo.id !== id))} 
+                onUpdateCantidad={(id, cant) => setCarrito(prev => prev.map(i => i.vinilo.id === id ? {...i, cantidad: cant} : i))} 
+                onBack={() => setCurrentPage('catalog')} 
+                onClear={() => setCarrito([])} 
+                divisaPreferida={divisa} 
+                tasas={tasas} 
+              />
             )}
 
             {currentPage === 'admin' && (
@@ -166,9 +179,9 @@ function App() {
                 {isAdminAuthenticated ? (
                   <>
                     <div className="flex justify-between items-center bg-amber-500/10 p-3 rounded-2xl mb-6">
-                      <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Panel Administrativo</span>
-                      <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black transition-transform active:scale-95">
-                        <LogOut size={16} />
+                      <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest px-2">Panel Administrativo</span>
+                      <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black transition-transform active:scale-95 flex items-center gap-2">
+                        <LogOut size={16} /> SALIR
                       </button>
                     </div>
                     <AdminPanel onBack={handleLogout} />
