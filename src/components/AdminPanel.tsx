@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Settings, Plus, Upload, Book, ArrowLeft, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
   Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle
 } from 'lucide-react';
 
-// Componentes administrativos externos
+// Componentes administrativos externos (Asegúrate de que las rutas sean correctas)
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -28,64 +28,73 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [sessionError, setSessionError] = useState(false);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
+
+  const getApiUrl = useCallback(() => {
+    return window.location.hostname === 'localhost' 
+      ? 'http://localhost:3001' 
+      : 'https://guacamayorecords.up.railway.app';
+  }, []);
 
   // --- LÓGICA DE SESIÓN Y SEGURIDAD ---
-  const cerrarSesionTotal = () => {
+  const cerrarSesionTotal = useCallback(async () => {
+    try {
+      await fetch(`${getApiUrl()}/api/admin/logout`, { method: 'POST' });
+    } catch (err) { console.error("Error al notificar logout:", err); }
+    
     localStorage.removeItem('admin_session_active');
+    localStorage.removeItem('admin_token');
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
     onBack();
-  };
+  }, [getApiUrl, onBack]);
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       alert("Sesión finalizada por inactividad (15 min)");
       cerrarSesionTotal();
     }, 15 * 60 * 1000);
-  };
+  }, [cerrarSesionTotal]);
 
   useEffect(() => {
-    const sessionActive = localStorage.getItem('admin_session_active');
-    
-    // Si ya hay una sesión activa Y no es esta pestaña la que la creó
-    if (sessionActive === 'true') {
-      setSessionError(true);
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      onBack();
       return;
     }
 
-    // Marcar sesión como activa
-    localStorage.setItem('admin_session_active', 'true');
-    
+    // Heartbeat para mantener la sesión viva en el servidor
+    const sendHeartbeat = async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/api/admin/heartbeat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        if (!res.ok) {
+          setSessionError(true);
+          cerrarSesionTotal();
+        }
+      } catch (err) { console.error("Error latido"); }
+    };
+
+    sendHeartbeat();
+    heartbeatInterval.current = setInterval(sendHeartbeat, 10000);
+
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     const resetTimerWrapper = () => resetTimer();
-    
     events.forEach(event => window.addEventListener(event, resetTimerWrapper));
     resetTimer();
 
-    // Limpieza al cerrar o recargar
-    const handleUnload = () => {
-      localStorage.removeItem('admin_session_active');
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    window.addEventListener('unload', handleUnload);
-
     return () => {
-      handleUnload();
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
       events.forEach(event => window.removeEventListener(event, resetTimerWrapper));
-      window.removeEventListener('beforeunload', handleUnload);
-      window.removeEventListener('unload', handleUnload);
     };
-  }, []);
+  }, [getApiUrl, cerrarSesionTotal, resetTimer, onBack]);
 
   // --- API Y DATOS ---
-  const getApiUrl = () => {
-    return window.location.hostname === 'localhost' 
-      ? 'http://localhost:3001' 
-      : 'https://guacamayorecords.up.railway.app';
-  };
-
   const cargarVinilos = async () => {
     try {
       setLoading(true);
@@ -112,31 +121,21 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
     const formData = new FormData();
     Array.from(files).forEach(file => { formData.append('imagenes', file); });
 
     try {
       setSubiendo(true);
-      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { 
-        method: 'POST', 
-        body: formData 
-      });
-
+      const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { method: 'POST', body: formData });
       if (!res.ok) throw new Error("Error en la subida");
-      
       const data = await res.json(); 
       const nuevasFotos = Array.isArray(data.urls) ? data.urls : [];
       const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
-      
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
       alert(`✅ ${nuevasFotos.length} imágenes añadidas`);
-    } catch (error) {
-      alert("❌ Error al subir imagen");
-    } finally {
-      setSubiendo(false);
-    }
+    } catch (error) { alert("❌ Error al subir imagen"); } 
+    finally { setSubiendo(false); }
   };
 
   const hacerPrincipal = (index: number) => {
@@ -153,7 +152,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     setFormEdit({ ...formEdit, imagen_url: nuevas.join(',') });
   };
 
-  // --- CRUD ACCIONES ---
   const handleSave = async (id: string) => {
     try {
       const payload = { 
@@ -193,16 +191,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         <div className="max-w-md bg-white dark:bg-slate-900 p-8 rounded-3xl border border-red-200 dark:border-red-900/30 text-center shadow-2xl">
           <AlertTriangle className="mx-auto mb-4 text-red-500" size={48} />
           <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">Acceso Restringido</h2>
-          <p className="text-slate-500 text-sm mb-6">Ya hay una sesión abierta en otra pestaña.</p>
-          <button 
-            onClick={() => {
-              // Botón de emergencia: Limpia y vuelve
-              localStorage.removeItem('admin_session_active');
-              onBack();
-            }} 
-            className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase"
-          >
-            VOLVER Y LIBERAR SESIÓN
+          <p className="text-slate-500 text-sm mb-6">Ya hay una sesión activa o tu token ha expirado.</p>
+          <button onClick={cerrarSesionTotal} className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase">
+            REINTENTAR ACCESO
           </button>
         </div>
       </div>
@@ -280,12 +271,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     </div>
                                     <div>
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
-                                      <input 
-                                        className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" 
-                                        value={formEdit.genero || ''} 
-                                        onChange={e => setFormEdit({...formEdit, genero: e.target.value})} 
-                                        placeholder="Ej: Rock"
-                                      />
+                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} placeholder="Ej: Rock" />
                                     </div>
                                   </div>
                                   <div className="flex gap-4">
@@ -321,26 +307,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                         </div>
                                       </div>
                                     ))}
-                                    
-                                    <label className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${
-                                      subiendo 
-                                        ? 'border-amber-500 bg-amber-500/10 cursor-wait' 
-                                        : 'border-slate-300 dark:border-slate-700 cursor-pointer text-slate-400 hover:text-amber-500'
-                                    }`}>
-                                      {subiendo ? (
-                                        <Disc className="animate-spin text-amber-500" size={24} />
-                                      ) : (
-                                        <>
-                                          <Plus size={24} />
-                                          <input 
-                                            type="file" 
-                                            className="hidden" 
-                                            multiple 
-                                            onChange={handleMultipleFileUpload} 
-                                            disabled={subiendo} 
-                                          />
-                                        </>
-                                      )}
+                                    <label className={`aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${subiendo ? 'border-amber-500 bg-amber-500/10 cursor-wait' : 'border-slate-300 dark:border-slate-700 cursor-pointer text-slate-400 hover:text-amber-500'}`}>
+                                      {subiendo ? <Disc className="animate-spin text-amber-500" size={24} /> : <><Plus size={24} /><input type="file" className="hidden" multiple onChange={handleMultipleFileUpload} disabled={subiendo} /></>}
                                     </label>
                                   </div>
                                 </div>
@@ -401,7 +369,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   );
 }
 
-// (Siguen los subcomponentes igual que antes...)
+// --- SUBCOMPONENTES ---
+
 function TabButton({ active, onClick, icon, title, sub }: any) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
@@ -553,7 +522,7 @@ function UserManual() {
       <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda rápida</h3>
       <p>• El buscador filtra por título o artista en tiempo real.</p>
       <p>• Los iconos de <strong>Música</strong> y <strong>Escudo</strong> indican el género y calidad cargados.</p>
-      <p>• <strong>Sesión Única:</strong> Solo se permite una pestaña de administración abierta.</p>
+      <p>• <strong>Sesión Robusta:</strong> El sistema envía un "latido" cada 10s para mantener tu acceso exclusivo y liberar la sesión al cerrar.</p>
     </div>
   );
 }
