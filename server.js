@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// CONTROL DE SESIÓN ÚNICA (MEJORADO)
+// CONTROL DE SESIÓN ÚNICA (BLOQUEO GLOBAL)
 // ==========================================
 let adminSession = {
     isActive: false,
@@ -24,18 +24,18 @@ let adminSession = {
     token: null
 };
 
-// Limpiador: Si no hay señales en 30 segundos, libera el bloqueo
+// Limpiador automático: Si no hay señales en 30 segundos, libera el bloqueo
 setInterval(() => {
     if (adminSession.isActive && adminSession.lastHeartbeat) {
         if (Date.now() - adminSession.lastHeartbeat > 30000) {
-            console.log("⚠️ Sesión administrativa expirada por inactividad. Bloqueo liberado.");
+            console.log("⚠️ Bloqueo de sesión liberado por inactividad.");
             adminSession.isActive = false;
             adminSession.token = null;
         }
     }
 }, 10000);
 
-// --- CONFIGURACIÓN DE ALMACENAMIENTO ---
+// --- CONFIGURACIÓN DE ALMACENAMIENTO DE IMÁGENES ---
 const uploadDir = path.resolve(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -54,7 +54,7 @@ const upload = multer({ storage });
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- CONEXIÓN A BASE DE DATOS ---
+// --- CONEXIÓN A BASE DE DATOS (RAILWAY) ---
 const RAILWAY_DB_URL = process.env.MYSQL_URL;
 const db = mysql.createPool(RAILWAY_DB_URL);
 
@@ -73,7 +73,7 @@ app.get('/api/configuracion_divisas', (req, res) => {
 app.put('/api/configuracion_divisas/:tipo', (req, res) => {
     const { tipo } = req.params;
     const { tasa } = req.body;
-    db.query('UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?', [tasa, tipo], (err, result) => {
+    db.query('UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?', [tasa, tipo], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
     });
@@ -89,7 +89,6 @@ app.get('/api/vinilos', (req, res) => {
     });
 });
 
-// NUEVO: Ruta para crear vinilo
 app.post('/api/vinilos', (req, res) => {
     const { titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad } = req.body;
     const query = `INSERT INTO inventario_vinilos (titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad) VALUES (?, ?, ?, ?, ?, ?, ?)`;
@@ -141,10 +140,9 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
     });
 });
 
-// Ruta para cancelar y devolver stock
 app.put('/api/pedidos/:id/cancelar', (req, res) => {
     const { id } = req.params;
-    const { items } = req.body; // Recibimos los items para devolver stock
+    const { items } = req.body;
     
     db.getConnection((err, conn) => {
         if (err) return res.status(500).send();
@@ -153,7 +151,8 @@ app.put('/api/pedidos/:id/cancelar', (req, res) => {
                 if (err) return conn.rollback(() => { conn.release(); res.status(500).send(); });
                 
                 const proms = items.map(i => new Promise((resolve, reject) => {
-                    conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', [i.cantidad, i.vinilo.id], e => e ? reject(e) : resolve());
+                    const idVinilo = i.vinilo ? i.vinilo.id : i.id;
+                    conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', [i.cantidad, idVinilo], e => e ? reject(e) : resolve());
                 }));
                 
                 Promise.all(proms)
@@ -165,17 +164,17 @@ app.put('/api/pedidos/:id/cancelar', (req, res) => {
 });
 
 // ==========================================
-// 4. SEGURIDAD Y LOGIN (OPTIMIZADO)
+// 4. SEGURIDAD Y LOGIN (MULTIDISPOSITIVO)
 // ==========================================
 
 app.post('/api/admin/login-check', (req, res) => {
     const { password } = req.body;
 
-    // Si ya hay una sesión activa Y el lastHeartbeat fue hace menos de 30 seg
+    // BLOQUEO: Si hay sesión activa y hubo señales en los últimos 30 segundos
     if (adminSession.isActive && (Date.now() - adminSession.lastHeartbeat < 30000)) {
         return res.status(423).json({ 
             error: 'BLOQUEADO', 
-            message: 'Ya hay una sesión abierta en otra pestaña o navegador.' 
+            message: 'El panel ya está siendo usado en otro dispositivo o pestaña.' 
         });
     }
 
@@ -194,7 +193,7 @@ app.post('/api/admin/login-check', (req, res) => {
 
 app.post('/api/admin/heartbeat', (req, res) => {
     const { token } = req.body;
-    if (adminSession.isActive && adminSession.token === token) {
+    if (token && adminSession.isActive && adminSession.token === token) {
         adminSession.lastHeartbeat = Date.now();
         return res.json({ status: 'alive' });
     }

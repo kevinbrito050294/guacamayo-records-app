@@ -56,15 +56,16 @@ function App() {
     cargarDatosIniciales();
   }, [cargarDatosIniciales]);
 
-  // --- LOGOUT INTEGRADO CON SEGURIDAD ---
+  // --- LOGOUT REFORZADO ---
   const handleLogout = useCallback(async () => {
     try {
       await fetch(`${getApiUrl()}/api/admin/logout`, { method: 'POST' });
     } catch (err) { 
       console.error("Error al notificar logout al server:", err); 
     } finally {
-      // Liberamos el candado de sesión activa para permitir futuros ingresos
+      // Limpieza total de rastros de sesión
       localStorage.removeItem('admin_session_active');
+      localStorage.removeItem('admin_token');
       setIsAdminAuthenticated(false);
       setCurrentPage('catalog');
       setLoginError('');
@@ -76,7 +77,7 @@ function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // --- LOGIN INTEGRADO CON SEGURIDAD ---
+  // --- LOGIN CON BLOQUEO MULTIDISPOSITIVO ---
   const handleAdminLogin = async (pass: string) => {
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/login-check`, {
@@ -85,14 +86,24 @@ function App() {
         body: JSON.stringify({ password: pass })
       });
       
+      const data = await res.json();
+
+      // Caso especial: El servidor detecta otra sesión activa (Error 423)
+      if (res.status === 423) {
+        setLoginError(data.message || 'El panel ya está abierto en otro dispositivo.');
+        return;
+      }
+
       if (res.ok) {
-        // Limpiamos rastro viejo antes de entrar al panel
+        // Guardamos el token necesario para el Heartbeat global
+        localStorage.setItem('admin_token', data.token);
+        // Preparamos el terreno para el AdminPanel
         localStorage.removeItem('admin_session_active');
+        
         setIsAdminAuthenticated(true);
         setLoginError('');
       } else {
-        const data = await res.json();
-        setLoginError(data.error || 'Error de acceso');
+        setLoginError(data.error || 'Contraseña incorrecta');
       }
     } catch (err) {
       setLoginError('Servidor no disponible');
