@@ -166,13 +166,13 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
               Precios en {divisaActiva}
             </p>
             <p className="text-amber-200/60 dark:text-slate-900/60 text-[10px] font-black uppercase tracking-widest mt-1">
-              Sincronizado con base de datos MySQL
+              Ajustado a la tasa del dia
             </p>
           </div>
         </div>
         
         <div className="text-[10px] font-black text-emerald-400 dark:text-slate-900 border border-emerald-500/40 dark:border-slate-900/40 px-6 py-3 rounded-full uppercase tracking-widest bg-emerald-500/5">
-          ● Cotización Actualizada Localmente
+          ● Cotización Actualizada
         </div>
       </div>
     </main>

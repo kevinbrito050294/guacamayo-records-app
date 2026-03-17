@@ -205,14 +205,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-40 border-b dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={cerrarSesionTotal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-              <ArrowLeft className="w-6 h-6 text-slate-900 dark:text-white" />
-            </button>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Panel de Control</h1>
-          </div>
-          <button onClick={cerrarSesionTotal} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-red-500/20">
-            <LogOut size={16} /> Finalizar Sesión
-          </button>
+            
         </div>
       </header>
 
