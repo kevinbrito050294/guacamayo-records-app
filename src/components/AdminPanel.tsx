@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Settings, Plus, Upload, Book, ArrowLeft, List, 
+  Settings, Plus, Upload, Book, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
   Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle
 } from 'lucide-react';
@@ -205,7 +205,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-40 border-b dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            
+            <h1 className="text-xl font-black dark:text-white uppercase">Admin Panel</h1>
+          </div>
+          <button onClick={cerrarSesionTotal} className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white dark:text-slate-950 text-white rounded-lg font-black text-xs uppercase hover:opacity-90 transition-all"><LogOut size={16}/> SALIR</button>
         </div>
       </header>
 
