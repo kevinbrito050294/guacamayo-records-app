@@ -120,7 +120,7 @@ app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
 });
 
 // ==========================================
-// 3. GESTIÓN DE PEDIDOS
+// 3. GESTIÓN DE PEDIDOS (MEJORADA)
 // ==========================================
 
 app.post('/api/pedidos', (req, res) => {
@@ -133,9 +133,9 @@ app.post('/api/pedidos', (req, res) => {
         conn.beginTransaction((err) => {
             if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
 
-            const queryPedido = `INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, estado, fecha) VALUES (?, ?, ?, ?, ?, 'pendiente', NOW())`;
+            const queryPedido = `INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, estado, fecha, items) VALUES (?, ?, ?, ?, ?, 'pendiente', NOW(), ?)`;
             
-            conn.query(queryPedido, [numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida], (err) => {
+            conn.query(queryPedido, [numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, JSON.stringify(items)], (err) => {
                 if (err) {
                     return conn.rollback(() => { conn.release(); res.status(500).json({ error: "Error al guardar el pedido" }); });
                 }
@@ -185,33 +185,35 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
     });
 });
 
-// --- RUTA DE CANCELACIÓN CORREGIDA ---
+// --- CANCELAR PEDIDO (SOPORTE DE STOCK ACTUALIZADO) ---
 app.put('/api/pedidos/:id/cancelar', (req, res) => {
     const { id } = req.params;
-    const { items } = req.body;
-    
-    if (!items || !Array.isArray(items)) {
-        return res.status(400).json({ error: "No se recibieron los items para devolver al stock" });
+    let { items } = req.body;
+
+    if (!items) return res.status(400).json({ error: "No se enviaron los items" });
+
+    // Asegurar que items sea un Array
+    if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch(e) { items = []; }
     }
 
     db.getConnection((err, conn) => {
         if (err) return res.status(500).json({ error: "Error de conexión" });
         
         conn.beginTransaction((err) => {
-            if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
+            if (err) { conn.release(); return res.status(500).json({ error: "Error de transacción" }); }
 
+            // 1. Cambiar estado
             conn.query('UPDATE pedidos SET estado = "cancelado" WHERE id_pedido = ?', [id], (err) => {
-                if (err) return conn.rollback(() => { conn.release(); res.status(500).send(); });
+                if (err) return conn.rollback(() => { conn.release(); res.status(500).json({ error: "Fallo UPDATE pedido" }); });
                 
-                const proms = items.map(i => new Promise((resolve, reject) => {
-                    // Soporta items directos o anidados en 'vinilo'
+                // 2. Devolver stock (mapeo seguro de IDs y stock_actual)
+                const itemsArray = Array.isArray(items) ? items : [];
+                const proms = itemsArray.map(i => new Promise((resolve, reject) => {
                     const idVinilo = i.id || (i.vinilo && i.vinilo.id);
-                    const cantidad = i.cantidad || 1;
+                    const cantidad = Number(i.cantidad || 1);
 
-                    if (!idVinilo) {
-                        console.warn("Item sin ID detectado en cancelación, saltando...");
-                        return resolve();
-                    }
+                    if (!idVinilo) return resolve(); // Saltar si no hay ID
 
                     conn.query(
                         'UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', 
@@ -226,8 +228,9 @@ app.put('/api/pedidos/:id/cancelar', (req, res) => {
                         res.json({ success: true }); 
                     }))
                     .catch((error) => conn.rollback(() => { 
+                        console.error("Error stock rollback:", error);
                         conn.release(); 
-                        res.status(500).json({ error: "Error al devolver stock al inventario" }); 
+                        res.status(500).json({ error: "Error al devolver stock" }); 
                     }));
             });
         });
