@@ -123,7 +123,6 @@ app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
 // 3. GESTIÓN DE PEDIDOS
 // ==========================================
 
-// --- NUEVO: CREAR PEDIDO DESDE EL CARRITO ---
 app.post('/api/pedidos', (req, res) => {
     const { nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, items } = req.body;
     const numero_orden = `GR-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -134,7 +133,6 @@ app.post('/api/pedidos', (req, res) => {
         conn.beginTransaction((err) => {
             if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
 
-            // 1. Insertar el pedido principal
             const queryPedido = `INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, estado, fecha) VALUES (?, ?, ?, ?, ?, 'pendiente', NOW())`;
             
             conn.query(queryPedido, [numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida], (err) => {
@@ -142,7 +140,6 @@ app.post('/api/pedidos', (req, res) => {
                     return conn.rollback(() => { conn.release(); res.status(500).json({ error: "Error al guardar el pedido" }); });
                 }
 
-                // 2. Actualizar stock de cada producto enviado
                 const promesasStock = items.map(item => {
                     return new Promise((resolve, reject) => {
                         conn.query(
@@ -188,24 +185,50 @@ app.put('/api/pedidos/:id/finalizar', (req, res) => {
     });
 });
 
+// --- RUTA DE CANCELACIÓN CORREGIDA ---
 app.put('/api/pedidos/:id/cancelar', (req, res) => {
     const { id } = req.params;
     const { items } = req.body;
     
+    if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "No se recibieron los items para devolver al stock" });
+    }
+
     db.getConnection((err, conn) => {
-        if (err) return res.status(500).send();
-        conn.beginTransaction(() => {
+        if (err) return res.status(500).json({ error: "Error de conexión" });
+        
+        conn.beginTransaction((err) => {
+            if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
+
             conn.query('UPDATE pedidos SET estado = "cancelado" WHERE id_pedido = ?', [id], (err) => {
                 if (err) return conn.rollback(() => { conn.release(); res.status(500).send(); });
                 
                 const proms = items.map(i => new Promise((resolve, reject) => {
-                    const idVinilo = i.vinilo ? i.vinilo.id : i.id;
-                    conn.query('UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', [i.cantidad, idVinilo], e => e ? reject(e) : resolve());
+                    // Soporta items directos o anidados en 'vinilo'
+                    const idVinilo = i.id || (i.vinilo && i.vinilo.id);
+                    const cantidad = i.cantidad || 1;
+
+                    if (!idVinilo) {
+                        console.warn("Item sin ID detectado en cancelación, saltando...");
+                        return resolve();
+                    }
+
+                    conn.query(
+                        'UPDATE inventario_vinilos SET stock_actual = stock_actual + ? WHERE id = ?', 
+                        [cantidad, idVinilo], 
+                        e => e ? reject(e) : resolve()
+                    );
                 }));
                 
                 Promise.all(proms)
-                    .then(() => conn.commit(() => { conn.release(); res.json({ success: true }); }))
-                    .catch(() => conn.rollback(() => { conn.release(); res.status(500).send(); }));
+                    .then(() => conn.commit(() => { 
+                        conn.release(); 
+                        res.json({ success: true }); 
+                    }))
+                    .catch((error) => conn.rollback(() => { 
+                        conn.release(); 
+                        res.status(500).json({ error: "Error al devolver stock al inventario" }); 
+                    }));
             });
         });
     });
@@ -253,7 +276,6 @@ app.post('/api/admin/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// SPA Handler (Siempre al final)
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });

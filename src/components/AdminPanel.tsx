@@ -5,7 +5,7 @@ import {
   Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle
 } from 'lucide-react';
 
-// Componentes administrativos externos (Asegúrate de que las rutas sean correctas)
+// Componentes administrativos externos
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
@@ -64,7 +64,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       return;
     }
 
-    // Heartbeat para mantener la sesión viva en el servidor
     const sendHeartbeat = async () => {
       try {
         const res = await fetch(`${getApiUrl()}/api/admin/heartbeat`, {
@@ -442,6 +441,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   );
 }
 
+// --- ORDERS LIST CON CORRECCIÓN ---
 function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onOrderUpdate: () => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -466,16 +466,37 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
   };
 
   const cancelarPedido = async (order: any) => {
-    if (!confirm("¿Cancelar?")) return;
+    if (!confirm("¿Cancelar este pedido? El stock se devolverá al inventario.")) return;
     try {
-      const items = order.items ? (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) : [];
+      // CORRECCIÓN: Procesamos los items para asegurar que el servidor reciba el formato correcto
+      let rawItems = order.items || [];
+      if (typeof rawItems === 'string') {
+        try { rawItems = JSON.parse(rawItems); } catch(e) { rawItems = []; }
+      }
+
+      // Mapeamos los items para asegurar que tengan el ID correcto
+      const itemsProcesados = rawItems.map((i: any) => ({
+        id: i.id || (i.vinilo && i.vinilo.id),
+        cantidad: i.cantidad || 1
+      }));
+
       const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }) 
+        body: JSON.stringify({ items: itemsProcesados }) 
       });
-      if (res.ok) { fetchOrders(); onOrderUpdate(); }
-    } catch (error) { alert("Error"); }
+      
+      if (res.ok) { 
+        alert("✅ Pedido cancelado y stock actualizado");
+        fetchOrders(); 
+        onOrderUpdate(); 
+      } else {
+        alert("❌ Error al cancelar el pedido");
+      }
+    } catch (error) { 
+      console.error(error);
+      alert("❌ Error de conexión al cancelar"); 
+    }
   };
 
   const currentOrders = filterTab === 'pending' ? orders.filter(o => o.estado === 'pendiente') : orders.filter(o => o.estado !== 'pendiente');
@@ -506,6 +527,9 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
             </div>
           </div>
         ))}
+        {currentOrders.length === 0 && (
+          <div className="text-center py-10 text-slate-400 uppercase text-[10px] font-black italic">No hay pedidos en esta sección</div>
+        )}
       </div>
     </div>
   );
