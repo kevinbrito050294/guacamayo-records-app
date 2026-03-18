@@ -24,7 +24,6 @@ let adminSession = {
     token: null
 };
 
-// Limpiador automático: Si no hay señales en 30 segundos, libera el bloqueo
 setInterval(() => {
     if (adminSession.isActive && adminSession.lastHeartbeat) {
         if (Date.now() - adminSession.lastHeartbeat > 30000) {
@@ -57,8 +56,6 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // --- CONEXIÓN A BASE DE DATOS (RAILWAY) ---
 const RAILWAY_DB_URL = process.env.MYSQL_URL;
 const db = mysql.createPool(RAILWAY_DB_URL);
-
-const generarNumeroOrden = () => `GR-${Math.floor(1000 + Math.random() * 9000)}`;
 
 // ==========================================
 // 1. GESTIÓN DE DIVISAS
@@ -125,6 +122,57 @@ app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
 // ==========================================
 // 3. GESTIÓN DE PEDIDOS
 // ==========================================
+
+// --- NUEVO: CREAR PEDIDO DESDE EL CARRITO ---
+app.post('/api/pedidos', (req, res) => {
+    const { nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, items } = req.body;
+    const numero_orden = `GR-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    db.getConnection((err, conn) => {
+        if (err) return res.status(500).json({ error: 'Error de conexión a la base de datos' });
+
+        conn.beginTransaction((err) => {
+            if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
+
+            // 1. Insertar el pedido principal
+            const queryPedido = `INSERT INTO pedidos (numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida, estado, fecha) VALUES (?, ?, ?, ?, ?, 'pendiente', NOW())`;
+            
+            conn.query(queryPedido, [numero_orden, nombre_cliente, whatsapp_cliente, total_pago, divisa_preferida], (err) => {
+                if (err) {
+                    return conn.rollback(() => { conn.release(); res.status(500).json({ error: "Error al guardar el pedido" }); });
+                }
+
+                // 2. Actualizar stock de cada producto enviado
+                const promesasStock = items.map(item => {
+                    return new Promise((resolve, reject) => {
+                        conn.query(
+                            'UPDATE inventario_vinilos SET stock_actual = stock_actual - ? WHERE id = ? AND stock_actual >= ?',
+                            [item.cantidad, item.id, item.cantidad],
+                            (err, resUpdate) => {
+                                if (err) return reject(err);
+                                if (resUpdate.affectedRows === 0) return reject(new Error(`Sin stock suficiente para: ${item.titulo}`));
+                                resolve();
+                            }
+                        );
+                    });
+                });
+
+                Promise.all(promesasStock)
+                    .then(() => {
+                        conn.commit((err) => {
+                            if (err) return conn.rollback(() => { conn.release(); res.status(500).json({ error: "Error al confirmar la transacción" }); });
+                            conn.release();
+                            res.json({ success: true, numero_orden });
+                        });
+                    })
+                    .catch((error) => {
+                        conn.rollback(() => { conn.release(); res.status(400).json({ error: error.message }); });
+                    });
+            });
+        });
+    });
+});
+
 app.get('/api/pedidos', (req, res) => {
     db.query('SELECT * FROM pedidos ORDER BY fecha DESC', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -170,7 +218,6 @@ app.put('/api/pedidos/:id/cancelar', (req, res) => {
 app.post('/api/admin/login-check', (req, res) => {
     const { password } = req.body;
 
-    // BLOQUEO: Si hay sesión activa y hubo señales en los últimos 30 segundos
     if (adminSession.isActive && (Date.now() - adminSession.lastHeartbeat < 30000)) {
         return res.status(423).json({ 
             error: 'BLOQUEADO', 
@@ -206,7 +253,7 @@ app.post('/api/admin/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// SPA Handler
+// SPA Handler (Siempre al final)
 app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
