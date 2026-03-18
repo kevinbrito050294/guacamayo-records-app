@@ -465,53 +465,50 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
     } catch (error) { alert("Error"); }
   };
 const cancelarPedido = async (order: any) => {
-    if (!confirm("¿Cancelar este pedido? El stock se devolverá al inventario.")) return;
+  if (!confirm("¿Cancelar pedido? Se devolverá el stock al inventario.")) return;
+  
+  try {
+    let itemsParaDevolver = [];
     try {
-      // 1. Extraer items con seguridad extrema (soporta string JSON o Array)
-      let rawItems = [];
-      if (order.items) {
-        rawItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-      }
-
-      // 2. Mapeo ultra-seguro para que el backend no reciba datos nulos
-      const itemsProcesados = Array.isArray(rawItems) ? rawItems.map((i: any) => {
-        // Buscamos el ID en todas las ubicaciones posibles según cómo guardes el carrito
-        const idVinilo = i.id || i.id_vinilo || (i.vinilo && i.vinilo.id);
-        const cant = i.cantidad || i.qty || 1;
-        
-        return {
-          id: idVinilo,
-          cantidad: Number(cant)
-        };
-      }).filter(item => item.id !== undefined && item.id !== null) : [];
-
-      // 3. Petición al servidor con Token de seguridad incluido
-      const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
-        },
-        body: JSON.stringify({ items: itemsProcesados }) 
-      });
-      
-      if (res.ok) { 
-        alert("✅ Pedido cancelado y stock actualizado");
-        fetchOrders(); 
-        onOrderUpdate(); 
-      } else if (res.status === 401) {
-        alert("⚠️ Sesión expirada. Por favor, vuelve a entrar.");
-        setSessionError(true);
-      } else {
-        alert(`❌ Error del servidor (${res.status}). Revisa si el backend está activo.`);
-      }
-    } catch (error) { 
-      console.error("Error en la cancelación:", error);
-      alert("❌ Error de conexión o el servidor se reinició."); 
+      itemsParaDevolver = typeof order.items === 'string' 
+        ? JSON.parse(order.items) 
+        : (order.items || []);
+    } catch (e) {
+      console.error("Error al parsear items:", e);
     }
-  };
 
-  const currentOrders = filterTab === 'pending' ? orders.filter(o => o.estado === 'pendiente') : orders.filter(o => o.estado !== 'pendiente');
+    // Cambiamos (i) por (i: any) para quitar el error de "implicitly any"
+    const payload = itemsParaDevolver.map((i: any) => ({
+      id: i.id || i.id_vinilo || (i.vinilo && i.vinilo.id), 
+      cantidad: Number(i.cantidad || i.qty || 1)
+    })).filter((i: any) => i.id !== undefined && i.id !== null);
+
+    const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+      },
+      body: JSON.stringify({ items: payload }) 
+    });
+    
+    if (res.ok) { 
+      alert("✅ Pedido #" + order.id_pedido + " cancelado.");
+      // AQUÍ usamos las funciones para que desaparezca el error de "never read"
+      onOrderUpdate(); 
+      fetchOrders(); 
+    } else if (res.status === 401) {
+      setSessionError(true); // Uso de setSessionError
+    } else {
+      alert(`❌ Error ${res.status}`);
+    }
+  } catch (error) { 
+    console.error("Error:", error);
+    alert("❌ Error de conexión."); 
+  }
+};
+
+const currentOrders = filterTab === 'pending' ? orders.filter(o => o.estado === 'pendiente') : orders.filter(o => o.estado !== 'pendiente');
 
   if (loading) return <div className="text-center py-10 text-[10px] opacity-50 font-black">CARGANDO...</div>;
   return (
