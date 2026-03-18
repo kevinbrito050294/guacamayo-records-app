@@ -351,7 +351,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             </div>
           )}
 
-          {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} />}
+          {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} setSessionError={setSessionError} />}
           {activeTab === 'coupons' && <CouponManager getApiUrl={getApiUrl} />}
           {activeTab === 'form' && <VinylForm onSuccess={cargarVinilos} />}
           {activeTab === 'bulk' && <BulkImporter />}
@@ -442,7 +442,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
 }
 
 // --- ORDERS LIST CON CORRECCIÓN ---
-function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onOrderUpdate: () => void }) {
+function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: () => string, onOrderUpdate: () => void, setSessionError: (val: boolean) => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'pending' | 'history'>('pending');
@@ -464,25 +464,34 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
       if (res.ok) fetchOrders();
     } catch (error) { alert("Error"); }
   };
-
-  const cancelarPedido = async (order: any) => {
+const cancelarPedido = async (order: any) => {
     if (!confirm("¿Cancelar este pedido? El stock se devolverá al inventario.")) return;
     try {
-      // CORRECCIÓN: Procesamos los items para asegurar que el servidor reciba el formato correcto
-      let rawItems = order.items || [];
-      if (typeof rawItems === 'string') {
-        try { rawItems = JSON.parse(rawItems); } catch(e) { rawItems = []; }
+      // 1. Extraer items con seguridad extrema (soporta string JSON o Array)
+      let rawItems = [];
+      if (order.items) {
+        rawItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
       }
 
-      // Mapeamos los items para asegurar que tengan el ID correcto
-      const itemsProcesados = rawItems.map((i: any) => ({
-        id: i.id || (i.vinilo && i.vinilo.id),
-        cantidad: i.cantidad || 1
-      }));
+      // 2. Mapeo ultra-seguro para que el backend no reciba datos nulos
+      const itemsProcesados = Array.isArray(rawItems) ? rawItems.map((i: any) => {
+        // Buscamos el ID en todas las ubicaciones posibles según cómo guardes el carrito
+        const idVinilo = i.id || i.id_vinilo || (i.vinilo && i.vinilo.id);
+        const cant = i.cantidad || i.qty || 1;
+        
+        return {
+          id: idVinilo,
+          cantidad: Number(cant)
+        };
+      }).filter(item => item.id !== undefined && item.id !== null) : [];
 
+      // 3. Petición al servidor con Token de seguridad incluido
       const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+        },
         body: JSON.stringify({ items: itemsProcesados }) 
       });
       
@@ -490,12 +499,15 @@ function OrdersList({ getApiUrl, onOrderUpdate }: { getApiUrl: () => string, onO
         alert("✅ Pedido cancelado y stock actualizado");
         fetchOrders(); 
         onOrderUpdate(); 
+      } else if (res.status === 401) {
+        alert("⚠️ Sesión expirada. Por favor, vuelve a entrar.");
+        setSessionError(true);
       } else {
-        alert("❌ Error al cancelar el pedido");
+        alert(`❌ Error del servidor (${res.status}). Revisa si el backend está activo.`);
       }
     } catch (error) { 
-      console.error(error);
-      alert("❌ Error de conexión al cancelar"); 
+      console.error("Error en la cancelación:", error);
+      alert("❌ Error de conexión o el servidor se reinició."); 
     }
   };
 
