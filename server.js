@@ -80,9 +80,9 @@ app.get('/api/vinilos', (req, res) => {
 });
 
 app.post('/api/vinilos', (req, res) => {
-    const { titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad } = req.body;
-    const query = `INSERT INTO inventario_vinilos (titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad], (err) => {
+    const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
+    const query = `INSERT INTO inventario_vinilos (codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
     });
@@ -90,9 +90,9 @@ app.post('/api/vinilos', (req, res) => {
 
 app.put('/api/vinilos/:id', (req, res) => {
     const { id } = req.params;
-    const { titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad } = req.body;
-    const query = `UPDATE inventario_vinilos SET titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=? WHERE id=?`; 
-    db.query(query, [titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, id], (err) => {
+    const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
+    const query = `UPDATE inventario_vinilos SET codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=? WHERE id=?`; 
+    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'OK' });
     });

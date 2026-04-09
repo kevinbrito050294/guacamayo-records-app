@@ -161,7 +161,7 @@ function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-4">
         {loading ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh]">
             <Disc className="w-12 h-12 text-amber-500 animate-spin mb-4 opacity-20" />
@@ -204,7 +204,7 @@ function App() {
             )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
