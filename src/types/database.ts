@@ -8,6 +8,7 @@ export interface ViniloCatalogo {
   titulo: string;
   artista: string;
   genero: string;
+  pais_origen: string | null;
   precio_venta: number;
   stock_actual: number;
   calidad: CalidadVinilo;

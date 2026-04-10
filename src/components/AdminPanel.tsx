@@ -259,15 +259,23 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
                                   </div>
                                   <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
-                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
-                                      <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} placeholder="Ej: Rock" />
-                                    </div>
+                                <div>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Artista</label>
+                                  <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
                                   </div>
+                                <div>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
+                                  <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} placeholder="Ej: Rock" />
+                                  </div>
+                                <div>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Código (SKU)</label>
+                                  <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.codigo || ''} onChange={e => setFormEdit({...formEdit, codigo: e.target.value})} placeholder="LP-001" />
+                                  </div>
+                                <div>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">País de origen</label>
+                                  <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.pais_origen || ''} onChange={e => setFormEdit({...formEdit, pais_origen: e.target.value})} placeholder="Ej: UK, USA, ARG" />
+                                  </div>
+                                </div>
                                   <div className="flex gap-4">
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
@@ -321,9 +329,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                   <div>
                                     <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
                                     <div className="text-xs text-slate-500 font-medium mb-1">{v.artista}</div>
-                                    <div className="flex gap-2">
-                                      {v.genero && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Music size={8}/> {v.genero}</span>}
-                                      {v.calidad && <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded flex items-center gap-1 font-black uppercase"><ShieldCheck size={8}/> {v.calidad}</span>}
+                                    <div className="flex gap-2 flex-wrap">
+                                    {v.codigo && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Hash size={8}/> {v.codigo}</span>}
+                                    {v.pais_origen && <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded flex items-center gap-1 font-black uppercase"><Disc size={8}/> {v.pais_origen}</span>}
+                                    {v.genero && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Music size={8}/> {v.genero}</span>}
+                                    {v.calidad && <span className="text-[8px] px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded flex items-center gap-1 font-black uppercase"><ShieldCheck size={8}/> {v.calidad}</span>}
                                     </div>
                                   </div>
                                 </div>
