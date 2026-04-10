@@ -60,9 +60,10 @@ export function VinylCard({ vinilo, precios, divisaPreferida, onAddToCart }: Vin
         <p className="text-sm text-slate-600 mb-3 line-clamp-2">{vinilo.titulo}</p>
 
         <div className="mb-3 text-xs text-slate-500 space-y-1">
-          <p>Código: {vinilo.codigo}</p>
-          <p>{calidades[vinilo.calidad]}</p>
-        </div>
+           
+            {vinilo.pais_origen && <p>Origen: {vinilo.pais_origen}</p>}
+            <p>{calidades[vinilo.calidad]}</p>
+          </div>
 
         <div className="border-t pt-3 mb-4">
           <p className="text-2xl font-bold text-slate-900">
