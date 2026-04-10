@@ -89,8 +89,19 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
         {/* CONTENIDO DE LA CARD */}
         <div className="p-6">
           <h3 className="font-black text-2xl text-slate-900 dark:text-white truncate italic uppercase tracking-tighter leading-none mb-1">{vinilo.titulo}</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">{vinilo.artista}</p>
-          {vinilo.pais_origen && <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-4">{vinilo.pais_origen}</p>}
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-3">{vinilo.artista}</p>
+          <div className="flex gap-2 flex-wrap mb-4">
+          {vinilo.pais_origen && (
+            <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-blue-500/10 text-blue-500 uppercase tracking-wider">
+            {vinilo.pais_origen}
+            </span>
+            )}
+          {vinilo.genero && (
+            <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500/10 text-amber-500 uppercase tracking-wider">
+            {vinilo.genero}
+            </span>
+            )}
+</div>
           
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
