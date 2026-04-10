@@ -112,9 +112,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   }, [sessionError]);
 
   const vinilosFiltrados = vinilos.filter(v => 
-    v.titulo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
-    v.artista?.toLowerCase().includes(busquedaInv.toLowerCase())
-  );
+  v.titulo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+  v.artista?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+  v.codigo?.toLowerCase().includes(busquedaInv.toLowerCase())
+);
 
   // --- MANEJO DE IMÁGENES ---
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
