@@ -344,10 +344,27 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                 <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>{v.stock_actual} EN STOCK</div>
                               </td>
                               <td className="text-right px-2">
-                                <div className="flex justify-end gap-1">
-                                  <button onClick={() => { setEditandoId(v.id); setFormEdit(v); }} className="p-2 text-slate-400 hover:text-amber-500"><Edit2 size={20}/></button>
-                                  <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={20}/></button>
-                                </div>
+                                <div className="flex justify-end gap-1 items-center">
+                                  <button
+                                    onClick={async () => {
+                                     const nuevoValor = v.destacado ? 0 : 1;
+                                    await fetch(`${getApiUrl()}/api/vinilos/${v.id}/destacado`, {
+                                    method: 'PUT',
+                                     headers: { 'Content-Type': 'application/json' },
+                                     body: JSON.stringify({ destacado: nuevoValor })
+                                    });
+                                    setVinilos(vinilos.map(item => 
+                                    item.id === v.id ? { ...item, destacado: nuevoValor } : item
+                                 ));
+                               }}
+                                className={`p-2 transition-colors ${v.destacado ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}
+                                title={v.destacado ? 'Quitar destacado' : 'Marcar como destacado'}
+  >
+                              <Star size={20} fill={v.destacado ? 'currentColor' : 'none'} />
+                                </button>
+                                <button onClick={() => { setEditandoId(v.id); setFormEdit(v); }} className="p-2 text-slate-400 hover:text-amber-500"><Edit2 size={20}/></button>
+                                <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={20}/></button>
+                              </div>
                               </td>
                             </>
                           )}

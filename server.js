@@ -106,6 +106,15 @@ app.delete('/api/vinilos/:id', (req, res) => {
     });
 });
 
+app.put('/api/vinilos/:id/destacado', (req, res) => {
+    const { id } = req.params;
+    const { destacado } = req.body;
+    db.query('UPDATE inventario_vinilos SET destacado = ? WHERE id = ?', [destacado, id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
 app.post('/api/upload-multiple', upload.array('imagenes'), (req, res) => {
     if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files' });
     const urls = req.files.map(file => `/uploads/${file.filename}`);

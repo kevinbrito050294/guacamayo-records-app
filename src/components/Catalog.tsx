@@ -37,10 +37,12 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
     return mapa;
   }, [vinilos, tasas]);
 
-  const vinilosFiltrados = vinilos.filter(v => 
+  const vinilosFiltrados = vinilos
+  .filter(v => 
     v.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
     v.artista.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  )
+  .sort((a, b) => (b.destacado || 0) - (a.destacado || 0));
 
   const sugerencias = vinilosFiltrados.slice(0, 5);
 

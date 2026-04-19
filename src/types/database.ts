@@ -11,6 +11,7 @@ export interface ViniloCatalogo {
   pais_origen: string | null;
   precio_venta: number;
   stock_actual: number;
+  destacado: number;
   calidad: CalidadVinilo;
   imagen_url: string | null;
   descripcion: string | null;
