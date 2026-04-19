@@ -21,6 +21,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
     titulo: '',
     artista: '',
     genero: 'Rock',
+    pais_origen: '',
     precio_venta: '',
     stock_actual: '',
     calidad: 'VG' as CalidadVinilo,
@@ -58,6 +59,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
       setMessage({ type: 'success', text: 'Vinilo agregado correctamente' });
       setFormData({
         codigo: '', titulo: '', artista: '', genero: 'Rock',
+        pais_origen: '',
         precio_venta: '', stock_actual: '', calidad: 'VG',
         imagen_url: '', descripcion: '',
       });
@@ -149,6 +151,19 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
               </select>
             </div>
           </div>
+          {/* PAÍS DE ORIGEN */}
+<div className="relative">
+  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">País de Origen</label>
+  <div className="relative">
+    <Disc className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
+    <input
+      type="text" value={formData.pais_origen}
+      onChange={(e) => setFormData({ ...formData, pais_origen: e.target.value })}
+      className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 dark:text-white transition-all"
+      placeholder="Ej: UK, USA, ARG"
+    />
+  </div>
+</div>
 
           {/* CALIDAD */}
           <div className="relative">

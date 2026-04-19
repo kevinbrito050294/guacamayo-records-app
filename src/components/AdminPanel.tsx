@@ -27,8 +27,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [busquedaInv, setBusquedaInv] = useState('');
   const [sessionError, setSessionError] = useState(false);
 
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getApiUrl = useCallback(() => {
     return window.location.hostname === 'localhost' 
