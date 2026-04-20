@@ -172,6 +172,18 @@ export function Cart({
             <p className="text-[11px] text-amber-600 dark:text-amber-500 font-black uppercase">
             ARS ${Math.round(precioItemArs * item.cantidad).toLocaleString('es-AR')}
             </p>
+            <div className="flex gap-1 flex-wrap">
+    {item.vinilo.calidad && (
+      <span className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 uppercase tracking-wider">
+        {item.vinilo.calidad}
+      </span>
+    )}
+    {item.vinilo.pais_origen && (
+      <span className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-500 uppercase tracking-wider">
+        {item.vinilo.pais_origen}
+      </span>
+    )}
+  </div>
               <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-1.5 shadow-sm">
               <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad - 1)} disabled={item.cantidad <= 1} className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20">
               <Minus size={14}/>
