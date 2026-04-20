@@ -153,37 +153,41 @@ export function Cart({
             items.map((item) => {
               const precioItemArs = item.vinilo.precio_venta * tasaBlue;
               return (
-                <div key={item.vinilo.id} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-transparent dark:border-slate-800 group hover:border-amber-500/30 transition-all">
-                  <img 
-                    src={item.vinilo.imagen_url?.split(',')[0] || ''} 
-                    className="h-20 w-20 object-cover rounded-2xl shadow-md group-hover:rotate-3 transition-transform" 
-                    alt={item.vinilo.titulo} 
-                  />
-                  <div className="flex-grow min-w-0">
-                    <h3 className="font-black text-slate-900 dark:text-white text-sm uppercase truncate mb-1">{item.vinilo.titulo}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{item.vinilo.artista}</p>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-500 font-black uppercase mt-2">
-                      ARS ${Math.round(precioItemArs * item.cantidad).toLocaleString('es-AR')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-1.5 shadow-sm">
-                    <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad - 1)} disabled={item.cantidad <= 1} className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20">
-                      <Minus size={14}/>
-                    </button>
-                    <span className="font-black text-xs w-4 text-center dark:text-white">{item.cantidad}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad + 1)} 
-                      disabled={item.cantidad >= item.vinilo.stock_actual}
-                      className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20"
-                    >
-                      <Plus size={14}/>
-                    </button>
-                  </div>
-                  <button onClick={() => onRemoveItem(item.vinilo.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2">
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
+                <div key={item.vinilo.id} className="flex flex-col gap-3 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-3xl border border-transparent dark:border-slate-800 group hover:border-amber-500/30 transition-all">
+  <div className="flex gap-3 items-center">
+    <img 
+      src={item.vinilo.imagen_url?.split(',')[0] || ''} 
+      className="h-16 w-16 object-cover rounded-2xl shadow-md flex-shrink-0" 
+      alt={item.vinilo.titulo} 
+    />
+    <div className="flex-grow min-w-0">
+      <h3 className="font-black text-slate-900 dark:text-white text-sm uppercase leading-tight mb-1 break-words whitespace-normal">{item.vinilo.titulo}</h3>
+      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium break-words whitespace-normal">{item.vinilo.artista}</p>
+    </div>
+    <button onClick={() => onRemoveItem(item.vinilo.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1 flex-shrink-0 self-start">
+      <Trash2 className="w-4 h-4" />
+    </button>
+  </div>
+  <div className="flex items-center justify-between pl-1">
+            <p className="text-[11px] text-amber-600 dark:text-amber-500 font-black uppercase">
+            ARS ${Math.round(precioItemArs * item.cantidad).toLocaleString('es-AR')}
+            </p>
+              <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl p-1.5 shadow-sm">
+              <button type="button" onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad - 1)} disabled={item.cantidad <= 1} className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20">
+              <Minus size={14}/>
+              </button>
+              <span className="font-black text-xs w-4 text-center dark:text-white">{item.cantidad}</span>
+              <button 
+              type="button" 
+              onClick={() => onUpdateCantidad(item.vinilo.id, item.cantidad + 1)} 
+              disabled={item.cantidad >= item.vinilo.stock_actual}
+              className="p-1 hover:text-amber-500 dark:text-slate-400 disabled:opacity-20"
+      >
+              <Plus size={14}/>
+              </button>
+              </div>
+              </div>
+              </div>
               );
             })
           )}
