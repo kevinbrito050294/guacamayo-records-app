@@ -5,6 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,7 @@ let adminSession = {
 
 setInterval(() => {
     if (adminSession.isActive && adminSession.lastHeartbeat) {
-        if (Date.now() - adminSession.lastHeartbeat > 30000) {
+        if (Date.now() - adminSession.lastHeartbeat > 60000) {
             console.log("⚠️ Sesión liberada por inactividad.");
             adminSession.isActive = false;
             adminSession.token = null;

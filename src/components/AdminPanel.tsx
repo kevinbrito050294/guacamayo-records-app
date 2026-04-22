@@ -64,34 +64,41 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       return;
     }
 
-    const sendHeartbeat = async () => {
-      try {
-        const res = await fetch(`${getApiUrl()}/api/admin/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
-        });
-        if (!res.ok) {
-          setSessionError(true);
-          cerrarSesionTotal();
-        }
-      } catch (err) { console.error("Error latido"); }
-    };
+   const sendHeartbeat = async () => {
+  try {
+    const token = localStorage.getItem('admin_token'); // Lee siempre el token fresco
+    if (!token) return;
+    
+    const res = await fetch(`${getApiUrl()}/api/admin/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    if (!res.ok) {
+      setSessionError(true);
+      cerrarSesionTotal();
+    }
+  } catch (err) { 
+    console.error("Error latido - reintentando en el próximo ciclo");
+    // No cerramos sesión por un error de red puntual
+  }
+};
 
-    sendHeartbeat();
-    heartbeatInterval.current = setInterval(sendHeartbeat, 10000);
+sendHeartbeat();
+heartbeatInterval.current = setInterval(sendHeartbeat, 15000); // 15s en lugar de 10s
 
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    const resetTimerWrapper = () => resetTimer();
-    events.forEach(event => window.addEventListener(event, resetTimerWrapper));
-    resetTimer();
+const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+const resetTimerWrapper = () => resetTimer();
+events.forEach(event => window.addEventListener(event, resetTimerWrapper));
+resetTimer();
 
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
-      events.forEach(event => window.removeEventListener(event, resetTimerWrapper));
-    };
-  }, [getApiUrl, cerrarSesionTotal, resetTimer, onBack]);
+return () => {
+  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
+  events.forEach(event => window.removeEventListener(event, resetTimerWrapper));
+};
+}, [getApiUrl, cerrarSesionTotal, resetTimer, onBack]);
+
 
   // --- API Y DATOS ---
   const cargarVinilos = async () => {
