@@ -286,23 +286,5 @@
     "seen": 1790209001.2819583,
     "ast_hash": "ba4af23e386243fc60647fa308bb7051",
     "semantic_hash": "ba4af23e386243fc60647fa308bb7051"
-  },
-  "AGENTS.md": {
-    "mtime": 1790298730.8560307,
-    "seen": 1790298774.038971,
-    "ast_hash": "6fb6f86732db698b9dc12d8a9f3943bb",
-    "semantic_hash": ""
-  },
-  "graphify-out/memory/query_20260924_003213_e1953ac2_por_que_bulkimporter___puentea_admin_currency___cs.md": {
-    "mtime": 1790209933.0490463,
-    "seen": 1790298774.0390325,
-    "ast_hash": "e2a7ffee06fad84abc59bde3da68acc6",
-    "semantic_hash": ""
-  },
-  "graphify-out/memory/query_20260924_003606_70c29af1_trazar_flujo_de_compra__carrito_a_divisas_a_whatsa.md": {
-    "mtime": 1790210166.960249,
-    "seen": 1790298774.0390372,
-    "ast_hash": "0c967d7818e606659941919b5711bf8d",
-    "semantic_hash": ""
   }
 }
