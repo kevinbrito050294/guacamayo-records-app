@@ -1,17 +1,17 @@
-# Graph Report - project  (2026-09-25)
+# Graph Report - project  (2026-09-24)
 
 ## Corpus Check
-- 51 files · ~91,452 words
+- 46 files · ~89,851 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .csv 1, .exe 1)
 
 ## Summary
-- 347 nodes · 487 edges · 34 communities (21 shown, 13 thin omitted)
-- Extraction: 83% EXTRACTED · 16% INFERRED · 1% AMBIGUOUS · INFERRED: 79 edges (avg confidence: 0.85)
+- 312 nodes · 438 edges · 33 communities (20 shown, 13 thin omitted)
+- Extraction: 81% EXTRACTED · 18% INFERRED · 1% AMBIGUOUS · INFERRED: 79 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `62f98640`
+- Built from commit: `283ee03d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -28,10 +28,10 @@
 - currency.ts
 - server.js
 - dependencies
-- FilterPanel
+- VinylForm.tsx
 - scripts
 - backup app guacamayo/server.js
-- inspect_db_resource_vars.cjs
+- graphify.js
 - Guacamayo Records Brand
 - Performance: indices, cache 1 min, lazy loading
 - opencode.json
@@ -46,7 +46,6 @@
 - Stack tecnologico y hosting (Vercel/Netlify)
 - Q: Por que BulkImporter() puentea Admin Currency & CSV Import con App Shell & Catalog y Panel Admin & Vinilos?
 - Q: Trazar flujo de compra (Carrito a Divisas a WhatsApp)
-- main.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `compilerOptions` - 16 edges
@@ -65,12 +64,12 @@
   CHECKLIST_VERIFICACION.md → src/components/Cart.tsx
 - `DATOS_EJEMPLO.csv - 10 vinilos de prueba` --semantically_similar_to--> `DATOS_EJEMPLO.csv - datos de prueba`  [INFERRED] [semantically similar]
   ARCHIVOS_CREADOS.md → README.md
-- `Supabase (PostgreSQL) + @supabase/supabase-js` --references--> `supabase`  [EXTRACTED]
-  ARQUITECTURA_TECNICA.md → src/lib/supabase.ts
 - `Archivos y rutas importantes` --references--> `Cart()`  [EXTRACTED]
   INICIO_AQUI.txt → src/components/Cart.tsx
 - `Conversion de divisas (USD a ARS/USDT)` --references--> `convertirPrecio()`  [EXTRACTED]
   ARQUITECTURA_TECNICA.md → src/lib/currency.ts
+- `Archivos y rutas importantes` --references--> `convertirPrecio()`  [INFERRED]
+  INICIO_AQUI.txt → src/lib/currency.ts
 
 ## Import Cycles
 - None detected.
@@ -80,11 +79,11 @@
 - **Flujo de compra por WhatsApp** — configurar_whatsapp_numero_whatsapp, configurar_whatsapp_mensaje_orden, arquitectura_tecnica_whatsapp_integration, checklist_verificacion_whatsapp_checkout, resumen_implementacion_flujo_datos [INFERRED 0.85]
 - **Sistema multidivisa (ARS/USD/USDT)** — arquitectura_tecnica_configuracion_divisas, arquitectura_tecnica_conversion_divisas, arquitectura_tecnica_gestor_tasas, guia_rapida_tasas, manual_operaciones_gestion_precios [INFERRED 0.85]
 
-## Communities (34 total, 13 thin omitted)
+## Communities (33 total, 13 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.07
-Nodes (39): Panel de administracion (4 herramientas), Panel de administracion (4 secciones), lucide-react, react, Interfaz de usuario (catalogo, tarjeta, carrito, admin), Divisa, Page, src_assets_logo (+31 more)
+Nodes (35): Panel de administracion (4 herramientas), Panel de administracion (4 secciones), lucide-react, react, react-dom, Interfaz de usuario (catalogo, tarjeta, carrito, admin), App(), Divisa (+27 more)
 
 ### Community 1 - "Conjunto de documentacion (9 guias)"
 Cohesion: 0.11
@@ -130,21 +129,21 @@ Nodes (11): dotenv, multer, ref_url, adminSession, app, db, __dirname, __filenam
 Cohesion: 0.20
 Nodes (10): dependencies, cors, dotenv, express, lucide-react, multer, mysql2, react (+2 more)
 
-### Community 12 - "FilterPanel"
-Cohesion: 0.40
-Nodes (5): Sistema de filtros (genero, calidad, busqueda), Estadisticas (3 divisas, 5 calidades, 13 generos), Codigos de calidad NM/EX/VG+/VG/G, Guia para developers (generos, colores, columnas), FilterPanel()
+### Community 12 - "VinylForm.tsx"
+Cohesion: 0.14
+Nodes (12): Sistema de filtros (genero, calidad, busqueda), Estadisticas (3 divisas, 5 calidades, 13 generos), Codigos de calidad NM/EX/VG+/VG/G, Guia para developers (generos, colores, columnas), CALIDADES, GENEROS, VinylForm(), VinylFormProps (+4 more)
 
 ### Community 13 - "scripts"
 Cohesion: 0.29
 Nodes (7): scripts, build, dev, lint, preview, start, typecheck
 
 ### Community 14 - "backup app guacamayo/server.js"
-Cohesion: 0.40
-Nodes (4): app, db, cors, express
+Cohesion: 0.33
+Nodes (5): app, db, cors, express, mysql2
 
-### Community 15 - "inspect_db_resource_vars.cjs"
-Cohesion: 0.06
-Nodes (32): IMPORTANT: keep the reminder string free of backticks and $(...) constructs., ref_child_process, ref_fs, mysql2, ref_path, { execSync }, fs, main() (+24 more)
+### Community 15 - "graphify.js"
+Cohesion: 0.40
+Nodes (3): IMPORTANT: keep the reminder string free of backticks and $(...) constructs., ref_fs, ref_path
 
 ### Community 16 - "Guacamayo Records Brand"
 Cohesion: 0.67
@@ -162,10 +161,6 @@ Nodes (4): Answer, Outcome, Q: Por que BulkImporter() puentea Admin Currency & C
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Trazar flujo de compra (Carrito a Divisas a WhatsApp), Source Nodes
 
-### Community 33 - "main.tsx"
-Cohesion: 0.50
-Nodes (3): react-dom, App(), src_index
-
 ## Ambiguous Edges - Review These
 - `Promotional Image (WhatsApp)` → `Guacamayo Records Brand`  [AMBIGUOUS]
   uploads/1773155250875-IMG-20250806-WA0001.jpg · relation: conceptually_related_to
@@ -177,8 +172,8 @@ Nodes (3): react-dom, App(), src_index
   uploads/1773155250875-IMG-20250806-WA0001.jpg · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **164 isolated node(s):** `{ execSync }`, `fs`, `path`, `mysql`, `root` (+159 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 190 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **145 isolated node(s):** `$schema`, `plugin`, `At session start (context loading)`, `After modifying code`, `Commands available` (+140 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 169 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
@@ -192,9 +187,9 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
 - **What is the exact relationship between `Guacamayo Records Brand` and `Music Marketing Promotion Content`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `lucide-react` connect `App.tsx` to `package.json`?**
-  _High betweenness centrality (0.161) - this node is a cross-community bridge._
-- **Why does `mysql2` connect `inspect_db_resource_vars.cjs` to `server.js`, `package.json`, `backup app guacamayo/server.js`?**
-  _High betweenness centrality (0.153) - this node is a cross-community bridge._
-- **Why does `react` connect `App.tsx` to `main.tsx`, `package.json`?**
-  _High betweenness centrality (0.149) - this node is a cross-community bridge._
+- **Why does `lucide-react` connect `App.tsx` to `package.json`, `VinylForm.tsx`?**
+  _High betweenness centrality (0.142) - this node is a cross-community bridge._
+- **Why does `react` connect `App.tsx` to `package.json`, `VinylForm.tsx`?**
+  _High betweenness centrality (0.131) - this node is a cross-community bridge._
+- **Why does `BulkImporter()` connect `Importador CSV (BulkImporter)` to `App.tsx`?**
+  _High betweenness centrality (0.102) - this node is a cross-community bridge._
