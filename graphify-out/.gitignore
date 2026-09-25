@@ -1,0 +1,6 @@
+# Machine-specific paths - do not commit
+.graphify_python
+.graphify_root
+.graphify_uncached.txt
+.vocab.txt
+.graphify_learning.json
