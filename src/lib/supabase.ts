@@ -1,5 +1,5 @@
 // Este archivo ahora actúa como el puente a tu MySQL local en lugar de Supabase
-const API_URL = 'http://localhost:3001/api';
+const API_URL = 'https://www.guacamayorecords.com/api';
 
 export const api = {
   // Obtener todos los vinilos
