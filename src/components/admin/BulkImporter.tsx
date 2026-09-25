@@ -71,32 +71,44 @@ export function BulkImporter() {
 
     try {
       setLoading(true);
-      let exitos = 0;
 
-      // Enviamos cada fila a nuestro servidor local
-      for (const row of preview) {
-        if (!row.codigo) continue;
+      const apiBaseUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:3001'
+        : window.location.origin;
 
-        const updateData: any = {
-            codigo: row.codigo,
-            imagen_url: row.imagen_url || null,
-            stock_actual: row.stock_actual ? parseInt(row.stock_actual) : null
-        };
+      // Enviamos todo el lote en una sola peticion (transaccion unica en el servidor)
+      const lote = preview
+        .filter((row) => row.codigo)
+        .map((row) => ({
+          codigo: row.codigo,
+          imagen_url: row.imagen_url || null,
+          stock_actual: row.stock_actual ? parseInt(row.stock_actual) : null,
+        }));
 
-        const apiBaseUrl = window.location.hostname === 'localhost'
-          ? 'http://localhost:3001'
-          : window.location.origin;
-
-        const response = await fetch(`${apiBaseUrl}/api/vinilos/bulk-update`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updateData),
-        });
-
-        if (response.ok) exitos++;
+      if (lote.length === 0) {
+        setLoading(false);
+        setMessage({ type: 'error', text: 'Ninguna fila tiene un codigo valido' });
+        return;
       }
 
-      setMessage({ type: 'success', text: `${exitos} vinilos actualizados correctamente en MySQL` });
+      const response = await fetch(`${apiBaseUrl}/api/vinilos/bulk-update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lote),
+      });
+
+      if (!response.ok) {
+        const detalle = await response.json().catch(() => ({}));
+        throw new Error(detalle.error || 'Error al actualizar en el servidor');
+      }
+
+      const resultado = await response.json();
+      const omitidos = resultado.omitidos || 0;
+      setMessage({
+        type: 'success',
+        text: `${resultado.actualizados} vinilos actualizados correctamente en MySQL` +
+          (omitidos > 0 ? ` (${omitidos} no encontrados)` : ''),
+      });
       setPreview([]);
       setTimeout(() => setMessage(null), 4000);
     } catch (error) {

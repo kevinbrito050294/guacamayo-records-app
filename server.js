@@ -89,6 +89,64 @@ app.post('/api/vinilos', (req, res) => {
     });
 });
 
+// --- IMPORTACIÓN MASIVA (BULK UPDATE POR CÓDIGO) ---
+// Debe declararse ANTES de /api/vinilos/:id para que Express no lo capture como un id.
+app.put('/api/vinilos/bulk-update', (req, res) => {
+    const entradas = Array.isArray(req.body) ? req.body : [req.body];
+    if (entradas.length === 0) return res.status(400).json({ error: 'No se recibieron datos' });
+
+    for (const item of entradas) {
+        if (!item || !item.codigo) return res.status(400).json({ error: 'Cada fila debe incluir codigo' });
+        if (item.stock_actual !== null && item.stock_actual !== undefined) {
+            const stock = Number(item.stock_actual);
+            if (!Number.isInteger(stock) || stock < 0) {
+                return res.status(400).json({ error: 'stock_actual debe ser un entero mayor o igual a 0' });
+            }
+        }
+    }
+
+    db.getConnection((err, conn) => {
+        if (err) return res.status(500).json({ error: 'Error DB' });
+        conn.beginTransaction((err) => {
+            if (err) { conn.release(); return res.status(500).json({ error: err.message }); }
+
+            const tareas = entradas.map(item => new Promise((resolve, reject) => {
+                const sets = [];
+                const vals = [];
+
+                // Solo se actualizan los campos presentes: las celdas vacias del CSV no borran datos.
+                if (item.imagen_url !== null && item.imagen_url !== undefined && item.imagen_url !== '') {
+                    sets.push('imagen_url = ?');
+                    vals.push(item.imagen_url);
+                }
+                if (item.stock_actual !== null && item.stock_actual !== undefined && item.stock_actual !== '') {
+                    sets.push('stock_actual = ?');
+                    vals.push(Math.trunc(Number(item.stock_actual)));
+                }
+
+                if (sets.length === 0) return resolve({ actualizados: 0, omitidos: 1 });
+
+                vals.push(item.codigo);
+                conn.query(`UPDATE inventario_vinilos SET ${sets.join(', ')} WHERE codigo = ?`, vals, (e, r) => {
+                    if (e) return reject(e);
+                    resolve({ actualizados: r.affectedRows, omitidos: r.affectedRows === 0 ? 1 : 0 });
+                });
+            }));
+
+            Promise.all(tareas)
+                .then(resultados => {
+                    const actualizados = resultados.reduce((a, b) => a + b.actualizados, 0);
+                    const omitidos = resultados.reduce((a, b) => a + b.omitidos, 0);
+                    conn.commit(() => {
+                        conn.release();
+                        res.json({ success: true, actualizados, omitidos, recibidos: entradas.length });
+                    });
+                })
+                .catch(e => conn.rollback(() => { conn.release(); res.status(500).json({ error: e.message }); }));
+        });
+    });
+});
+
 app.put('/api/vinilos/:id', (req, res) => {
     const { id } = req.params;
     const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
