@@ -1,0 +1,11 @@
+node_modules
+dist
+graphify-out
+.env
+.env.*
+.git
+scripts
+*.zip
+*.log
+.vscode
+.idea

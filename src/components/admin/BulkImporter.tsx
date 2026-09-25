@@ -83,7 +83,11 @@ export function BulkImporter() {
             stock_actual: row.stock_actual ? parseInt(row.stock_actual) : null
         };
 
-        const response = await fetch('http://localhost:3001/api/vinilos/bulk-update', {
+        const apiBaseUrl = window.location.hostname === 'localhost'
+          ? 'http://localhost:3001'
+          : window.location.origin;
+
+        const response = await fetch(`${apiBaseUrl}/api/vinilos/bulk-update`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updateData),

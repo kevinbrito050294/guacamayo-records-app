@@ -11,10 +11,10 @@
   "9": "currency.ts",
   "10": "server.js",
   "11": "dependencies",
-  "12": "FilterPanel",
+  "12": "VinylForm.tsx",
   "13": "scripts",
   "14": "backup app guacamayo/server.js",
-  "15": "inspect_db_resource_vars.cjs",
+  "15": "graphify.js",
   "16": "Guacamayo Records Brand",
   "17": "Performance: indices, cache 1 min, lazy loading",
   "18": "opencode.json",
@@ -32,5 +32,5 @@
   "30": "vite-env.d.ts",
   "31": "Q: Por que BulkImporter() puentea Admin Currency & CSV Import con App Shell & Catalog y Panel Admin & Vinilos?",
   "32": "Q: Trazar flujo de compra (Carrito a Divisas a WhatsApp)",
-  "33": "main.tsx"
+  "33": "ref_child_process"
 }

@@ -144,10 +144,10 @@
     "semantic_hash": "36a4d8ca506a8f5550d4208e05422a28"
   },
   "src/lib/supabase.ts": {
-    "mtime": 1772323088.8289406,
-    "seen": 1790209001.281823,
-    "ast_hash": "adf7c36cb84193d5f7d0b04b938fe15f",
-    "semantic_hash": "adf7c36cb84193d5f7d0b04b938fe15f"
+    "mtime": 1790306369.0561233,
+    "seen": 1790306444.5737123,
+    "ast_hash": "a8e8abd0434bbe4390657611c1bd0318",
+    "semantic_hash": ""
   },
   "src/lib/whatsapp.ts": {
     "mtime": 1772329486.0,
@@ -303,6 +303,36 @@
     "mtime": 1790210166.960249,
     "seen": 1790298774.0390372,
     "ast_hash": "0c967d7818e606659941919b5711bf8d",
+    "semantic_hash": ""
+  },
+  "scripts/inspect_db_resource_vars.cjs": {
+    "mtime": 1790305710.056155,
+    "seen": 1790306444.57363,
+    "ast_hash": "dba960706c4558cd5b2948a7451af83b",
+    "semantic_hash": ""
+  },
+  "scripts/inspect_db_tunnel.cjs": {
+    "mtime": 1790305639.4629233,
+    "seen": 1790306444.573636,
+    "ast_hash": "b5528b9a5894a35d8d116c9747a59f1b",
+    "semantic_hash": ""
+  },
+  "scripts/inspect_db_tunnel.js": {
+    "mtime": 1790304395.2442546,
+    "seen": 1790306444.57364,
+    "ast_hash": "c85cb94524b02202326859b3ff03972c",
+    "semantic_hash": ""
+  },
+  "scripts/inspect_db_tunnel2.cjs": {
+    "mtime": 1790305857.1593566,
+    "seen": 1790306444.5736432,
+    "ast_hash": "662a216792c8cd261ede1fae35b9bba4",
+    "semantic_hash": ""
+  },
+  "scripts/inspect_db_tunnel_final.cjs": {
+    "mtime": 1790305954.9018946,
+    "seen": 1790306444.5736465,
+    "ast_hash": "ec05483798ac31df54162b4fc989bdba",
     "semantic_hash": ""
   }
 }
