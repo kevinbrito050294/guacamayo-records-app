@@ -7,7 +7,7 @@ import { CarritoItem, ViniloCatalogo, ConfiguracionDivisa } from './types/databa
 import { ShoppingCart, Settings, Disc, Moon, Sun, LogOut } from 'lucide-react';
 import { AdminLogin } from './components/AdminLogin';
 
-import logoImg from './assets/logo.png';
+import logoImg from './assets/logo.webp';
 
 type Page = 'catalog' | 'cart' | 'admin';
 type Divisa = 'USD' | 'ARS' | 'USDT';
@@ -105,7 +105,7 @@ function App() {
       } else {
         setLoginError(data.error || 'Contraseña incorrecta');
       }
-    } catch (err) {
+    } catch {
       setLoginError('Servidor no disponible');
     }
   };

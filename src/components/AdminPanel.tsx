@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { 
   Settings, Plus, Upload, Book, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
@@ -9,12 +9,32 @@ import {
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
-import { ViniloCatalogo } from '../types/database';
+import { ViniloCatalogo, Cupon, CalidadVinilo } from '../types/database';
 
 type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons';
 
 interface AdminPanelProps {
   onBack: () => void;
+}
+
+// Refleja la fila que devuelve GET /api/pedidos (tabla `pedidos`).
+interface PedidoItem {
+  id?: number;
+  id_vinilo?: number;
+  vinilo?: { id?: number };
+  cantidad?: number;
+  qty?: number;
+}
+
+interface PedidoApi {
+  id_pedido: number;
+  numero_orden: string | null;
+  fecha: string;
+  nombre_cliente: string | null;
+  whatsapp_cliente: string | null;
+  total_pago: number | null;
+  items: PedidoItem[] | string | null;
+  estado: string;
 }
 
 export function AdminPanel({ onBack }: AdminPanelProps) {
@@ -78,7 +98,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       setSessionError(true);
       cerrarSesionTotal();
     }
-  } catch (err) { 
+  } catch {
     console.error("Error latido - reintentando en el próximo ciclo");
     // No cerramos sesión por un error de red puntual
   }
@@ -141,7 +161,7 @@ return () => {
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
       alert(`✅ ${nuevasFotos.length} imágenes añadidas`);
-    } catch (error) { alert("❌ Error al subir imagen"); } 
+    } catch { alert("❌ Error al subir imagen"); } 
     finally { setSubiendo(false); }
   };
 
@@ -176,7 +196,7 @@ return () => {
         setEditandoId(null);
         alert("✅ Cambios guardados");
       }
-    } catch (error) { alert("❌ Error de conexión"); }
+    } catch { alert("❌ Error de conexión"); }
   };
 
   const handleDelete = async (id: string) => {
@@ -184,7 +204,7 @@ return () => {
     try {
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, { method: 'DELETE' });
       if (res.ok) setVinilos(vinilos.filter(v => v.id !== id));
-    } catch (error) { alert("❌ Error al eliminar"); }
+    } catch { alert("❌ Error al eliminar"); }
   };
 
   const renderImage = (url: string | undefined) => {
@@ -295,7 +315,7 @@ return () => {
                                     </div>
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Calidad</label>
-                                      <select className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold text-amber-500" value={formEdit.calidad || ''} onChange={e => setFormEdit({...formEdit, calidad: e.target.value as any})}>
+                                      <select className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold text-amber-500" value={formEdit.calidad || ''} onChange={e => setFormEdit({...formEdit, calidad: e.target.value as CalidadVinilo})}>
                                         {['M','NM','EX','VG+','VG','G'].map(c => <option key={c} value={c}>{c}</option>)}
                                       </select>
                                     </div>
@@ -400,7 +420,7 @@ return () => {
 
 // --- SUBCOMPONENTES ---
 
-function TabButton({ active, onClick, icon, title, sub }: any) {
+function TabButton({ active, onClick, icon, title, sub }: { active: boolean; onClick: () => void; icon: ReactNode; title: string; sub: string }) {
   return (
     <button onClick={onClick} className={`p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
       <div className={`mb-2 p-2 rounded-lg inline-block ${active ? 'bg-slate-800 dark:bg-amber-600/20' : 'bg-slate-100 dark:bg-slate-800'}`}>{icon}</div>
@@ -411,7 +431,7 @@ function TabButton({ active, onClick, icon, title, sub }: any) {
 }
 
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
-  const [cupones, setCupones] = useState<any[]>([]);
+  const [cupones, setCupones] = useState<Cupon[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
   
   const fetchCupones = async () => {
@@ -436,7 +456,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
         setNuevo({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
         fetchCupones();
       }
-    } catch (e) { alert("Error al crear"); }
+    } catch { alert("Error al crear"); }
   };
 
   return (
@@ -478,7 +498,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
 
 // --- ORDERS LIST CON CORRECCIÓN ---
 function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: () => string, onOrderUpdate: () => void, setSessionError: (val: boolean) => void }) {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<PedidoApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'pending' | 'history'>('pending');
 
@@ -497,13 +517,13 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
     try {
       const res = await fetch(`${getApiUrl()}/api/pedidos/${id}/finalizar`, { method: 'PUT' });
       if (res.ok) fetchOrders();
-    } catch (error) { alert("Error"); }
+    } catch { alert("Error"); }
   };
-const cancelarPedido = async (order: any) => {
+const cancelarPedido = async (order: PedidoApi) => {
   if (!confirm("¿Cancelar pedido? Se devolverá el stock al inventario.")) return;
   
   try {
-    let itemsParaDevolver = [];
+    let itemsParaDevolver: PedidoItem[] = [];
     try {
       itemsParaDevolver = typeof order.items === 'string' 
         ? JSON.parse(order.items) 
@@ -512,11 +532,10 @@ const cancelarPedido = async (order: any) => {
       console.error("Error al parsear items:", e);
     }
 
-    // Cambiamos (i) por (i: any) para quitar el error de "implicitly any"
-    const payload = itemsParaDevolver.map((i: any) => ({
+    const payload = itemsParaDevolver.map((i: PedidoItem) => ({
       id: i.id || i.id_vinilo || (i.vinilo && i.vinilo.id), 
       cantidad: Number(i.cantidad || i.qty || 1)
-    })).filter((i: any) => i.id !== undefined && i.id !== null);
+    })).filter((i: { id?: number; cantidad: number }) => i.id !== undefined && i.id !== null);
 
     const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, { 
       method: 'PUT',

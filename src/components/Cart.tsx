@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CarritoItem, ConfiguracionDivisa } from '../types/database';
+import { CarritoItem, ConfiguracionDivisa, Cupon } from '../types/database';
 import { Trash2, ShoppingBag, X, MessageCircle, Minus, Plus, Disc, Ticket } from 'lucide-react';
 
 interface CartProps {
@@ -26,7 +26,7 @@ export function Cart({
   const [whatsapp, setWhatsapp] = useState('');
   
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<Cupon | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
 
   const API_BASE_URL = window.location.hostname === 'localhost' 
@@ -69,7 +69,7 @@ export function Cart({
         alert("❌ " + (data.error || "Cupón inválido"));
         setAppliedCoupon(null);
       }
-    } catch (e) {
+    } catch {
       alert("Error al validar cupón");
     } finally {
       setCouponLoading(false);
@@ -121,8 +121,9 @@ export function Cart({
       onBack();
       alert(`✅ Pedido #${data.numero_orden} registrado.`);
 
-    } catch (error: any) {
-      alert("❌ Error: " + error.message);
+    } catch (error: unknown) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+      alert("❌ Error: " + mensaje);
     } finally {
       setLoading(false);
     }
@@ -219,7 +220,7 @@ export function Cart({
                     placeholder="Tengo un código" 
                     value={couponCode} 
                     onChange={e => setCouponCode(e.target.value)}
-                    disabled={appliedCoupon}
+                    disabled={!!appliedCoupon}
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-xs focus:ring-1 focus:ring-amber-500 outline-none uppercase font-bold"
                   />
                 </div>

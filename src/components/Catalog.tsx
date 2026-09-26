@@ -3,7 +3,7 @@ import { ViniloCatalogo, PreciosConvertidos, CarritoItem, ConfiguracionDivisa } 
 import { VinylCard } from './VinylCard';
 import { Search, SlidersHorizontal, Disc } from 'lucide-react'; 
 
-import logoImg from '../assets/logo.png'; 
+import logoImg from '../assets/logo.webp'; 
 
 interface CatalogProps {
   vinilos: ViniloCatalogo[];

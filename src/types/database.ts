@@ -1,6 +1,18 @@
 export type CalidadVinilo = 'NM' | 'EX' | 'VG+' | 'VG' | 'G';
 export type EstadoPedido = 'pendiente' | 'confirmado' | 'enviado' | 'entregado' | 'cancelado';
 export type TipoDivisa = 'DOLAR_BLUE' | 'USDT';
+export type TipoCupon = 'porcentaje' | 'fijo';
+
+export interface Cupon {
+  id: number;
+  codigo: string;
+  tipo: TipoCupon;
+  valor: number;
+  fecha_expiracion: string | null;
+  activo: number | null;
+  uso_maximo: number | null;
+  usos_actuales: number | null;
+}
 
 export interface ViniloCatalogo {
   id: string;

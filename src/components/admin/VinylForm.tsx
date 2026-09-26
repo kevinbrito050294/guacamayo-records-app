@@ -68,7 +68,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
         setMessage(null);
         onSuccess?.();
       }, 2000);
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Error de conexión con el servidor' });
     } finally {
       setLoading(false);
