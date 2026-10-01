@@ -5,9 +5,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.widget.Toast;
 
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import com.getcapacitor.BridgeActivity;
@@ -22,15 +27,20 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 
 public class MainActivity extends BridgeActivity {
     private static final String UPDATE_URL =
             "https://www.guacamayorecords.com/android-update.json";
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
+    private boolean biometricPromptShown;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // WebView restores httpOnly cookies asynchronously after the activity
+        // starts; checking immediately can miss an existing admin session.
+        new Handler(Looper.getMainLooper()).postDelayed(this::checkBiometricUnlock, 1500);
         checkForUpdate();
     }
 
@@ -38,6 +48,51 @@ public class MainActivity extends BridgeActivity {
     public void onDestroy() {
         updateExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+    /**
+     * The WebView keeps the httpOnly admin cookie between launches. When there
+     * is an existing session, require the device biometric/PIN before exposing
+     * the panel again. A first install without a cookie still opens normally
+     * so the administrator can perform the initial login.
+     */
+    private void checkBiometricUnlock() {
+        if (biometricPromptShown) return;
+        android.webkit.CookieManager cookies = android.webkit.CookieManager.getInstance();
+        String siteCookies = cookies.getCookie("https://www.guacamayorecords.com");
+        if (!cookies.hasCookies() && (siteCookies == null || siteCookies.isEmpty())) return;
+
+        int authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG
+                | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+        BiometricManager manager = BiometricManager.from(this);
+        if (manager.canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) return;
+        biometricPromptShown = true;
+
+        Executor executor = ContextCompat.getMainExecutor(this);
+        BiometricPrompt prompt = new BiometricPrompt(this, executor,
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, CharSequence errString) {
+                        super.onAuthenticationError(errorCode, errString);
+                        finishAndRemoveTask();
+                    }
+
+                    @Override
+                    public void onAuthenticationFailed() {
+                        super.onAuthenticationFailed();
+                        Toast.makeText(MainActivity.this,
+                                "No se pudo verificar la huella.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+
+        BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Desbloquear Guacamayo Admin")
+                .setSubtitle("Usá tu huella o el PIN del dispositivo")
+                .setDescription("La sesión administrativa está protegida")
+                .setAllowedAuthenticators(authenticators)
+                .setConfirmationRequired(false)
+                .build();
+        prompt.authenticate(promptInfo);
     }
 
     private void checkForUpdate() {
@@ -89,15 +144,15 @@ public class MainActivity extends BridgeActivity {
 
     private void showUpdateDialog(long versionCode, String versionName, String apkUrl) {
         new AlertDialog.Builder(this)
-                .setTitle("Actualizaci??n disponible")
-                .setMessage("Hay una nueva versi??n (" + versionName + "). ??Quer??s instalarla ahora?")
-                .setNegativeButton("M??s tarde", null)
+                .setTitle("Actualización disponible")
+                .setMessage("Hay una nueva versión (" + versionName + "). ¿Querés instalarla ahora?")
+                .setNegativeButton("Más tarde", null)
                 .setPositiveButton("Actualizar", (dialog, which) -> downloadAndInstall(versionCode, apkUrl))
                 .show();
     }
 
     private void downloadAndInstall(long versionCode, String apkUrl) {
-        Toast.makeText(this, "Descargando actualizaci??n...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Descargando actualización...", Toast.LENGTH_LONG).show();
         updateExecutor.execute(() -> {
             File apkFile = new File(getCacheDir(), "guacamayo-admin-" + versionCode + ".apk");
             try {
@@ -106,7 +161,7 @@ public class MainActivity extends BridgeActivity {
                 connection.setReadTimeout(30000);
                 connection.setRequestMethod("GET");
                 if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                    throw new IllegalStateException("No se pudo descargar la actualizaci??n");
+                    throw new IllegalStateException("No se pudo descargar la actualización");
                 }
 
                 try (InputStream input = connection.getInputStream();
@@ -117,7 +172,7 @@ public class MainActivity extends BridgeActivity {
                     while ((read = input.read(buffer)) != -1) {
                         total += read;
                         if (total > 200L * 1024 * 1024) {
-                            throw new IllegalStateException("La actualizaci??n es demasiado grande");
+                            throw new IllegalStateException("La actualización es demasiado grande");
                         }
                         output.write(buffer, 0, read);
                     }
@@ -129,7 +184,7 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception error) {
                 apkFile.delete();
                 runOnUiThread(() -> Toast.makeText(
-                        this, "No se pudo descargar la actualizaci??n.", Toast.LENGTH_LONG).show());
+                        this, "No se pudo descargar la actualización.", Toast.LENGTH_LONG).show());
             }
         });
     }
