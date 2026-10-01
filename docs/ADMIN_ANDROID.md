@@ -34,11 +34,10 @@ carga la URL remota al iniciar.
 
 ## Desbloqueo biométrico
 
-Si ya existe una sesión administrativa guardada en el WebView, al abrir la app
-Android solicita huella digital o el PIN/patrón del dispositivo mediante
-`BiometricPrompt`. La contraseña nunca se guarda en el teléfono. En una instalación
-nueva, primero se permite el login normal; la huella se solicita desde el siguiente
-inicio mientras la sesión administrativa siga vigente.
+Al abrir la app Android solicita huella digital o el PIN/patrón del dispositivo
+mediante `BiometricPrompt`. La contraseña nunca se guarda en el teléfono. Si el
+dispositivo no tiene biometría ni bloqueo configurado, se puede continuar con el
+login normal.
 
 ## Desarrollo
 

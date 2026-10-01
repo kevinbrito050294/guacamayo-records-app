@@ -50,19 +50,11 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
-    /**
-     * The WebView keeps the httpOnly admin cookie between launches. When there
-     * is an existing session, require the device biometric/PIN before exposing
-     * the panel again. A first install without a cookie still opens normally
-     * so the administrator can perform the initial login.
-     */
+    /** Require device authentication before opening the private admin app. */
     private void checkBiometricUnlock() {
         if (biometricPromptShown) return;
-        android.webkit.CookieManager cookies = android.webkit.CookieManager.getInstance();
-        String siteCookies = cookies.getCookie("https://www.guacamayorecords.com");
-        if (!cookies.hasCookies() && (siteCookies == null || siteCookies.isEmpty())) return;
 
-        int authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG
+        int authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK
                 | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
         BiometricManager manager = BiometricManager.from(this);
         if (manager.canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) return;
