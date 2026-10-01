@@ -116,6 +116,7 @@ function AppShell() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        window.AndroidBiometric?.saveAdminCredentials(email, password);
         setIsAdminAuthenticated(true);
         setLoginError('');
         return;
