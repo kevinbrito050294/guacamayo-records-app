@@ -167,7 +167,7 @@ export function BulkImporter() {
             <table className="w-full text-sm">
               <thead className="bg-slate-100 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-2 text-left font-semibold text-slate-900">C??digo</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-900">Código</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-900">Imagen URL</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-900">Stock</th>
                 </tr>

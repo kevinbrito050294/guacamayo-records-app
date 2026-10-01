@@ -7,7 +7,7 @@ import { apiUrl } from './api';
 // Espejo en el front de lo que devuelve `auth.js` (rutas /api/auth/*,
 // /api/direcciones, /api/favoritos) y de la tabla `pedidos`.
 //
-// La sesi??n vive en una cookie httpOnly: no hay token que guardar ni que leer
+// La sesión vive en una cookie httpOnly: no hay token que guardar ni que leer
 // desde JS. Por eso el estado de "logueado" siempre se consulta contra
 // GET /api/auth/yo y TODAS las peticiones van con credentials: 'include'.
 
@@ -109,13 +109,13 @@ export interface ValorCuenta {
   refresh: () => Promise<Usuario | null>;
 
   // Favoritos: `idsFavoritos` es la fuente de verdad para los corazones del
-  // cat??logo (Set para no recorrer un array en cada card) y `favoritos` la lista
-  // completa que muestra la pesta??a Favoritos de la cuenta.
+  // catálogo (Set para no recorrer un array en cada card) y `favoritos` la lista
+  // completa que muestra la pestaña Favoritos de la cuenta.
   //
-  // NO hay un `favoritosCargando` ac?? a prop??sito: la pesta??a Favoritos lleva su
-  // propio estado de carga (que cubre la llamada entera) y el cat??logo pinta los
+  // NO hay un `favoritosCargando` acá a propósito: la pestaña Favoritos lleva su
+  // propio estado de carga (que cubre la llamada entera) y el catálogo pinta los
   // corazones al instante. Un booleano que nadie lee obliga a todos los que
-  // escriban en el contexto a mantenerlo al d??a sin necesidad.
+  // escriban en el contexto a mantenerlo al día sin necesidad.
   favoritos: Favorito[];
   idsFavoritos: Set<number>;
   alternarFavorito: (viniloId: number) => Promise<ResultadoAccion>;
@@ -146,7 +146,7 @@ export interface RespuestaApi<T> {
 }
 
 /**
- * Fetch com??n de la API: siempre con credentials (cookie httpOnly) y siempre
+ * Fetch común de la API: siempre con credentials (cookie httpOnly) y siempre
  * devolviendo el `error` del server tal cual, para poder mostrarlo sin reescribir.
  */
 export async function pedir<T = unknown>(ruta: string, opciones: OpcionesPeticion = {}): Promise<RespuestaApi<T>> {

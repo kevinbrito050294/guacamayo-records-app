@@ -8,7 +8,7 @@ interface VinylFormProps {
 }
 
 const GENEROS = [
-  'Rock', 'Jazz', 'Electr??nica', 'Hip-Hop', 'Pop', 'Cl??sica', 
+  'Rock', 'Jazz', 'Electrónica', 'Hip-Hop', 'Pop', 'Clásica', 
   'Funk', 'Soul', 'Latin', 'Reggae', 'Indie', 'Experimental', 'Otro',
 ];
 
@@ -67,7 +67,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
         onSuccess?.();
       }, 2000);
     } catch {
-      setMessage({ type: 'error', text: 'Error de conexi??n con el servidor' });
+      setMessage({ type: 'error', text: 'Error de conexión con el servidor' });
     } finally {
       setLoading(false);
     }
@@ -93,9 +93,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          {/* C??DIGO SKU */}
+          {/* CÓDIGO SKU */}
           <div className="relative">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">C??digo (SKU)</label>
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Código (SKU)</label>
             <div className="relative">
               <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
               <input
@@ -121,9 +121,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
             </div>
           </div>
 
-          {/* T??TULO */}
+          {/* TÍTULO */}
           <div className="md:col-span-2 relative">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">T??tulo del ??lbum</label>
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Título del Álbum</label>
             <div className="relative">
               <Disc className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
               <input
@@ -135,9 +135,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
             </div>
           </div>
 
-          {/* G??NERO - INTEGRADO CON 'TAG' */}
+          {/* GÉNERO - INTEGRADO CON 'TAG' */}
           <div className="relative">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">G??nero</label>
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Género</label>
             <div className="relative">
               <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
               <select
@@ -149,9 +149,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
               </select>
             </div>
           </div>
-          {/* PA??S DE ORIGEN */}
+          {/* PAÍS DE ORIGEN */}
 <div className="relative">
-  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Pa??s de Origen</label>
+  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">País de Origen</label>
   <div className="relative">
     <Disc className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
     <input
@@ -205,9 +205,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
             </div>
           </div>
           
-          {/* DESCRIPCI??N */}
+          {/* DESCRIPCIÓN */}
           <div className="md:col-span-2 relative">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Descripci??n / Detalles</label>
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Descripción / Detalles</label>
             <div className="relative">
               <AlignLeft className="absolute left-4 top-4 text-amber-500 w-4 h-4" />
               <textarea
@@ -215,7 +215,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 rows={3}
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 dark:text-white transition-all"
-                placeholder="Ej: Primera edici??n, incluye p??ster original..."
+                placeholder="Ej: Primera edición, incluye póster original..."
               />
             </div>
           </div>
@@ -231,7 +231,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
           ) : (
             <>
               <Save className="w-5 h-5" />
-              Sincronizar con Cat??logo
+              Sincronizar con Catálogo
             </>
           )}
         </button>

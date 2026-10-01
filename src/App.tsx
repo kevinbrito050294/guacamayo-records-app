@@ -54,7 +54,7 @@ function AppShell() {
         fetch(`${getApiUrl()}/api/configuracion_divisas`)
       ]);
 
-      if (!resVinilos.ok || !resTasas.ok) throw new Error('Error en la conexi??n');
+      if (!resVinilos.ok || !resTasas.ok) throw new Error('Error en la conexión');
 
       const dataVinilos = await resVinilos.json();
       const dataTasas = await resTasas.json();
@@ -63,7 +63,7 @@ function AppShell() {
       setTasas(Array.isArray(dataTasas) ? dataTasas : (dataTasas.tasas || []));
 
     } catch (error) {
-      console.error("??? Error:", error);
+      console.error("❌ Error:", error);
     } finally {
       setLoading(false);
     }
@@ -73,8 +73,8 @@ function AppShell() {
     cargarDatosIniciales();
   }, [cargarDatosIniciales]);
 
-  // --- SESI??N ADMIN: la cookie httpOnly no se puede leer desde JS, as?? que al
-  // --- montar preguntamos al servidor si todav??a hay sesi??n abierta.
+  // --- SESIÓN ADMIN: la cookie httpOnly no se puede leer desde JS, así que al
+  // --- montar preguntamos al servidor si todavía hay sesión abierta.
   useEffect(() => {
     let vigente = true;
     fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' })
@@ -101,7 +101,7 @@ function AppShell() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // --- LOGIN ADMIN (email + contrase??a contra la BD) ---
+  // --- LOGIN ADMIN (email + contraseña contra la BD) ---
   const handleAdminLogin = useCallback(async (email: string, password: string) => {
     try {
       setLoginCargando(true);
@@ -119,12 +119,12 @@ function AppShell() {
         setLoginError('');
         return;
       }
-      // 423: el panel ya est?? abierto en otro dispositivo (sesi??n ??nica).
+      // 423: el panel ya está abierto en otro dispositivo (sesión única).
       if (res.status === 423) {
-        setLoginError(data.message || 'El panel ya est?? abierto en otro dispositivo.');
+        setLoginError(data.message || 'El panel ya está abierto en otro dispositivo.');
         return;
       }
-      setLoginError(data.error || 'No se pudo iniciar sesi??n');
+      setLoginError(data.error || 'No se pudo iniciar sesión');
     } catch {
       setLoginError('Servidor no disponible');
     } finally {
@@ -162,20 +162,20 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans">
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 shadow-sm w-full">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
           
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setCurrentPage('catalog'); cargarDatosIniciales(); }}>
             <div className="w-8 h-8 sm:w-10 sm:h-10 overflow-hidden rounded-full border border-slate-100 dark:border-slate-700">
               <img src={logoImg} alt="Logo" className="w-full h-full object-cover" />
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-sm sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">GUACAMAYO</span>
+            <div className="flex flex-col leading-none min-w-0">
+              <span className="text-sm sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter truncate">GUACAMAYO</span>
               <span className="text-[7px] sm:text-[9px] font-bold text-amber-500 uppercase tracking-widest">Records</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-3">
-            <div className="w-[85px] sm:w-[140px]">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <div className="w-[68px] sm:w-[140px]">
               <CurrencySelector divisaActual={divisa} onDivisaChange={setDivisa} />
             </div>
             
@@ -203,24 +203,17 @@ function AppShell() {
                  <span className="hidden sm:inline">Mi cuenta</span>
                </button>
              ) : (
-               <div className="flex items-center gap-1 sm:gap-2">
-                 <button
-                   type="button"
-                   onClick={() => { setModoAcceso('login'); setCurrentPage('cuenta'); }}
-                   disabled={cargandoCuenta}
-                   className="px-2 sm:px-3 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
-                 >
-                   Ingreso
-                 </button>
-                 <button
-                   type="button"
-                   onClick={() => { setModoAcceso('registro'); setCurrentPage('cuenta'); }}
-                   disabled={cargandoCuenta}
-                   className="px-2 sm:px-3 py-2 rounded-xl bg-amber-500 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider hover:bg-amber-400 transition-colors disabled:opacity-40"
-                 >
-                   Crear cuenta
-                 </button>
-               </div>
+               <button
+                 type="button"
+                 onClick={() => { setModoAcceso('login'); setCurrentPage('cuenta'); }}
+                 disabled={cargandoCuenta}
+                 aria-label="Ingresar"
+                 title="Ingresar"
+                 className="inline-flex items-center gap-2 p-1.5 sm:px-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40"
+               >
+                 <User size={18} />
+                 <span className="hidden sm:inline">Ingresar</span>
+               </button>
              )}
 
           </div>
@@ -256,8 +249,8 @@ function AppShell() {
                 onClear={() => setCarrito([])} 
                 divisaPreferida={divisa} 
                 tasas={tasas} 
-                // El carrito se desmonta al volver al cat??logo, as?? que el aviso
-                // de "pedido registrado" se muestra con el toast que ya vive ac??.
+                // El carrito se desmonta al volver al catálogo, así que el aviso
+                // de "pedido registrado" se muestra con el toast que ya vive acá.
                 onPedidoRegistrado={setAviso}
               />
             )}

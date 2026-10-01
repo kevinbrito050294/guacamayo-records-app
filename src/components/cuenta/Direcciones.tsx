@@ -9,14 +9,14 @@ type FormDireccion = typeof FORM_VACIO;
 // MySQL devuelve TINYINT en es_default, no boolean.
 const esPrincipal = (d: Direccion) => Number(d.es_default) === 1;
 
-// DEUDA VISIBLE (no implementada a prop??sito): la direcci??n que se guarda ac??
+// DEUDA VISIBLE (no implementada a propósito): la dirección que se guarda acá
 // NO viaja al pedido. `POST /api/pedidos` (server.js) no recibe `direccion_id`
-// y la tabla `pedidos` no guarda ning??n snapshot de env??o, as?? que no hay
-// trazabilidad de a d??nde se manda cada pedido: hoy el admin le pide la
-// direcci??n al cliente por WhatsApp (el mensaje del checkout cierra en "??Me
+// y la tabla `pedidos` no guarda ningún snapshot de envío, así que no hay
+// trazabilidad de a dónde se manda cada pedido: hoy el admin le pide la
+// dirección al cliente por WhatsApp (el mensaje del checkout cierra en "¿Me
 // pasan los datos para la transferencia?"), y cuando se confirma el pedido el
 // panel muestra el WhatsApp para buscarla. Esta pantalla existe porque el
-// env??o real (migraci??n + server + enganche en el checkout) est?? pendiente;
+// envío real (migración + server + enganche en el checkout) está pendiente;
 // mientras tanto guarda direcciones "para tenerlas", no para que se usen en la
 // compra.
 
@@ -52,7 +52,7 @@ export function Direcciones() {
       codigo_postal: direccion.codigo_postal || '',
       es_default: esPrincipal(direccion),
     });
-    // En el celu el form queda lejos del bot??n: lo subimos a la vista.
+    // En el celu el form queda lejos del botón: lo subimos a la vista.
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -68,7 +68,7 @@ export function Direcciones() {
     setErrorForm('');
 
     if (form.apodo.trim().length === 0 || form.direccion.trim().length === 0) {
-      setErrorForm('El apodo y la direcci??n son obligatorios');
+      setErrorForm('El apodo y la dirección son obligatorios');
       return;
     }
 
@@ -95,7 +95,7 @@ export function Direcciones() {
   };
 
   const eliminar = async (direccion: Direccion) => {
-    if (!confirm(`??Eliminar la direcci??n "${direccion.apodo}"?`)) return;
+    if (!confirm(`¿Eliminar la dirección "${direccion.apodo}"?`)) return;
     const res = await pedir(`/api/direcciones/${direccion.id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(res.error);
@@ -126,7 +126,7 @@ export function Direcciones() {
         <div className="flex items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">
             <MapPin size={18} className="text-amber-500" />
-            {editandoId ? 'Editar direcci??n' : 'Nueva direcci??n'}
+            {editandoId ? 'Editar dirección' : 'Nueva dirección'}
           </h3>
           {editandoId && (
             <button
@@ -141,15 +141,15 @@ export function Direcciones() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo id="dir-apodo" etiqueta="Apodo" valor={form.apodo} onChange={(v) => cambiarCampo('apodo', v)} placeholder="Casa" maxLength={60} required />
-          <Campo id="dir-cp" etiqueta="C??digo postal" valor={form.codigo_postal} onChange={(v) => cambiarCampo('codigo_postal', v)} placeholder="1425" maxLength={20} />
+          <Campo id="dir-cp" etiqueta="Código postal" valor={form.codigo_postal} onChange={(v) => cambiarCampo('codigo_postal', v)} placeholder="1425" maxLength={20} />
         </div>
 
         <Campo
           id="dir-linea"
-          etiqueta="Direcci??n"
+          etiqueta="Dirección"
           valor={form.direccion}
           onChange={(v) => cambiarCampo('direccion', v)}
-          placeholder="Calle y n??mero, piso/depto"
+          placeholder="Calle y número, piso/depto"
           maxLength={255}
           required
         />
@@ -168,7 +168,7 @@ export function Direcciones() {
             className="w-5 h-5 rounded accent-amber-500 cursor-pointer"
           />
           <label htmlFor="dir-default" className="text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
-            Usar como direcci??n principal
+            Usar como dirección principal
           </label>
         </div>
 
@@ -179,7 +179,7 @@ export function Direcciones() {
           disabled={guardando}
           className="w-full sm:w-auto bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 dark:hover:bg-white transition-all active:scale-95 disabled:opacity-60"
         >
-          {guardando ? 'GUARDANDO...' : editandoId ? 'GUARDAR CAMBIOS' : 'AGREGAR DIRECCI??N'}
+          {guardando ? 'GUARDANDO...' : editandoId ? 'GUARDAR CAMBIOS' : 'AGREGAR DIRECCIÓN'}
         </button>
       </form>
 
@@ -188,7 +188,7 @@ export function Direcciones() {
       ) : error ? (
         <MensajeError mensaje={error} onReintentar={cargar} />
       ) : direcciones.length === 0 ? (
-        <Vacio icono={<MapPin size={40} />} titulo="Sin direcciones" texto="Carg?? una arriba para tenerla lista cuando hagas un pedido." />
+        <Vacio icono={<MapPin size={40} />} titulo="Sin direcciones" texto="Cargá una arriba para tenerla lista cuando hagas un pedido." />
       ) : (
         <div className="space-y-3">
           {direcciones.map((direccion) => (
@@ -202,7 +202,7 @@ export function Direcciones() {
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 break-words">{direccion.direccion}</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                  {[direccion.ciudad, direccion.provincia, direccion.codigo_postal].filter(Boolean).join(' ?? ') || 'Sin ciudad ni CP'}
+                  {[direccion.ciudad, direccion.provincia, direccion.codigo_postal].filter(Boolean).join(' · ') || 'Sin ciudad ni CP'}
                 </p>
               </div>
 

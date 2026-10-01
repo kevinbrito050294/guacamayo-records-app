@@ -37,7 +37,7 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
     if (enviando) return;
     setError('');
 
-    // La validaci??n real (nombre, email, largo de la clave) la hace el server:
+    // La validación real (nombre, email, largo de la clave) la hace el server:
     // se manda igual y el mensaje se muestra tal cual vuelve.
     setEnviando(true);
     const res = modo === 'login'
@@ -46,7 +46,7 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
     setEnviando(false);
 
     if (!res.ok) setError(res.error);
-    // Si sali?? bien, la pagina de cuenta ya se muestra sola: no hace falta navegar.
+    // Si salió bien, la pagina de cuenta ya se muestra sola: no hace falta navegar.
   };
 
   const manejarCredencialGoogle = async (idToken: string) => {
@@ -63,7 +63,7 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
       <button
         type="button"
         onClick={onVolver}
-        aria-label="Volver al cat??logo"
+        aria-label="Volver al catálogo"
         className="self-end mb-4 p-2 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
       >
         <X size={22} />
@@ -79,8 +79,8 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
         </h2>
         <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium text-sm">
           {modo === 'login'
-            ? 'Entr?? para ver tus pedidos, favoritos y direcciones.'
-            : 'Guard?? tus pedidos y arm?? tu lista de favoritos.'}
+            ? 'Entrá para ver tus pedidos, favoritos y direcciones.'
+            : 'Guardá tus pedidos y armá tu lista de favoritos.'}
         </p>
 
         {/* TABS */}
@@ -140,23 +140,23 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
 
           <Campo
             id="cuenta-password"
-            etiqueta="Contrase??a"
+            etiqueta="Contraseña"
             tipo="password"
             valor={password}
             onChange={setPassword}
-            placeholder="????????????????????????"
+            placeholder="••••••••"
             autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
             minLength={modo === 'registro' ? 8 : undefined}
             required
             icono={<Lock size={18} />}
             permitirVisibilidad
-            ayuda={modo === 'registro' ? 'M??nimo 8 caracteres.' : undefined}
+            ayuda={modo === 'registro' ? 'Mínimo 8 caracteres.' : undefined}
           />
 
           {modo === 'registro' && (
             <Campo
               id="cuenta-telefono"
-              etiqueta="Tel??fono (opcional)"
+              etiqueta="Teléfono (opcional)"
               tipo="tel"
               valor={telefono}
               onChange={setTelefono}

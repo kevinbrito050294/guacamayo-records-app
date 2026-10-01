@@ -61,7 +61,7 @@ export function Campo({
           <button
             type="button"
             onClick={() => setMostrarValor((actual) => !actual)}
-            aria-label={mostrarValor ? 'Ocultar contrase??a' : 'Mostrar contrase??a'}
+            aria-label={mostrarValor ? 'Ocultar contraseña' : 'Mostrar contraseña'}
             className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-500 transition-colors"
           >
             {mostrarValor ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -138,7 +138,7 @@ export function Aviso({ mensaje, onCerrar }: { mensaje: string; onCerrar: () => 
   );
 }
 
-// --- Pesta??a: adaptation del TabButton del AdminPanel (escala cliente) ---
+// --- Pestaña: adaptation del TabButton del AdminPanel (escala cliente) ---
 
 export function PestanaBoton({
   activa, onClick, icono, titulo, sub,

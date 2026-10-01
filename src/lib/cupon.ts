@@ -54,12 +54,12 @@ export type ResultadoValidacion =
  * Valida y NORMALIZA lo que llega del servidor o del almacenamiento.
  *
  * OJO con `valor`: la columna `cupones.valor` es DECIMAL y mysql2 devuelve los
- * DECIMAL como STRING ("20.00"), as?? que el tipo del front lo declara `number`
- * pero en runtime llega texto. Por eso ac?? se pasa todo por Number(): si no,
- * un cup??n que est?? perfecto se tomar??a por inv??lido.
+ * DECIMAL como STRING ("20.00"), así que el tipo del front lo declara `number`
+ * pero en runtime llega texto. Por eso acá se pasa todo por Number(): si no,
+ * un cupón que está perfecto se tomaría por inválido.
  *
- * Devuelve null si el shape no es el esperado (JSON corrupto, versi??n vieja del
- * contrato): el que llama lo trata como "no hay cup??n".
+ * Devuelve null si el shape no es el esperado (JSON corrupto, versión vieja del
+ * contrato): el que llama lo trata como "no hay cupón".
  */
 function aCuponValido(bruto: unknown): CuponValidado | null {
   if (typeof bruto !== 'object' || bruto === null) return null;
@@ -101,9 +101,9 @@ export function borrarCuponGuardado(): void {
 
 /**
  * El server termina sus mensajes con punto en unos casos y en otros no
- * ("Cup??n inv??lido o vencido" vs "...en unos minutos."). La UI siempre mete el
- * motivo en medio de una frase y cierra con su propio punto, as?? que el final se
- * normaliza ac?? para no terminar con "minutos..".
+ * ("Cupón inválido o vencido" vs "...en unos minutos."). La UI siempre mete el
+ * motivo en medio de una frase y cierra con su propio punto, así que el final se
+ * normaliza acá para no terminar con "minutos..".
  */
 function sinPuntoFinal(mensaje: string): string {
   return mensaje.trim().replace(/[.\s]+$/, '');
@@ -115,7 +115,7 @@ function sinPuntoFinal(mensaje: string): string {
  */
 export async function validarCupon(codigo: string): Promise<ResultadoValidacion> {
   const limpio = codigo.trim().toUpperCase();
-  if (!limpio) return { estado: 'invalido', mensaje: 'no se ingres?? ning??n c??digo' };
+  if (!limpio) return { estado: 'invalido', mensaje: 'no se ingresó ningún código' };
 
   let res: Response;
   try {
@@ -126,7 +126,7 @@ export async function validarCupon(codigo: string): Promise<ResultadoValidacion>
       body: JSON.stringify({ codigo: limpio })
     });
   } catch {
-    return { estado: 'sin_conexion', mensaje: 'no hay conexi??n con el servidor' };
+    return { estado: 'sin_conexion', mensaje: 'no hay conexión con el servidor' };
   }
 
   const cuerpo: unknown = await res.json().catch(() => null);
@@ -134,22 +134,22 @@ export async function validarCupon(codigo: string): Promise<ResultadoValidacion>
   const delServer = typeof error === 'string' && error ? sinPuntoFinal(error) : '';
 
   if (res.status === 429) {
-    // El 429 dice "esper?? unos minutos" (server.js:718) y el 400 dice "cup??n
-    // inv??lido" (server.js:730). Son dos motivos distintos para el cliente, asi
+    // El 429 dice "esperá unos minutos" (server.js:718) y el 400 dice "cupón
+    // inválido" (server.js:730). Son dos motivos distintos para el cliente, asi
     // que se muestra el texto del server en los dos casos en vez de inventar uno
     // propio: si el server cambia la ventana del rate limit, el texto cambia con
-    // ??l.
+    // él.
     return {
       estado: 'muchos_intentos',
       mensaje: delServer || 'hiciste demasiadas consultas de cupones en muy poco tiempo'
     };
   }
   if (!res.ok) {
-    return { estado: 'invalido', mensaje: delServer || 'cup??n inv??lido o vencido' };
+    return { estado: 'invalido', mensaje: delServer || 'cupón inválido o vencido' };
   }
   const cupon = aCuponValido(cuerpo);
   if (!cupon) {
-    return { estado: 'invalido', mensaje: 'el servidor no devolvi?? un cup??n v??lido' };
+    return { estado: 'invalido', mensaje: 'el servidor no devolvió un cupón válido' };
   }
   return { estado: 'vigente', cupon };
 }
@@ -157,10 +157,10 @@ export async function validarCupon(codigo: string): Promise<ResultadoValidacion>
 /**
  * "20%" o "USD 5.00" para los textos de la UI y del mensaje de WhatsApp.
  *
- * El fijo sale con dos decimales siempre (aunque el cup??n valga 5 exacto) para
+ * El fijo sale con dos decimales siempre (aunque el cupón valga 5 exacto) para
  * que el beneficio se lea igual al descuento que calcula el server y al que
  * muestra el panel: mezclar "USD 5" con "-USD 5.00" en la misma pantalla obliga
- * a traducci??n mental.
+ * a traducción mental.
  */
 export function textoBeneficio(cupon: Pick<CuponValidado, 'tipo' | 'valor'>): string {
   return cupon.tipo === 'porcentaje' ? `${cupon.valor}%` : `USD ${cupon.valor.toFixed(2)}`;

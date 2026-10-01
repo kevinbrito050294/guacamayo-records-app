@@ -6,9 +6,9 @@ import {
   leerCuponGuardado, guardarCupon, borrarCuponGuardado,
   validarCupon, textoBeneficio, type CuponValidado,
 } from '../lib/cupon';
-// El carrito se monta dentro del <CuentaProvider> (App.tsx), as?? que puede
-// preguntar si hay sesi??n: de eso depende qu?? nombre y qu?? WhatsApp van a quedar
-// guardados en el pedido (ver `nombreEfectivo` m??s abajo).
+// El carrito se monta dentro del <CuentaProvider> (App.tsx), así que puede
+// preguntar si hay sesión: de eso depende qué nombre y qué WhatsApp van a quedar
+// guardados en el pedido (ver `nombreEfectivo` más abajo).
 import { pedir, useCuenta, importeUsd, type Direccion } from '../lib/cuenta';
 
 interface CartProps {
@@ -19,8 +19,8 @@ interface CartProps {
   onClear: () => void;
   divisaPreferida?: string;
   tasas: ConfiguracionDivisa[];
-  // El carrito se desmonta al volver al cat??logo, as?? que el aviso de "pedido
-  // registrado" no puede vivir ac??: se lo pasa a App, que ya tiene el toast.
+  // El carrito se desmonta al volver al catálogo, así que el aviso de "pedido
+  // registrado" no puede vivir acá: se lo pasa a App, que ya tiene el toast.
   onPedidoRegistrado?: (mensaje: string) => void;
 }
 
@@ -36,29 +36,29 @@ interface RespuestaPedido {
 type TonoAviso = 'error' | 'aviso';
 
 // Los 400 de POST /api/pedidos del server (server.js) son de dos familias: los
-// del cup??n (hoy uno solo, "El cup??n no es v??lido", que cubre no existe / est??
-// desactivado / venci?? / agot?? sus usos) y los del inventario ("No hay stock
-// suficiente del vinilo 7"). Todos mencionan la causa en el mensaje, as?? que se
-// usa esa palabra para saber a cu??l se le ofrece rehacer el pedido sin cup??n.
-const MENSAJE_DE_CUPON = /cup[o??]n/i;
+// del cupón (hoy uno solo, "El cupón no es válido", que cubre no existe / está
+// desactivado / venció / agotó sus usos) y los del inventario ("No hay stock
+// suficiente del vinilo 7"). Todos mencionan la causa en el mensaje, así que se
+// usa esa palabra para saber a cuál se le ofrece rehacer el pedido sin cupón.
+const MENSAJE_DE_CUPON = /cup[oó]n/i;
 
-// L??mites de POST /api/pedidos (server.js): el nombre se guarda en
+// Límites de POST /api/pedidos (server.js): el nombre se guarda en
 // `pedidos.nombre_cliente` VARCHAR(120) y el WhatsApp en VARCHAR(32), y el server
-// los recorta. Sin maxLength el cliente escribe de m??s, el server lo acota por
+// los recorta. Sin maxLength el cliente escribe de más, el server lo acota por
 // su cuenta y el pedido sale con un nombre que nadie reconoce: mejor que el
-// input no deje llegar ni un car??cter de m??s.
+// input no deje llegar ni un carácter de más.
 const MAX_NOMBRE = 120;
 const MAX_WHATSAPP = 32;
 
 // Aviso del 429 de POST /api/cupones/validar. Es el mismo texto en los dos
-// lugares de ac?? (revalidaci??n al montar y aplicaci??n manual) para que el
-// cliente lea lo mismo sin importar por d??nde entr??: el server NO dijo que el
-// cup??n sea inv??lido, dijo que no lo pudo comprobar, as?? que el c??digo se
+// lugares de acá (revalidación al montar y aplicación manual) para que el
+// cliente lea lo mismo sin importar por dónde entró: el server NO dijo que el
+// cupón sea inválido, dijo que no lo pudo comprobar, así que el código se
 // conserva y el pedido queda bloqueado hasta resolverlo.
 function avisoDeRateLimit(codigo: string, mensaje: string): { tono: TonoAviso; texto: string } {
   return {
     tono: 'aviso',
-    texto: `No pudimos comprobar el cup??n ${codigo}: ${mensaje}. Lo dejamos en el carrito: comprob?? de nuevo en un rato o sacalo para pedir sin descuento.`
+    texto: `No pudimos comprobar el cupón ${codigo}: ${mensaje}. Lo dejamos en el carrito: comprobá de nuevo en un rato o sacalo para pedir sin descuento.`
   };
 }
 
@@ -88,15 +88,15 @@ export function Cart({
   const [aviso, setAviso] = useState<{ tono: TonoAviso; texto: string } | null>(null);
   // El server rechazo el pedido por el cupon: se ofrece rehacerlo sin cupon.
   const [cuponRechazado, setCuponRechazado] = useState<{ codigo: string; error: string } | null>(null);
-  // El cup??n est?? escrito pero NO se pudo comprobar (rate limit del server o
-  // corte de red en la ruta de validaci??n). El c??digo se conserva ???un 429 no
-  // dice que el cup??n sea inv??lido, dice que no se pudo verificar??? pero el
-  // pedido queda bloqueado: mandar sin saber si el descuento entra implicar??a
-  // que el server cobre un total distinto del que se le mostr?? al cliente.
+  // El cupón está escrito pero NO se pudo comprobar (rate limit del server o
+  // corte de red en la ruta de validación). El código se conserva —un 429 no
+  // dice que el cupón sea inválido, dice que no se pudo verificar— pero el
+  // pedido queda bloqueado: mandar sin saber si el descuento entra implicaría
+  // que el server cobre un total distinto del que se le mostró al cliente.
   const [verificacionPendiente, setVerificacionPendiente] = useState(false);
 
-  // --- QU?? NOMBRE Y QU?? WHATSAPP QUEDAN GUARDADOS ---
-  // Con sesi??n abierta el server usa el nombre del PERFIL (anti-impersonaci??n:
+  // --- QUÉ NOMBRE Y QUÉ WHATSAPP QUEDAN GUARDADOS ---
+  // Con sesión abierta el server usa el nombre del PERFIL (anti-impersonación:
   // el panel y "mis pedidos" muestran esos campos como del cliente) y el
   // WhatsApp que el cliente escriba en el form. Mostrar el valor efectivo evita
   // la sorpresa de que el pedido quede a nombre de otro.
@@ -109,28 +109,28 @@ export function Cart({
   const [recargaDirecciones, setRecargaDirecciones] = useState(0);
   const nombrePerfil = (usuario?.nombre ?? '').trim();
   const nombreIngresado = nombre.trim();
-  // El nombre que se acaba guardando, sea invitado o cliente con sesi??n.
+  // El nombre que se acaba guardando, sea invitado o cliente con sesión.
   const nombreEfectivo = nombrePerfil || nombreIngresado;
-  // Solo se avisa cuando el input tiene algo DISTINTO al perfil: si est?? vac??o
+  // Solo se avisa cuando el input tiene algo DISTINTO al perfil: si está vacío
   // (o es igual) el server va a usar el del perfil y no hay nada que explicar.
   const nombreDelPerfilGana = nombrePerfil !== '' && nombreIngresado !== '' && nombreIngresado !== nombrePerfil;
-  // El WhatsApp va al rev??s que el nombre: gana lo que se escribe en el form
-  // (el campo es required, as?? que nunca llega vac??o) y, si alg??n d??a dejara de
-  // serlo, el tel??fono del perfil. Se muestra siempre el valor que se va a
-  // guardar porque es al n??mero que el admin le escribe con los datos de pago:
+  // El WhatsApp va al revés que el nombre: gana lo que se escribe en el form
+  // (el campo es required, así que nunca llega vacío) y, si algún día dejara de
+  // serlo, el teléfono del perfil. Se muestra siempre el valor que se va a
+  // guardar porque es al número que el admin le escribe con los datos de pago:
   // si el cliente se equivoca, el pedido queda impagable y nadie lo avisa.
   const whatsappEfectivo = whatsapp.trim() || (usuario?.telefono ?? '').trim();
 
   const formularioRef = useRef<HTMLFormElement>(null);
-  // Marca el pedido como "reintentar sin cup??n" despu??s de un 400 del servidor.
+  // Marca el pedido como "reintentar sin cupón" después de un 400 del servidor.
   // Va en un ref y no en un state porque requestSubmit() dispara el onSubmit de
-  // forma s??ncrona: con state el handler todav??a leer??a el valor viejo.
+  // forma síncrona: con state el handler todavía leería el valor viejo.
   const enviarSinCuponRef = useRef(false);
 
   const API_BASE_URL = apiUrl();
 
-  // Las direcciones pertenecen a la sesi??n y no deben pedirse para invitados.
-  // Si fallan, el checkout sigue disponible: el env??o es opcional hasta que el
+  // Las direcciones pertenecen a la sesión y no deben pedirse para invitados.
+  // Si fallan, el checkout sigue disponible: el envío es opcional hasta que el
   // backend pueda persistir direccion_id.
   useEffect(() => {
     if (usuarioId === null) {
@@ -169,15 +169,15 @@ export function Cart({
     return () => { vigente = false; };
   }, [usuarioId, recargaDirecciones]);
 
-  // --- REHIDRATACI??N DEL CUP??N ---
-  // El carrito se desmonta al salir de la vista, as?? que el cup??n se busca en el
+  // --- REHIDRATACIÓN DEL CUPÓN ---
+  // El carrito se desmonta al salir de la vista, así que el cupón se busca en el
   // localStorage y se vuelve a validar contra el server antes de mostrarlo.
   useEffect(() => {
     const guardado = leerCuponGuardado();
     // Si no hay nada guardado hay que apagar el "comprobando" igual: el estado
-    // inicial se calcul?? con otra llamada a leerCuponGuardado() y, si entre la
-    // renderizaci??n y este efecto el almacenamiento cambi?? (otra pesta??a lo
-    // borr??), sin esto el bot??n de confirmar quedaba deshabilitado para siempre.
+    // inicial se calculó con otra llamada a leerCuponGuardado() y, si entre la
+    // renderización y este efecto el almacenamiento cambió (otra pestaña lo
+    // borró), sin esto el botón de confirmar quedaba deshabilitado para siempre.
     if (!guardado) {
       setComprobando(false);
       return;
@@ -196,11 +196,11 @@ export function Cart({
         return;
       }
 
-      // SOLO el 400 borra el cup??n: es el ??nico caso en el que el server dice
-      // que el c??digo no sirve. El 429 dice que no se pudo comprobar y el corte
-      // de red tampoco, as?? que en los dos el c??digo se conserva: antes un 429
-      // le arrancaba el cup??n al cliente del localStorage y lo obligaba a
-      // escribirlo de nuevo (lo que genera otra llamada, tambi??n throttleada).
+      // SOLO el 400 borra el cupón: es el único caso en el que el server dice
+      // que el código no sirve. El 429 dice que no se pudo comprobar y el corte
+      // de red tampoco, así que en los dos el código se conserva: antes un 429
+      // le arrancaba el cupón al cliente del localStorage y lo obligaba a
+      // escribirlo de nuevo (lo que genera otra llamada, también throttleada).
       if (resultado.estado === 'invalido') {
         borrarCuponGuardado();
         setCupon(null);
@@ -208,16 +208,16 @@ export function Cart({
         setVerificacionPendiente(false);
         setAviso({
           tono: 'error',
-          texto: `El cup??n ${guardado.codigo} ya no se puede usar: ${resultado.mensaje}. Lo sacamos del carrito.`
+          texto: `El cupón ${guardado.codigo} ya no se puede usar: ${resultado.mensaje}. Lo sacamos del carrito.`
         });
         return;
       }
 
       if (resultado.estado === 'muchos_intentos') {
         // No se borra y tampoco se muestra el descuento: sin comprobar, el
-        // total que se pintar??a no es el que el server va a cobrar. El c??digo
+        // total que se pintaría no es el que el server va a cobrar. El código
         // queda escrito para que reintentar sea un click, y el pedido bloqueado
-        // hasta que la validaci??n devuelva algo definitivo.
+        // hasta que la validación devuelva algo definitivo.
         setCupon(null);
         setCouponCode(guardado.codigo);
         setVerificacionPendiente(true);
@@ -227,22 +227,22 @@ export function Cart({
 
       // Error de red: NO se borra lo guardado (puede ser un corte puntual) pero
       // tampoco se aplica el descuento, para no mostrar un total que el server
-      // no va a cobrar. A diferencia del 429 no bloquea el pedido: sin cup??n el
+      // no va a cobrar. A diferencia del 429 no bloquea el pedido: sin cupón el
       // cliente puede seguir comprando.
       setCupon(null);
       setCouponCode('');
       setVerificacionPendiente(false);
-      setAviso({ tono: 'aviso', texto: `No pudimos verificar el cup??n ${guardado.codigo}: ${resultado.mensaje}. El total va sin descuento.` });
+      setAviso({ tono: 'aviso', texto: `No pudimos verificar el cupón ${guardado.codigo}: ${resultado.mensaje}. El total va sin descuento.` });
     });
 
     return () => { vigente = false; };
   }, []);
 
-  // --- L??GICA DE C??LCULO LOCAL ---
+  // --- LÓGICA DE CÁLCULO LOCAL ---
   const { subtotalUsd, tasaBlue } = useMemo(() => {
     const blue = tasas.find(t => t.tipo === 'DOLAR_BLUE')?.tasa || 1;
     // `precio_venta` es DECIMAL y mysql2 lo devuelve como string: sin el
-    // Number() la suma concatenar??a ("12.00" + "8.00") en vez de sumar.
+    // Number() la suma concatenaría ("12.00" + "8.00") en vez de sumar.
     const usd = items.reduce((acc, item) => acc + (Number(item.vinilo.precio_venta) * item.cantidad), 0);
     
     return { subtotalUsd: usd, tasaBlue: blue };
@@ -278,9 +278,9 @@ export function Cart({
 
     setCupon(null);
 
-    // 429: el c??digo se deja escrito y el pedido bloqueado. Un rate limit no
-    // dice nada del cup??n, as?? que no se lo saca ni se le pide al cliente que
-    // lo escriba de nuevo (eso ser??a otro request, tambi??n throttleado).
+    // 429: el código se deja escrito y el pedido bloqueado. Un rate limit no
+    // dice nada del cupón, así que no se lo saca ni se le pide al cliente que
+    // lo escriba de nuevo (eso sería otro request, también throttleado).
     if (resultado.estado === 'muchos_intentos') {
       setVerificacionPendiente(true);
       setAviso(avisoDeRateLimit(couponCode.trim().toUpperCase(), resultado.mensaje));
@@ -290,16 +290,16 @@ export function Cart({
     // Corte de red: se puede comprar igual, sin descuento.
     if (resultado.estado === 'sin_conexion') {
       setVerificacionPendiente(false);
-      setAviso({ tono: 'aviso', texto: `No pudimos validar el cup??n: ${resultado.mensaje}. El total va sin descuento.` });
+      setAviso({ tono: 'aviso', texto: `No pudimos validar el cupón: ${resultado.mensaje}. El total va sin descuento.` });
       return;
     }
 
-    // 400: ac?? s?? sabemos que el c??digo no sirve. Solo se borra lo guardado si
-    // es el mismo c??digo ???escribir uno nuevo que falla no tiene por qu?? tirar
-    // el que el cliente ya ten??a en el carrito.
+    // 400: acá sí sabemos que el código no sirve. Solo se borra lo guardado si
+    // es el mismo código —escribir uno nuevo que falla no tiene por qué tirar
+    // el que el cliente ya tenía en el carrito.
     if ((leerCuponGuardado()?.codigo ?? '') === couponCode.trim().toUpperCase()) borrarCuponGuardado();
     setVerificacionPendiente(false);
-    setAviso({ tono: 'error', texto: `??? ${resultado.mensaje}.` });
+    setAviso({ tono: 'error', texto: `❌ ${resultado.mensaje}.` });
   };
 
   const quitarCupon = () => {
@@ -308,13 +308,13 @@ export function Cart({
     borrarCuponGuardado();
     setAviso(null);
     setCuponRechazado(null);
-    // Sacar el cup??n a mano es una de las dos salidas del estado "sin comprobar":
+    // Sacar el cupón a mano es una de las dos salidas del estado "sin comprobar":
     // desbloquea el pedido y este sale sin descuento.
     setVerificacionPendiente(false);
   };
 
-  // El cup??n se manda en el POST /api/pedidos solo para que el server lo vuelva
-  // a validar dentro de la transacci??n del pedido.
+  // El cupón se manda en el POST /api/pedidos solo para que el server lo vuelva
+  // a validar dentro de la transacción del pedido.
   const enviarPedido = async (cuponUsado: CuponValidado | null) => {
     enviarSinCuponRef.current = false;
     setLoading(true);
@@ -323,18 +323,18 @@ export function Cart({
 
     try {
       const datosPedido = {
-        // Con sesi??n abierta el server ignora esto y guarda el nombre del
+        // Con sesión abierta el server ignora esto y guarda el nombre del
         // perfil (es lo que se le muestra al admin y en "mis pedidos"); sin
-        // sesi??n se guarda lo que se escribi?? ac??. El `nombreEfectivo` que se
+        // sesión se guarda lo que se escribió acá. El `nombreEfectivo` que se
         // muestra al cliente arriba es exactamente el que gana en los dos casos.
         nombre_cliente: nombre,
-        // Al rev??s que el nombre: con sesi??n, lo que el cliente escriba ac?? es
-        // lo que se guarda (y adem??s queda en su perfil), y es al n??mero que el
-        // admin le escribe despu??s. Si lo deja vac??o -el campo es required, as??
-        // que no llega vac??o- se usa el tel??fono del perfil.
+        // Al revés que el nombre: con sesión, lo que el cliente escriba acá es
+        // lo que se guarda (y además queda en su perfil), y es al número que el
+        // admin le escribe después. Si lo deja vacío -el campo es required, así
+        // que no llega vacío- se usa el teléfono del perfil.
         whatsapp_cliente: whatsapp,
         // NO se manda `total_pago`: el server lo calcula contra la base dentro
-        // de la transacci??n y descarta el que venga del body (server.js:289).
+        // de la transacción y descarta el que venga del body (server.js:289).
         // Mandarlo "por las dudas" solo abre la puerta a que alguien lea el POST
         // y crea que el precio lo pone el navegador.
         divisa_preferida: divisaPreferida,
@@ -359,23 +359,23 @@ export function Cart({
       const textoError = typeof mensajeError === 'string' && mensajeError ? mensajeError : '';
 
       // 429 del rate limit de POST /api/pedidos: el server corta antes de
-      // abrir la transacci??n, as?? que no se registr?? nada, no se cobr?? nada y
-      // el cup??n sigue intacto (guardado y en el carrito). No es un rechazo del
-      // cup??n ni del carrito: es "esper?? un rato y mandalo de nuevo", y se dice
+      // abrir la transacción, así que no se registró nada, no se cobró nada y
+      // el cupón sigue intacto (guardado y en el carrito). No es un rechazo del
+      // cupón ni del carrito: es "esperá un rato y mandalo de nuevo", y se dice
       // eso en vez de un error en rojo.
       if (response.status === 429) {
         setAviso({
           tono: 'aviso',
           texto: textoError
-            ? `${textoError} No se registr?? ning??n pedido: tu carrito y tu cup??n siguen ah??.`
-            : 'Hiciste demasiados pedidos en muy poco tiempo. Esper?? unos minutos y mandalo de nuevo: el carrito y el cup??n siguen ah??.'
+            ? `${textoError} No se registró ningún pedido: tu carrito y tu cupón siguen ahí.`
+            : 'Hiciste demasiados pedidos en muy poco tiempo. Esperá unos minutos y mandalo de nuevo: el carrito y el cupón siguen ahí.'
         });
         return;
       }
 
-      // Un 400 con cup??n NO siempre es culpa del cup??n: el server aborta el
+      // Un 400 con cupón NO siempre es culpa del cupón: el server aborta el
       // pedido entero y el mismo 400 sale por falta de stock o por un vinilo
-      // dado de baja. Solo los errores del cup??n lo nombran, asi que se filtra
+      // dado de baja. Solo los errores del cupón lo nombran, asi que se filtra
       // por el mensaje: sin esto se le pediria al cliente que tire un cupon
       // perfectamente valido por culpa del inventario.
       if (response.status === 400 && cuponUsado && MENSAJE_DE_CUPON.test(textoError)) {
@@ -386,7 +386,7 @@ export function Cart({
         setCupon(null);
         setCouponCode('');
         borrarCuponGuardado();
-        setCuponRechazado({ codigo: cuponUsado.codigo, error: textoError || 'el cup??n ya no se puede usar' });
+        setCuponRechazado({ codigo: cuponUsado.codigo, error: textoError || 'el cupón ya no se puede usar' });
         return;
       }
 
@@ -394,8 +394,8 @@ export function Cart({
         throw new Error(textoError || 'No se pudo procesar el pedido');
       }
 
-      // A partir de ac?? manda el server: el total que se confirma y el que va
-      // en el mensaje de WhatsApp son los que ??l calcul?? contra la base. Van
+      // A partir de acá manda el server: el total que se confirma y el que va
+      // en el mensaje de WhatsApp son los que él calculó contra la base. Van
       // por Number() porque los DECIMAL pueden llegar como string.
       const respuesta = cuerpo as RespuestaPedido;
       const totalDelServer = Number(respuesta.total_pago);
@@ -407,15 +407,15 @@ export function Cart({
 
       const listaVinilos = items.map(i => `- ${i.cantidad}x *${i.vinilo.titulo}*`).join('\n');
 
-      const mensajeWA = `??Hola Guacamayo Records! ????\n\n` +
-        `???? *PEDIDO: #${numeroOrden}*\n` +
-        // `nombreEfectivo`, no `nombre`: con sesi??n iniciada lo que queda
+      const mensajeWA = `¡Hola Guacamayo Records! 🦜\n\n` +
+        `📦 *PEDIDO: #${numeroOrden}*\n` +
+        // `nombreEfectivo`, no `nombre`: con sesión iniciada lo que queda
         // guardado es el del perfil, y el mensaje tiene que decir lo mismo que
         // va a ver el admin.
-        `???? Cliente: ${nombreEfectivo}\n` +
-        `???? Discos:\n${listaVinilos}\n\n` +
+        `👤 Cliente: ${nombreEfectivo}\n` +
+        `🎸 Discos:\n${listaVinilos}\n\n` +
         (codigoCupon
-          ? `??????? Cup??n: ${codigoCupon}` +
+          ? `🎟️ Cupón: ${codigoCupon}` +
             // El server manda el descuento ya calculado en USD; el beneficio en
             // % o monto fijo solo se escribe si el navegador lo conoce.
             (descuentoServidor > 0
@@ -423,15 +423,15 @@ export function Cart({
               : cuponUsado ? ` (-${textoBeneficio(cuponUsado)})` : '') +
             '\n'
           : '') +
-        `???? *TOTAL A PAGAR: $${Math.round(totalServidorArs).toLocaleString('es-AR')} ARS*\n` +
+        `💰 *TOTAL A PAGAR: $${Math.round(totalServidorArs).toLocaleString('es-AR')} ARS*\n` +
         `_(Ref: ${importeUsd(totalServidorUsd)})_\n\n` +
-        `??Me pasan los datos para la transferencia?`;
+        `¿Me pasan los datos para la transferencia?`;
 
       const telTienda = "5491164475028";
       window.open(`https://wa.me/${telTienda}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
 
-      // El uso del cup??n ya lo consumi?? el server: dejarlo guardado llevar??a al
-      // pr??ximo pedido a un cup??n agotado.
+      // El uso del cupón ya lo consumió el server: dejarlo guardado llevaría al
+      // próximo pedido a un cupón agotado.
       setCupon(null);
       setCouponCode('');
       borrarCuponGuardado();
@@ -440,16 +440,16 @@ export function Cart({
       onBack();
 
       // El aviso va por callback y no por el `aviso` de este componente: dos
-      // l??neas m??s abajo el carrito se desmonta (onBack vuelve al cat??logo) y un
+      // líneas más abajo el carrito se desmonta (onBack vuelve al catálogo) y un
       // setState en un componente desmontado no se ve. App ya tiene el toast.
       onPedidoRegistrado?.(
-        `Pedido #${numeroOrden} registrado ?? ${importeUsd(totalServidorUsd)} (ARS ${Math.round(totalServidorArs).toLocaleString('es-AR')})` +
-        (descuentoServidor > 0 ? ` ?? Cup??n ${codigoCupon} -${importeUsd(descuentoServidor)}` : '')
+        `Pedido #${numeroOrden} registrado · ${importeUsd(totalServidorUsd)} (ARS ${Math.round(totalServidorArs).toLocaleString('es-AR')})` +
+        (descuentoServidor > 0 ? ` · Cupón ${codigoCupon} -${importeUsd(descuentoServidor)}` : '')
       );
 
     } catch (error: unknown) {
       const mensaje = error instanceof Error ? error.message : 'Error desconocido';
-      setAviso({ tono: 'error', texto: `??? ${mensaje}` });
+      setAviso({ tono: 'error', texto: `❌ ${mensaje}` });
     } finally {
       setLoading(false);
     }
@@ -458,20 +458,20 @@ export function Cart({
   const handleConfirmarPedido = (e: React.FormEvent) => {
     e.preventDefault();
     // El ref (y no un state) porque requestSubmit() dispara el onSubmit de forma
-    // s??ncrona: con state, el handler todav??a leer??a el `cupon` viejo.
+    // síncrona: con state, el handler todavía leería el `cupon` viejo.
     //
     // Si el requestSubmit() no llega a disparar el onSubmit (un `required`
-    // vac??o), la marca sobrevive al pr??ximo env??o. No es un problema: para
-    // entonces el cup??n ya sali?? del estado y del almacenamiento, as?? que
-    // mandar sin ??l es exactamente lo que el cliente pidi?? al tocar "Pedir sin
-    // cup??n". Lo que no puede pasar es al rev??s: mandar CON un cup??n que ya se
+    // vacío), la marca sobrevive al próximo envío. No es un problema: para
+    // entonces el cupón ya salió del estado y del almacenamiento, así que
+    // mandar sin él es exactamente lo que el cliente pidió al tocar "Pedir sin
+    // cupón". Lo que no puede pasar es al revés: mandar CON un cupón que ya se
     // sabe que no sirve.
     const sinCupon = enviarSinCuponRef.current;
     enviarSinCuponRef.current = false;
     void enviarPedido(sinCupon ? null : cupon);
   };
 
-  // Reintento sin cup??n: se limpia el cup??n y se manda el form con
+  // Reintento sin cupón: se limpia el cupón y se manda el form con
   // requestSubmit() para que sigan valiendo los campos `required`.
   const reintentarSinCupon = () => {
     setCupon(null);
@@ -490,7 +490,7 @@ export function Cart({
             <div className="p-3 bg-amber-500 rounded-2xl shadow-lg shadow-amber-500/20">
               <ShoppingBag className="w-6 h-6 text-slate-950" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Tu Selecci??n</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Tu Selección</h2>
           </div>
           <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors">
             <X className="w-6 h-6" />
@@ -501,7 +501,7 @@ export function Cart({
           {items.length === 0 ? (
             <div className="text-center py-20 flex flex-col items-center opacity-30">
               <Disc size={48} className="animate-spin-slow mb-4" />
-              <p className="font-bold uppercase tracking-widest text-xs">El carrito est?? vac??o</p>
+              <p className="font-bold uppercase tracking-widest text-xs">El carrito está vacío</p>
             </div>
           ) : (
             items.map((item) => {
@@ -567,12 +567,12 @@ export function Cart({
           <div>
             <h3 className="text-xl font-black mb-8 text-amber-500 uppercase italic tracking-tighter">Finalizar Compra</h3>
             <div className="mb-6 space-y-2">
-              <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Cup??n de Descuento</label>
+              <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Cupón de Descuento</label>
               <div className="flex gap-2">
                 <div className="relative flex-grow">
                   <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input 
-                    placeholder="Tengo un c??digo" 
+                    placeholder="Tengo un código" 
                     value={couponCode} 
                     onChange={e => setCouponCode(e.target.value)}
                     disabled={!!cupon}
@@ -580,7 +580,7 @@ export function Cart({
                   />
                 </div>
                 {cupon ? (
-                  <button type="button" onClick={quitarCupon} title="Quitar el cup??n" className="bg-red-500/20 text-red-500 px-3 rounded-xl hover:bg-red-500/30 transition-all"><X size={16}/></button>
+                  <button type="button" onClick={quitarCupon} title="Quitar el cupón" className="bg-red-500/20 text-red-500 px-3 rounded-xl hover:bg-red-500/30 transition-all"><X size={16}/></button>
                 ) : (
                   <button 
                     type="button"
@@ -592,15 +592,15 @@ export function Cart({
                   </button>
                 )}
               </div>
-              {/* El beneficio se muestra reci??n despu??s de que el server lo confirm??. */}
+              {/* El beneficio se muestra recién después de que el server lo confirmó. */}
               {cupon && !comprobando && (
                 <p className="text-[10px] font-black uppercase text-emerald-500 tracking-wider ml-1">
                   {cupon.codigo}: -{textoBeneficio(cupon)} aplicado
                 </p>
               )}
-              {/* Estado "no se pudo comprobar": el c??digo sigue escrito y el bot??n
-                  APLICAR es el reintento. La otra salida ???y la ??nica si el
-                  cliente no quiere esperar??? es sacarlo a mano, que desbloquea el
+              {/* Estado "no se pudo comprobar": el código sigue escrito y el botón
+                  APLICAR es el reintento. La otra salida —y la única si el
+                  cliente no quiere esperar— es sacarlo a mano, que desbloquea el
                   pedido (este sale sin descuento). */}
               {verificacionPendiente && (
                 <div className="flex items-center justify-between gap-2">
@@ -612,7 +612,7 @@ export function Cart({
                     onClick={quitarCupon}
                     className="shrink-0 text-[9px] font-black uppercase text-slate-400 hover:text-red-400 transition-colors"
                   >
-                    Sacar el cup??n
+                    Sacar el cupón
                   </button>
                 </div>
               )}
@@ -639,7 +639,7 @@ export function Cart({
               {usuario && (
                 <div className="space-y-2">
                   <label htmlFor="carrito-direccion" className="flex items-center gap-2 text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">
-                    <MapPin size={14} className="text-amber-500" /> Direcci??n de env??o
+                    <MapPin size={14} className="text-amber-500" /> Dirección de envío
                   </label>
                   {cargandoDirecciones ? (
                     <p className="text-xs text-slate-400 flex items-center gap-2" role="status">
@@ -657,7 +657,7 @@ export function Cart({
                       </button>
                     </div>
                   ) : direcciones.length === 0 ? (
-                    <p className="text-xs text-slate-400">No ten??s direcciones guardadas. Pod??s completar el pedido igual.</p>
+                    <p className="text-xs text-slate-400">No tenés direcciones guardadas. Podés completar el pedido igual.</p>
                   ) : (
                     <select
                       id="carrito-direccion"
@@ -665,10 +665,10 @@ export function Cart({
                       onChange={(e) => setDireccionSeleccionada(e.target.value ? Number(e.target.value) : null)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 px-5 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                     >
-                      <option value="">Eleg?? una direcci??n (opcional)</option>
+                      <option value="">Elegí una dirección (opcional)</option>
                       {direcciones.map((direccion) => (
                         <option key={direccion.id} value={direccion.id}>
-                          {direccion.apodo} ?? {direccion.direccion}
+                          {direccion.apodo} · {direccion.direccion}
                         </option>
                       ))}
                     </select>
@@ -684,13 +684,13 @@ export function Cart({
                   maxLength={MAX_NOMBRE}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 px-5 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                 />
-                {/* Con sesi??n abierta gana el nombre del perfil: no es un error
-                    (el server lo hace a prop??sito, para que el pedido no pueda
-                    quedar a nombre de otro), pero s?? tiene que estar escrito
+                {/* Con sesión abierta gana el nombre del perfil: no es un error
+                    (el server lo hace a propósito, para que el pedido no pueda
+                    quedar a nombre de otro), pero sí tiene que estar escrito
                     antes de que el cliente apriete "enviar". */}
                 {nombreDelPerfilGana && (
                   <p id="carrito-nombre-ayuda" className="mt-2 ml-1 text-[9px] font-bold text-amber-400/80 normal-case leading-relaxed">
-                    Ten??s sesi??n iniciada: se va a guardar el nombre de tu perfil, ??{nombrePerfil}??.
+                    Tenés sesión iniciada: se va a guardar el nombre de tu perfil, «{nombrePerfil}».
                   </p>
                 )}
               </div>
@@ -703,15 +703,15 @@ export function Cart({
                   maxLength={MAX_WHATSAPP}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 px-5 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                 />
-                {/* El admin le escribe al n??mero que queda ac?? (y el panel tiene
-                    el link de WhatsApp de cada pedido), as?? que el n??mero
-                    efectivo se dice siempre, tenga sesi??n o no. */}
+                {/* El admin le escribe al número que queda acá (y el panel tiene
+                    el link de WhatsApp de cada pedido), así que el número
+                    efectivo se dice siempre, tenga sesión o no. */}
                 <p id="carrito-whatsapp-ayuda" className="mt-2 ml-1 text-[9px] font-bold text-slate-400 normal-case leading-relaxed">
                   {whatsappEfectivo
                     ? `Se va a guardar el WhatsApp ${whatsappEfectivo}${usuario ? ' en tu cuenta' : ''}: es al que te escribimos con los datos de la transferencia.`
                     : usuario
-                      ? 'A este n??mero te escribimos para pasarte los datos de la transferencia.'
-                      : 'Escrib?? tu WhatsApp: es al que te escribimos para pasarte los datos de la transferencia.'}
+                      ? 'A este número te escribimos para pasarte los datos de la transferencia.'
+                      : 'Escribí tu WhatsApp: es al que te escribimos para pasarte los datos de la transferencia.'}
                 </p>
               </div>
 
@@ -720,7 +720,7 @@ export function Cart({
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total en Pesos</span>
                   {comprobando ? (
                     <p className="text-xl font-black text-amber-500/80 italic uppercase flex items-center gap-2" role="status">
-                      <Disc size={18} className="animate-spin" /> Comprobando cup??n...
+                      <Disc size={18} className="animate-spin" /> Comprobando cupón...
                     </p>
                   ) : (
                     <p className="text-4xl font-black text-white italic tracking-tighter leading-none">
@@ -744,18 +744,18 @@ export function Cart({
                 )}
               </div>
 
-              {/* El server arma el pedido con el descuento y sin ??l son dos pedidos
-                  distintos: se dice cu??nto se paga antes de mandarlo, no despu??s. */}
+              {/* El server arma el pedido con el descuento y sin él son dos pedidos
+                  distintos: se dice cuánto se paga antes de mandarlo, no después. */}
               {cuponRechazado && (
                 <div role="alert" className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-3">
                   <p className="text-xs font-black uppercase text-red-400 flex items-start gap-2">
                     <AlertTriangle size={14} className="shrink-0 mt-px" />
                     <span className="normal-case leading-relaxed">
-                      El cup??n {cuponRechazado.codigo} no se pudo aplicar: {cuponRechazado.error}. El pedido no se registr??, as?? que no se cobr?? nada.
+                      El cupón {cuponRechazado.codigo} no se pudo aplicar: {cuponRechazado.error}. El pedido no se registró, así que no se cobró nada.
                     </span>
                   </p>
                   <p className="text-[10px] font-bold uppercase text-slate-400 leading-relaxed">
-                    Pod??s seguir adelante sin cup??n, pero el total sube a ${Math.round(subtotalUsd * tasaBlue).toLocaleString('es-AR')} ARS ({importeUsd(subtotalUsd)}).
+                    Podés seguir adelante sin cupón, pero el total sube a ${Math.round(subtotalUsd * tasaBlue).toLocaleString('es-AR')} ARS ({importeUsd(subtotalUsd)}).
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button
@@ -764,11 +764,11 @@ export function Cart({
                       disabled={loading}
                       className="flex-1 bg-amber-500 hover:bg-white text-slate-950 py-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 transition-all disabled:opacity-40"
                     >
-                      <RotateCcw size={14} /> Pedir sin cup??n ?? {importeUsd(subtotalUsd)}
+                      <RotateCcw size={14} /> Pedir sin cupón · {importeUsd(subtotalUsd)}
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setCuponRechazado(null); setAviso({ tono: 'aviso', texto: 'Si ten??s otro c??digo, escribilo arriba. Si no, mand?? el pedido con el bot??n de abajo y va sin descuento.' }); }}
+                      onClick={() => { setCuponRechazado(null); setAviso({ tono: 'aviso', texto: 'Si tenés otro código, escribilo arriba. Si no, mandá el pedido con el botón de abajo y va sin descuento.' }); }}
                       className="px-4 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-black text-[10px] uppercase transition-all"
                     >
                       Volver a intentar
@@ -779,10 +779,10 @@ export function Cart({
 
               <button
                 type="submit"
-                // `verificacionPendiente` bloquea el env??o: el cup??n est??
-                // escrito pero sin comprobar, y mandarlo as?? mostrar??a un total
-                // sin descuento que el server s?? aplicar??a (o al rev??s). Se
-                // desbloquea comprob??ndolo de nuevo o sac??ndolo a mano.
+                // `verificacionPendiente` bloquea el envío: el cupón está
+                // escrito pero sin comprobar, y mandarlo así mostraría un total
+                // sin descuento que el server sí aplicaría (o al revés). Se
+                // desbloquea comprobándolo de nuevo o sacándolo a mano.
                 disabled={loading || comprobando || verificacionPendiente}
                 className="w-full mt-8 bg-amber-500 hover:bg-white text-slate-950 py-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
               >
@@ -794,9 +794,9 @@ export function Cart({
                 {loading
                   ? "PROCESANDO..."
                   : comprobando
-                    ? "COMPROBANDO CUP??N..."
+                    ? "COMPROBANDO CUPÓN..."
                     : verificacionPendiente
-                      ? "COMPROB?? EL CUP??N DE NUEVO"
+                      ? "COMPROBÁ EL CUPÓN DE NUEVO"
                       : "ENVIAR PEDIDO"}
               </button>
             </form>

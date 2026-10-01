@@ -28,8 +28,8 @@ const ORIGENES_WEB = (
     || 'http://localhost:5173,http://localhost:3000,http://localhost:3001,https://guacamayorecords.up.railway.app,https://guacamayorecords.com,https://www.guacamayorecords.com'
 ).split(',').map(o => o.trim()).filter(Boolean);
 // Capacitor puede servir la interfaz desde un origen local o cargar la URL remota
-// configurada en capacitor.config.ts. Son or??genes fijos, no comodines: la app
-// sigue usando cookies con credenciales y el CSRF de abajo contin??a rechazando
+// configurada en capacitor.config.ts. Son orígenes fijos, no comodines: la app
+// sigue usando cookies con credenciales y el CSRF de abajo continúa rechazando
 // cualquier otro origen.
 const ORIGENES_CAPACITOR = [
     'https://localhost',
@@ -52,9 +52,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// --- CSRF: la cookie de sesi??n es SameSite=Lax, que frena el cross-site pero no
-// --- el cross-ORIGEN entre dos hosts del mismo dominio. Ac?? se cae el pedido si
-// --- viene de un origen que no est?? en la lista y adem??s el m??todo escribe.
+// --- CSRF: la cookie de sesión es SameSite=Lax, que frena el cross-site pero no
+// --- el cross-ORIGEN entre dos hosts del mismo dominio. Acá se cae el pedido si
+// --- viene de un origen que no está en la lista y además el método escribe.
 app.use((req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
 
@@ -65,7 +65,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// --- CONFIGURACI??N DE IM??GENES ---
+// --- CONFIGURACIÓN DE IMÁGENES ---
 const uploadDir = path.resolve(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -83,15 +83,15 @@ app.get('/android-update.json', (req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// --- CONEXI??N DB (RAILWAY) ---
+// --- CONEXIÓN DB (RAILWAY) ---
 const db = mysql.createPool(process.env.MYSQL_URL);
-// Wrapper de promesas del MISMO pool (no una conexi??n extra). Lo usan los
+// Wrapper de promesas del MISMO pool (no una conexión extra). Lo usan los
 // handlers que necesitan transacciones o varios await seguidos: pedidos y
 // cupones. El resto de las rutas sigue con db.query() en callbacks.
 const sql = db.promise();
 
 // ==========================================
-// 0. AUTENTICACI??N (ver auth.js)
+// 0. AUTENTICACIÓN (ver auth.js)
 // ==========================================
 // Login/logout/heartbeat, cuentas de cliente, direcciones y favoritos.
 app.use('/api', crearAuthRouter(db));
@@ -106,7 +106,7 @@ setInterval(() => {
     purgarIntentos();
     purgarRateLimitsPorIP();
     limpiarSesionesVencidas(db)
-        .then(borradas => { if (borradas > 0) console.log(`???? ${borradas} sesion(es) vencida(s) eliminada(s)`); })
+        .then(borradas => { if (borradas > 0) console.log(`🧹 ${borradas} sesion(es) vencida(s) eliminada(s)`); })
         .catch(err => console.error('Error limpiando sesiones:', err.message));
 }, 60 * 60 * 1000).unref();
 
@@ -115,7 +115,7 @@ setInterval(() => {
 // ==========================================
 // POR QUE UN SOLO MECANISMO Y NO UNO POR RUTA
 //   Las dos rutas publicas sin sesion que un atacante puede golpear en boucle
-//   ("probar un cup??n" y "mandar un pedido") necesitan exactamente el mismo
+//   ("probar un cupón" y "mandar un pedido") necesitan exactamente el mismo
 //   throttle, asi que el mecanismo vive UNA vez aca: Map en memoria por IP,
 //   ventana fija y 429 al pasarse. Es el mismo criterio que usa el login en
 //   auth.js y no agrega ninguna dependencia. Cada ruta se instancia con sus
@@ -144,12 +144,12 @@ const RATE_LIMITS_POR_IP = [];
  * @param {number}  opciones.max         pedidos/intentos por IP y por ventana
  * @param {number}  opciones.ventanaMs   duracion de la ventana
  * @param {string}  opciones.texto429    mensaje EXACTO del 429 (el frontend lo
- *   matchea para distinguir "esper??" de "tu cup??n no sirve", asi que el texto
+ *   matchea para distinguir "esperá" de "tu cupón no sirve", asi que el texto
  *   es parte del contrato y no se toca sin avisar)
  * @param {boolean} [opciones.soloFallos] si es true, la cuota se consume
  *   SOLO en el camino de error: el middleware abre la ventana pero no cuenta, y
- *   el handler llama a `contarFallo` cuando la validaci??n falla. Ver el
- *   `soloFallos` de /api/cupones/validar para el porqu??.
+ *   el handler llama a `contarFallo` cuando la validación falla. Ver el
+ *   `soloFallos` de /api/cupones/validar para el porqué.
  * @returns {{ middleware: Function, contarFallo: Function, purgar: Function }}
  */
 function crearRateLimitPorIP({ max, ventanaMs, texto429, soloFallos = false }) {
@@ -214,7 +214,7 @@ function purgarRateLimitsPorIP() {
 }
 
 // ==========================================
-// 1. GESTI??N DE DIVISAS
+// 1. GESTIÓN DE DIVISAS
 // ==========================================
 // GET es publico: el catalogo necesita las tasas para convertir precios.
 app.get('/api/configuracion_divisas', (req, res, next) => {
@@ -236,7 +236,7 @@ app.put('/api/configuracion_divisas/:tipo', requiereAdmin, (req, res, next) => {
 });
 
 // ==========================================
-// 2. GESTI??N DE VINILOS
+// 2. GESTIÓN DE VINILOS
 // ==========================================
 // GET es publico (catalogo). Todo lo que escribe es solo backoffice.
 app.get('/api/vinilos', (req, res, next) => {
@@ -257,7 +257,7 @@ app.post('/api/vinilos', requiereAdmin, (req, res, next) => {
     });
 });
 
-// --- IMPORTACI??N MASIVA (BULK UPDATE POR C??DIGO) ---
+// --- IMPORTACIÓN MASIVA (BULK UPDATE POR CÓDIGO) ---
 // Debe declararse ANTES de /api/vinilos/:id para que Express no lo capture como un id.
 app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
     const entradas = Array.isArray(req.body) ? req.body : [req.body];
@@ -352,7 +352,7 @@ app.post('/api/upload-multiple', requiereAdmin, upload.array('imagenes'), (req, 
 });
 
 // ==========================================
-// 3. GESTI??N DE PEDIDOS (FIXED)
+// 3. GESTIÓN DE PEDIDOS (FIXED)
 // ==========================================
 app.get('/api/pedidos', requiereAdmin, (req, res, next) => {
     db.query('SELECT * FROM pedidos ORDER BY fecha DESC', (err, results) => {
@@ -373,7 +373,7 @@ app.get('/api/mis-pedidos', requiereCliente, (req, res, next) => {
     });
 });
 
-// Error de negocio del pedido: mensaje en espa??ol para el cliente + rollback.
+// Error de negocio del pedido: mensaje en español para el cliente + rollback.
 // Cualquier otro error (MySQL, red) lo maneja el error handler del final.
 class ErrorPedido extends Error {
     constructor(mensaje) {
@@ -409,7 +409,7 @@ const MAX_REINTENTOS_NUMERO_ORDEN = 5;
 //   amenaza el inventario y el catalogo de cupones es el que los manda de verdad.
 const MAX_PEDIDOS_POR_IP = 30;
 const VENTANA_PEDIDO_MS = 10 * 60 * 1000;
-const TEXTO_429_PEDIDO = 'Demasiados pedidos desde esta conexi??n. Prob?? de nuevo en unos minutos.';
+const TEXTO_429_PEDIDO = 'Demasiados pedidos desde esta conexión. Probá de nuevo en unos minutos.';
 const rateLimitPedido = crearRateLimitPorIP({
     max: MAX_PEDIDOS_POR_IP,
     ventanaMs: VENTANA_PEDIDO_MS,
@@ -478,9 +478,9 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         conn = await sql.getConnection();
         await conn.beginTransaction();
 
-        // La direcci??n es una referencia del usuario, no texto confiable del
-        // navegador. Se bloquea y se copia dentro de esta misma transacci??n para
-        // que el pedido conserve una foto aunque despu??s la direcci??n cambie.
+        // La dirección es una referencia del usuario, no texto confiable del
+        // navegador. Se bloquea y se copia dentro de esta misma transacción para
+        // que el pedido conserve una foto aunque después la dirección cambie.
         let direccionSnapshot = {
             id: null,
             apodo: null,
@@ -494,7 +494,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                 ? null
                 : Number(body.direccion_id);
             if (direccionId !== null && (!Number.isInteger(direccionId) || direccionId < 1)) {
-                throw new ErrorPedido('La direcci??n seleccionada no es v??lida');
+                throw new ErrorPedido('La dirección seleccionada no es válida');
             }
             if (direccionId !== null) {
                 const [direcciones] = await conn.query(
@@ -506,7 +506,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                     [direccionId, perfil.id]
                 );
                 if (direcciones.length === 0) {
-                    throw new ErrorPedido('La direcci??n seleccionada no existe o no pertenece a tu cuenta');
+                    throw new ErrorPedido('La dirección seleccionada no existe o no pertenece a tu cuenta');
                 }
                 direccionSnapshot = direcciones[0];
             }
@@ -553,7 +553,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         let total = subtotal;
         // `descuento` es lo que se guarda en `pedidos.descuento_aplicado`: sin
         // esta variable el unico rastro del beneficio era el total final, y el
-        // backoffice no podia mostrar cuanto se descont?? ni auditarlo.
+        // backoffice no podia mostrar cuanto se descontó ni auditarlo.
         let descuento = 0;
         let cuponAplicado = null;
         const cuponId = (body.cupon_id === '' || body.cupon_id === null || body.cupon_id === undefined)
@@ -561,7 +561,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             : Number(body.cupon_id);
 
         if (cuponId !== null) {
-            if (!Number.isInteger(cuponId) || cuponId < 1) throw new ErrorPedido('El cup??n enviado no es v??lido');
+            if (!Number.isInteger(cuponId) || cuponId < 1) throw new ErrorPedido('El cupón enviado no es válido');
 
             // DATE_FORMAT en las dos fechas: la comparacion es entre strings
             // YYYY-MM-DD, sin que el timezone del servidor mueva el dia.
@@ -578,8 +578,8 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
 
             const cupon = filas[0];
             // I-2, UN SOLO MENSAJE PARA LOS CUATRO MOTIVOS
-            //   Antes cada motivo ten??a su texto ("no existe" / "est??
-            //   desactivado" / "est?? vencido" / "ya agot?? sus usos") y eso
+            //   Antes cada motivo tenía su texto ("no existe" / "está
+            //   desactivado" / "está vencido" / "ya agotó sus usos") y eso
             //   convertia al checkout en un oraculo: los ids de `cupones` son
             //   enteros correlativos, asi que con cuatro respuestas distintas
             //   un atacante que recorre 1, 2, 3... deduce que cupones existen,
@@ -588,16 +588,16 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             //   endpoint /api/cupones/validar, que si esta endurecido a proposito
             //   justamente para no dar esa informacion. Un solo texto para los
             //   cuatro casos: el mismo criterio que en /validar.
-            //   El texto sigue matcheando /cup[o??]n/i (src/components/Cart.tsx),
+            //   El texto sigue matcheando /cup[oó]n/i (src/components/Cart.tsx),
             //   asi que el carrito le puede ofrecer reintentar sin cupon. La
             //   razon real no se pierde: va al log del servidor, con el id y el
             //   codigo del cupon y NADA del cliente (por si hay que auditar una
             //   campana que empezo a fallar).
             const rechazarCupon = (motivo) => {
                 console.warn(
-                    `POST /api/pedidos: cup??n ${cupon ? cupon.codigo : '(sin fila)'} (id ${cuponId}) rechazado: ${motivo}`
+                    `POST /api/pedidos: cupón ${cupon ? cupon.codigo : '(sin fila)'} (id ${cuponId}) rechazado: ${motivo}`
                 );
-                throw new ErrorPedido('El cup??n no es v??lido');
+                throw new ErrorPedido('El cupón no es válido');
             };
             if (!cupon) rechazarCupon('no existe');
             if (!cupon.activo) rechazarCupon('desactivado');
@@ -613,17 +613,17 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             total = Math.max(0, Math.round((subtotal - descuentoTeorico) * 100) / 100);
             // Se guarda el descuento REALMENTE aplicado (subtotal - total) y no el
             // teorico: asi subtotal - descuento = total da exacto en el panel, en
-            // vez de mostrar un beneficio que no cuadra con lo que se cobr??.
+            // vez de mostrar un beneficio que no cuadra con lo que se cobró.
             descuento = Math.round((subtotal - total) * 100) / 100;
             cuponAplicado = cupon.codigo;
 
             // EL CONTADOR SOLO SE CUENTA CON TOPE: `usos_actuales` existe para
-            // compararlo contra `uso_maximo`; si el cup??n es ilimitado (uso_maximo
-            // NULL) no hay comparaci??n que hacer, y acumular usos ser??a ruido que
-            // la cancelaci??n despu??s tendr??a que devolver. Condicionar el
+            // compararlo contra `uso_maximo`; si el cupón es ilimitado (uso_maximo
+            // NULL) no hay comparación que hacer, y acumular usos sería ruido que
+            // la cancelación después tendría que devolver. Condicionar el
             // incremento mantiene el invariante "contador = usos de cupones con
-            // tope", y un cup??n sin l??mite usado N veces sigue descontando
-            // siempre porque la validaci??n de arriba ya no chequea el contador
+            // tope", y un cupón sin límite usado N veces sigue descontando
+            // siempre porque la validación de arriba ya no chequea el contador
             // cuando no hay tope.
             if (cupon.uso_maximo !== null && cupon.uso_maximo !== undefined) {
                 await conn.query('UPDATE `cupones` SET `usos_actuales` = `usos_actuales` + 1 WHERE `id` = ?', [cuponId]);
@@ -652,27 +652,27 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         }));
 
         // I-3, EL NUMERO DE ORDEN SALE DEL `id_pedido`, NO DEL AZAR
-        //   Antes era `GR-` + 4 d??gitos al azar. El UNIQUE de `numero_orden` est??
-        //   DENTRO del `CREATE TABLE IF NOT EXISTS` de la migraci??n, as?? que solo
-        //   se materializa en una base nueva: en producci??n, donde `pedidos` ya
-        //   existe, el ??ndice no est??. Sin ??ndice, un choque no rompe el INSERT
+        //   Antes era `GR-` + 4 dígitos al azar. El UNIQUE de `numero_orden` está
+        //   DENTRO del `CREATE TABLE IF NOT EXISTS` de la migración, así que solo
+        //   se materializa en una base nueva: en producción, donde `pedidos` ya
+        //   existe, el índice no está. Sin índice, un choque no rompe el INSERT
         //   (no hay nada que rompa), el reintento nunca se dispara y quedan DOS
-        //   pedidos con el mismo #GR-4821, sin forma de saber cu??l confirmar. Con
-        //   4 d??gitos y 50 pedidos la chance de choque es ~13%, con 100 es ~42%:
-        //   no es un riesgo te??rico, es el caso normal de una tienda que vende.
-        //   El `id_pedido` es autoincremental, as?? que nunca choca con nada.
-        //   C??mo se hace sin dos transacciones: la columna es NOT NULL, as?? que el
-        //   INSERT necesita un valor, y el id todav??a no existe hasta que se
+        //   pedidos con el mismo #GR-4821, sin forma de saber cuál confirmar. Con
+        //   4 dígitos y 50 pedidos la chance de choque es ~13%, con 100 es ~42%:
+        //   no es un riesgo teórico, es el caso normal de una tienda que vende.
+        //   El `id_pedido` es autoincremental, así que nunca choca con nada.
+        //   Cómo se hace sin dos transacciones: la columna es NOT NULL, así que el
+        //   INSERT necesita un valor, y el id todavía no existe hasta que se
         //   inserta. Va un token temporal (que no puede chocar con un `GR-####` por
-        //   el prefijo) y en la MISMA transacci??n, apenas se sabe el insertId, un
-        //   UPDATE deja el n??mero definitivo. Es at??mico: o committea con el
-        //   n??mero puesto, o no queda nada.
-        //   El reintento queda para cuando el UNIQUE s?? exista (base nueva, o
-        //   cuando se agregue a mano en producci??n) y solo para el INSERT: si el
-        //   UPDATE fallara, la fila quedar??a con el token TMP- y el rollback de
-        //   abajo se la lleva, as?? que ah?? no hay nada que reintentar. Solo se
-        //   re-ejecuta el INSERT (con otro token): el stock y el uso del cup??n ya
-        //   descontados en ESTA transacci??n siguen valiendo para el mismo pedido,
+        //   el prefijo) y en la MISMA transacción, apenas se sabe el insertId, un
+        //   UPDATE deja el número definitivo. Es atómico: o committea con el
+        //   número puesto, o no queda nada.
+        //   El reintento queda para cuando el UNIQUE sí exista (base nueva, o
+        //   cuando se agregue a mano en producción) y solo para el INSERT: si el
+        //   UPDATE fallara, la fila quedaría con el token TMP- y el rollback de
+        //   abajo se la lleva, así que ahí no hay nada que reintentar. Solo se
+        //   re-ejecuta el INSERT (con otro token): el stock y el uso del cupón ya
+        //   descontados en ESTA transacción siguen valiendo para el mismo pedido,
         //   no hace falta rollback ni repetir los pasos anteriores.
         const tokenTemporal = () => `TMP-${randomBytes(6).toString('hex')}`;
         let numero_orden = '';
@@ -691,7 +691,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                     [
                         tokenTemporal(),
                         // Los valores ya vienen recortados (M-3): las columnas son
-                        // VARCHAR(120) y VARCHAR(32) y un valor m??s largo revienta
+                        // VARCHAR(120) y VARCHAR(32) y un valor más largo revienta
                         // el INSERT con 1406.
                         nombreGuardado,
                         whatsappGuardado,
@@ -714,15 +714,15 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                     ]
                 );
             } catch (e) {
-                // Un 1062 ac?? solo puede venir del UNIQUE de `numero_orden` (las
+                // Un 1062 acá solo puede venir del UNIQUE de `numero_orden` (las
                 // demas columnas no tienen constraint): cualquier otro error se
                 // propaga tal cual.
                 if (e.code !== 'ER_DUP_ENTRY') throw e;
                 continue;
             }
 
-            // 4 d??gitos con relleno para que los primeros se vean iguales a los
-            // de siempre (GR-0007). Pasado el 9999 el n??mero crece solo: entra de
+            // 4 dígitos con relleno para que los primeros se vean iguales a los
+            // de siempre (GR-0007). Pasado el 9999 el número crece solo: entra de
             // sobra en el VARCHAR(20) y nadie lo parsea, el panel lo muestra como
             // texto.
             numero_orden = `GR-${String(insercion.insertId).padStart(4, '0')}`;
@@ -732,7 +732,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
 
         // Si los reintentos no alcanzaron, la transaccion entera se cae sin
         // pedido inventado; el cliente ve un mensaje claro y puede reintentar.
-        if (!insertOk) throw new ErrorPedido('No se pudo guardar el pedido. Intent?? de nuevo.');
+        if (!insertOk) throw new ErrorPedido('No se pudo guardar el pedido. Intentá de nuevo.');
 
         await conn.commit();
         res.json({ success: true, numero_orden, total_pago: total, cupon: cuponAplicado, descuento });
@@ -758,7 +758,7 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
 //   no lo manda y, si lo mandara, no cambiaria el resultado.
 app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'El id del pedido no es v??lido' });
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'El id del pedido no es válido' });
 
     let conn = null;
     try {
@@ -793,7 +793,7 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
             return res.status(409).json({ error: `No se puede cancelar un pedido en estado "${pedido.estado}"` });
         }
 
-        // `items` es la foto de lo comprado. Es tolerante a prop??sito: un pedido
+        // `items` es la foto de lo comprado. Es tolerante a propósito: un pedido
         // viejo puede tener NULL o un JSON corrupto, y en ese caso se cancela
         // igual pero sin stock que devolver.
         let itemsPedido = [];
@@ -867,7 +867,7 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
 //   mas puede cambiar este pedido.
 app.put('/api/pedidos/:id/finalizar', requiereAdmin, async (req, res, next) => {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'El id del pedido no es v??lido' });
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'El id del pedido no es válido' });
 
     let conn = null;
     try {
@@ -983,10 +983,10 @@ function validarCupon(body, { parcial, actual = null }) {
     // codigo: a mayusculas, sin espacios, max 50 (VARCHAR(50)).
     if (!parcial || viene('codigo')) {
         const codigo = String(b.codigo ?? '').trim().toUpperCase();
-        if (!codigo) return { ok: false, mensaje: 'El c??digo del cup??n no puede estar vac??o' };
-        if (codigo.length > 50) return { ok: false, mensaje: 'El c??digo no puede tener m??s de 50 caracteres' };
+        if (!codigo) return { ok: false, mensaje: 'El código del cupón no puede estar vacío' };
+        if (codigo.length > 50) return { ok: false, mensaje: 'El código no puede tener más de 50 caracteres' };
         if (!RE_CODIGO_CUPON.test(codigo)) {
-            return { ok: false, mensaje: 'El c??digo solo admite letras, n??meros, guion y guion bajo' };
+            return { ok: false, mensaje: 'El código solo admite letras, números, guion y guion bajo' };
         }
         datos.codigo = codigo;
     }
@@ -1001,10 +1001,10 @@ function validarCupon(body, { parcial, actual = null }) {
     // Number('') y Number(null) dan 0, asi que un input vacio cae en el error.
     if (!parcial || viene('valor')) {
         const valor = Number(b.valor);
-        if (!Number.isFinite(valor) || valor <= 0) return { ok: false, mensaje: 'El valor tiene que ser un n??mero mayor a 0' };
+        if (!Number.isFinite(valor) || valor <= 0) return { ok: false, mensaje: 'El valor tiene que ser un número mayor a 0' };
         const tipoVigente = datos.tipo || (actual ? String(actual.tipo) : '');
         if (tipoVigente === 'porcentaje' && valor > 100) {
-            return { ok: false, mensaje: 'Un cup??n de porcentaje no puede ser mayor a 100' };
+            return { ok: false, mensaje: 'Un cupón de porcentaje no puede ser mayor a 100' };
         }
         datos.valor = Math.round(valor * 100) / 100;
     }
@@ -1017,7 +1017,7 @@ function validarCupon(body, { parcial, actual = null }) {
         } else {
             const usos = Number(bruto);
             if (!Number.isInteger(usos) || usos < 1) {
-                return { ok: false, mensaje: 'El uso m??ximo tiene que ser un entero mayor o igual a 1' };
+                return { ok: false, mensaje: 'El uso máximo tiene que ser un entero mayor o igual a 1' };
             }
             datos.uso_maximo = usos;
         }
@@ -1031,7 +1031,7 @@ function validarCupon(body, { parcial, actual = null }) {
             const fecha = String(bruto).trim();
             // El regex mas Date.parse: 2026-02-31 pasa el regex pero no existe.
             if (!RE_FECHA_CUPON.test(fecha) || Number.isNaN(Date.parse(`${fecha}T00:00:00Z`))) {
-                return { ok: false, mensaje: 'La fecha de expiraci??n tiene que tener formato YYYY-MM-DD' };
+                return { ok: false, mensaje: 'La fecha de expiración tiene que tener formato YYYY-MM-DD' };
             }
             datos.fecha_expiracion = fecha;
         }
@@ -1068,7 +1068,7 @@ function validarCupon(body, { parcial, actual = null }) {
                 ? datos.uso_maximo
                 : (actual ? (actual.uso_maximo === null || actual.uso_maximo === undefined ? null : Number(actual.uso_maximo)) : null);
             if (tope !== null && Number.isFinite(Number(tope)) && usos > Number(tope)) {
-                return { ok: false, mensaje: 'Los usos actuales no pueden ser mayores que el uso m??ximo del cup??n' };
+                return { ok: false, mensaje: 'Los usos actuales no pueden ser mayores que el uso máximo del cupón' };
             }
             datos.usos_actuales = usos;
         }
@@ -1078,7 +1078,7 @@ function validarCupon(body, { parcial, actual = null }) {
     if (viene('activo')) {
         if (b.activo === true || b.activo === 1 || b.activo === '1') datos.activo = 1;
         else if (b.activo === false || b.activo === 0 || b.activo === '0') datos.activo = 0;
-        else return { ok: false, mensaje: 'El estado del cup??n tiene que ser 0 (inactivo) o 1 (activo)' };
+        else return { ok: false, mensaje: 'El estado del cupón tiene que ser 0 (inactivo) o 1 (activo)' };
     }
 
     return { ok: true, datos };
@@ -1092,7 +1092,7 @@ function validarCupon(body, { parcial, actual = null }) {
 //   esta activo y le queda margen. Mismo criterio, mismo mecanismo y misma idea
 //   que el login (auth.js) y que el rate limit de /api/pedidos: se crea aca una
 //   instancia del limitador compartido, y el 429 va con el texto de siempre
-//   porque el carrito lo usa para distinguir "esper??" de "tu cup??n no sirve".
+//   porque el carrito lo usa para distinguir "esperá" de "tu cupón no sirve".
 //
 // POR QUE LA CUOTA LA GASTA SOLO EL ERROR
 //   El contador se subia ANTES de validar, asi que tambien pagaban las
@@ -1115,7 +1115,7 @@ function validarCupon(body, { parcial, actual = null }) {
 //   frena de verdad el oraculo es el unico mensaje de error, no el 429.
 const MAX_VALIDACIONES_POR_IP = 60;
 const VENTANA_VALIDACION_MS = 10 * 60 * 1000;
-const TEXTO_429_CUPON = 'Demasiados intentos de cup??n. Prob?? de nuevo en unos minutos.';
+const TEXTO_429_CUPON = 'Demasiados intentos de cupón. Probá de nuevo en unos minutos.';
 const rateLimitValidarCupon = crearRateLimitPorIP({
     max: MAX_VALIDACIONES_POR_IP,
     ventanaMs: VENTANA_VALIDACION_MS,
@@ -1136,7 +1136,7 @@ app.post('/api/cupones/validar', rateLimitValidarCupon.middleware, (req, res, ne
     // mal tipeadas que no tienen nada de sostenido.
     const invalido = () => {
         if (codigo && rateLimitValidarCupon.contarFallo(req, res)) return;
-        res.status(400).json({ error: 'Cup??n inv??lido o vencido' });
+        res.status(400).json({ error: 'Cupón inválido o vencido' });
     };
     if (!codigo) return invalido();
 
@@ -1155,7 +1155,7 @@ app.post('/api/cupones/validar', rateLimitValidarCupon.middleware, (req, res, ne
             if (err) return next(err);
             if (!filas[0]) return invalido();
             // Se arma la respuesta a mano (y no se devuelve la fila) para que el
-            // contrato con el carrito sea explicito: si ma??ana se cuela una
+            // contrato con el carrito sea explicito: si mañana se cuela una
             // columna en la lista del SELECT, no sale de la API sin querer.
             const cupon = filas[0];
             res.json({
@@ -1191,14 +1191,14 @@ app.post('/api/admin/cupones', requiereAdmin, async (req, res, next) => {
         if (!validacion.ok) return res.status(400).json({ error: validacion.mensaje });
 
         const { codigo, tipo, valor, fecha_expiracion, uso_maximo } = validacion.datos;
-        // activo = 1 salvo que el panel lo mande expl??cito; usos_actuales arranca en 0.
+        // activo = 1 salvo que el panel lo mande explícito; usos_actuales arranca en 0.
         const activo = validacion.datos.activo ?? 1;
 
         // Chequeo previo para poder responder 409 con un mensaje claro. La garantia
         // real sigue siendo el UNIQUE de `codigo`: si dos admins crean el mismo
         // codigo a la vez, el ER_DUP_ENTRY lo responde el error handler del final.
         const [existentes] = await sql.query('SELECT `id` FROM `cupones` WHERE UPPER(`codigo`) = ? LIMIT 1', [codigo]);
-        if (existentes.length > 0) return res.status(409).json({ error: 'Ese c??digo ya existe' });
+        if (existentes.length > 0) return res.status(409).json({ error: 'Ese código ya existe' });
 
         const [resultado] = await sql.query(
             'INSERT INTO `cupones` (`codigo`, `tipo`, `valor`, `fecha_expiracion`, `activo`, `uso_maximo`, `usos_actuales`) VALUES (?, ?, ?, ?, ?, ?, 0)',
@@ -1206,7 +1206,7 @@ app.post('/api/admin/cupones', requiereAdmin, async (req, res, next) => {
         );
 
         // Se devuelve con CAMPOS_CUPON_LISTADO (lo mismo que el listado) para que la
-        // fecha_expiraci??n llegue formateada: el panel consume la respuesta de
+        // fecha_expiración llegue formateada: el panel consume la respuesta de
         // este POST como si fuera una fila del GET /admin/cupones, y la cruda le
         // daria un dia de menos por el UTC del navegador.
         const [filas] = await sql.query(`SELECT ${CAMPOS_CUPON_LISTADO} FROM \`cupones\` WHERE \`id\` = ?`, [resultado.insertId]);
@@ -1222,17 +1222,17 @@ app.post('/api/admin/cupones', requiereAdmin, async (req, res, next) => {
 app.put('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inv??lido' });
+        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
 
         const [actuales] = await sql.query(`SELECT ${CAMPOS_CUPON_LISTADO} FROM \`cupones\` WHERE \`id\` = ?`, [id]);
         const actual = actuales[0];
-        if (!actual) return res.status(404).json({ error: 'Ese cup??n no existe' });
+        if (!actual) return res.status(404).json({ error: 'Ese cupón no existe' });
 
         const validacion = validarCupon(req.body, { parcial: true, actual });
         if (!validacion.ok) return res.status(400).json({ error: validacion.mensaje });
 
         const claves = Object.keys(validacion.datos);
-        if (claves.length === 0) return res.status(400).json({ error: 'No mandaste ning??n campo para actualizar' });
+        if (claves.length === 0) return res.status(400).json({ error: 'No mandaste ningún campo para actualizar' });
 
         // UPPER() para no chocar contra si mismo si reenvian el mismo codigo.
         if (validacion.datos.codigo && validacion.datos.codigo !== actual.codigo) {
@@ -1240,11 +1240,11 @@ app.put('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
                 'SELECT `id` FROM `cupones` WHERE UPPER(`codigo`) = ? AND `id` <> ? LIMIT 1',
                 [validacion.datos.codigo, id]
             );
-            if (duplicados.length > 0) return res.status(409).json({ error: 'Ese c??digo ya existe' });
+            if (duplicados.length > 0) return res.status(409).json({ error: 'Ese código ya existe' });
         }
 
         // Las claves salen de validarCupon (lista cerrada), no del request. Por
-        // eso `usos_actuales` se escribe sin ninguna rama extra ac??: si
+        // eso `usos_actuales` se escribe sin ninguna rama extra acá: si
         // validarCupon lo acepta, entra en el UPDATE.
         const sets = claves.map(clave => `\`${clave}\` = ?`).join(', ');
         await sql.query(
@@ -1262,10 +1262,10 @@ app.put('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
 app.delete('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inv??lido' });
+        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
 
         const [resultado] = await sql.query('DELETE FROM `cupones` WHERE `id` = ?', [id]);
-        if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Ese cup??n no existe' });
+        if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Ese cupón no existe' });
         res.json({ success: true });
     } catch (e) {
         next(e);
@@ -1284,7 +1284,7 @@ app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
     // Se loguea el error COMPLETO, con su stack: ahora que todas las rutas
     // internas terminan aca, el mensaje solo ("Table 'x' doesn't exist") no dice
-    // en que handler se rompi??. El stack nunca sale de la consola.
+    // en que handler se rompió. El stack nunca sale de la consola.
     console.error(`Error no controlado en ${req.method} ${req.originalUrl}:`, err);
 
     // Los dos casos que si se traducen a un mensaje propio: son errores de
@@ -1300,4 +1300,4 @@ app.get(/^(?!\/api).+/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`???? Puerto ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Puerto ${PORT}`));

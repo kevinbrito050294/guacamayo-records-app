@@ -30,7 +30,7 @@ export function AdminLogin({ onLogin, error, cargando }: AdminLoginProps) {
           MODO <span className="text-amber-500">ADMIN</span>
         </h2>
         <p className="text-slate-500 dark:text-slate-400 mb-10 font-medium">
-          Identif??cate para gestionar el inventario de la tienda.
+          Identifícate para gestionar el inventario de la tienda.
         </p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -55,12 +55,12 @@ export function AdminLogin({ onLogin, error, cargando }: AdminLoginProps) {
 
           <div className="relative text-left">
             <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-[0.2em]">
-              Contrase??a
+              Contraseña
             </label>
             <div className="relative mt-2">
             <input
               type={mostrarPassword ? 'text' : 'password'}
-              placeholder="????????????????????????"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 pr-12 py-5 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 transition-all text-center text-2xl tracking-[0.5em] text-slate-900 dark:text-white"
@@ -70,7 +70,7 @@ export function AdminLogin({ onLogin, error, cargando }: AdminLoginProps) {
             <button
               type="button"
               onClick={() => setMostrarPassword((actual) => !actual)}
-              aria-label={mostrarPassword ? 'Ocultar contrase??a' : 'Mostrar contrase??a'}
+              aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-500 transition-colors"
             >
               {mostrarPassword ? <EyeOff size={20} /> : <Eye size={20} />}

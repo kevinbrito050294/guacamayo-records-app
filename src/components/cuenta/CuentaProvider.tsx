@@ -85,8 +85,8 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
     setIdsFavoritos(new Set());
   }, []);
 
-  // El navegador cierra la sesi??n aunque el usuario no haga otra petici??n.
-  // El servidor aplica el mismo l??mite para que la cookie no siga siendo v??lida.
+  // El navegador cierra la sesión aunque el usuario no haga otra petición.
+  // El servidor aplica el mismo límite para que la cookie no siga siendo válida.
   useEffect(() => {
     if (!usuario) return;
 
@@ -106,8 +106,8 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
 
   const alternarFavorito = useCallback(async (viniloId: number): Promise<ResultadoAccion> => {
     const id = Number(viniloId);
-    if (!usuario) return { ok: false, error: 'Inici?? sesi??n para guardar favoritos' };
-    if (!Number.isFinite(id)) return { ok: false, error: 'Vinilo inv??lido' };
+    if (!usuario) return { ok: false, error: 'Iniciá sesión para guardar favoritos' };
+    if (!Number.isFinite(id)) return { ok: false, error: 'Vinilo inválido' };
 
     const estaba = idsFavoritos.has(id);
     const res = await pedir(`/api/favoritos/${id}`, { method: estaba ? 'DELETE' : 'POST' });
@@ -121,7 +121,7 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
       });
       setFavoritos((prev) => prev.filter((f) => Number(f.vinilo_id) !== id));
     } else {
-      // El alta s?? necesita los datos del vinilo (precio, imagen), asi que se recurre la lista.
+      // El alta sí necesita los datos del vinilo (precio, imagen), asi que se recurre la lista.
       setIdsFavoritos((prev) => new Set(prev).add(id));
       void refrescarFavoritos();
     }

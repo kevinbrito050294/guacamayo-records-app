@@ -146,7 +146,7 @@ function registrarFallo(clave) {
     const registro = intentos.get(clave);
     if (!registro || ahora - registro.ventana > VENTANA_INTENTOS_MS) {
         if (intentos.size >= MAX_CLAVES_INTENTO) {
-            // Se descarta la m??s vieja en vez de crecer sin l??mite.
+            // Se descarta la más vieja en vez de crecer sin límite.
             const [masVieja] = intentos.keys();
             intentos.delete(masVieja);
         }
@@ -167,8 +167,8 @@ export function purgarIntentos() {
     }
 }
 
-// Hash se??uelo: sin esto, un email inexistente responde en ~0 ms y uno existente
-// tarda el scrypt completo, as?? que el tiempo de respuesta revela qu?? emails hay.
+// Hash señuelo: sin esto, un email inexistente responde en ~0 ms y uno existente
+// tarda el scrypt completo, así que el tiempo de respuesta revela qué emails hay.
 let hashSenaluelo = null;
 const verificarContraSenaluelo = (password) => {
     if (!hashSenaluelo) hashSenaluelo = hashPassword('__guacamayo_clave_senaluelo__');
@@ -291,10 +291,10 @@ function sesionOpcional(sql, tipo) {
                 next();
             })
             // Se sigue como invitado (fall-open: una compra sin sesion tiene que
-            // poder igual) pero el motivo se loguea: si MySQL esta ca??do esto
+            // poder igual) pero el motivo se loguea: si MySQL esta caído esto
             // degrada el pedido a compra de invitado sin que nadie se entere.
             .catch((e) => {
-                console.error(`No se pudo leer la sesi??n (${tipo}):`, e);
+                console.error(`No se pudo leer la sesión (${tipo}):`, e);
                 req.auth = null;
                 next();
             });
@@ -381,7 +381,7 @@ export function crearAuthRouter(db) {
     const soloCliente = requiereCliente(sql);
 
     // --------------------------------------------------------------
-    // 0) Sesion actual (util para el frontend: "??estoy logueado?")
+    // 0) Sesion actual (util para el frontend: "¿estoy logueado?")
     // --------------------------------------------------------------
     router.get('/admin/yo', soloAdmin, (req, res) => {
         res.json({ admin: req.auth.admin });
@@ -415,7 +415,7 @@ export function crearAuthRouter(db) {
             const admin = filas[0];
 
             // Mismo costo (scrypt) exista o no el email: el tiempo de respuesta
-            // no puede delatar qu?? cuentas existen.
+            // no puede delatar qué cuentas existen.
             const passwordOk = admin
                 ? verificarPassword(password, admin.password_hash)
                 : verificarContraSenaluelo(password);
@@ -834,7 +834,7 @@ export function crearAuthRouter(db) {
         }
     });
 
-    /** El catalogo pregunta "??esta en favoritos?" sin tener que traer la lista. */
+    /** El catalogo pregunta "¿esta en favoritos?" sin tener que traer la lista. */
     router.get('/favoritos/:viniloId', soloCliente, async (req, res, next) => {
         try {
             const [filas] = await sql.query(

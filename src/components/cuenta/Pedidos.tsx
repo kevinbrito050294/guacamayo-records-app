@@ -10,9 +10,9 @@ interface PedidosProps {
 // Colores por estado. Solo hay tres: son los que escribe el server
 // (POST /api/pedidos deja el pedido en 'pendiente' y los PUT /api/pedidos/:id/
 // finalizar y /cancelar lo mueven a 'finalizado' o 'cancelado').
-// NO se inventan estados intermedios ac??: si aparece uno nuevo entra por el
+// NO se inventan estados intermedios acá: si aparece uno nuevo entra por el
 // fallback de `claseEstado` (gris) y se muestra tal cual lo manda el server,
-// en vez de prejuzgar c??mo se ve.
+// en vez de prejuzgar cómo se ve.
 const CLASES_ESTADO: Record<string, string> = {
   pendiente: 'bg-amber-500/10 text-amber-600 dark:text-amber-500',
   finalizado: 'bg-emerald-500/10 text-emerald-500',
@@ -54,15 +54,15 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
     return (
       <Vacio
         icono={<ShoppingBag size={40} />}
-        titulo="Todav??a no compraste"
-        texto="Entr?? con tu cuenta antes de comprar y cada pedido te queda guardado ac??, con su estado."
+        titulo="Todavía no compraste"
+        texto="Entrá con tu cuenta antes de comprar y cada pedido te queda guardado acá, con su estado."
         accion={(
           <button
             type="button"
             onClick={onVerCatalogo}
             className="bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 dark:hover:bg-white transition-all active:scale-95"
           >
-            Ver cat??logo
+            Ver catálogo
           </button>
         )}
       />
@@ -105,19 +105,19 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
               <p className="text-xs text-slate-400 dark:text-slate-500 italic mb-4">Sin detalle de discos en este pedido.</p>
             )}
 
-            {/* El cup??n que se aplic?? y cu??nto se descont?? los guarda el server en
-                la fila del pedido (migraci??n 2026-09-29). */}
+            {/* El cupón que se aplicó y cuánto se descontó los guarda el server en
+                la fila del pedido (migración 2026-09-29). */}
             {(pedido.cupon_codigo || Number(pedido.descuento_aplicado) > 0) && (
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {pedido.cupon_codigo && (
                   <span className="flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-500">
-                    <Ticket size={12} className="shrink-0" /> Cup??n {pedido.cupon_codigo}
+                    <Ticket size={12} className="shrink-0" /> Cupón {pedido.cupon_codigo}
                   </span>
                 )}
                 {Number(pedido.descuento_aplicado) > 0 && (
                   <span className="text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest bg-emerald-500/10 text-emerald-500 font-mono">
                     {/* Mismo "-USD 0.00" que el panel y el carrito, para que el
-                        cliente lea el mismo n??mero en las dos pantallas. */}
+                        cliente lea el mismo número en las dos pantallas. */}
                     -{importeUsd(pedido.descuento_aplicado)}
                   </span>
                 )}
@@ -127,7 +127,7 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
             <div className="flex flex-wrap items-end justify-between gap-2 pt-3 border-t border-slate-200 dark:border-slate-700/60">
               <div>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black">Total</p>
-                {/* El server guarda el total en USD; la divisa preferida es la que eligi?? el cliente al comprar. */}
+                {/* El server guarda el total en USD; la divisa preferida es la que eligió el cliente al comprar. */}
                 <p className="text-xl font-black text-amber-500 tracking-tighter">
                   {importeUsd(pedido.total_pago)}
                 </p>

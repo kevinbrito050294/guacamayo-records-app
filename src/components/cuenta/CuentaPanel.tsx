@@ -48,17 +48,17 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
           <button
             type="button"
             onClick={() => { void logout(); onVolver(); }}
-            aria-label="Cerrar sesi??n"
-            title="Cerrar sesi??n"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-200 dark:border-red-500/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-[10px] font-black uppercase tracking-widest"
           >
             <LogOut size={20} />
-            <span className="hidden sm:inline">Cerrar sesi??n</span>
+            <span className="hidden sm:inline">Cerrar sesión</span>
           </button>
           <button
             type="button"
             onClick={onVolver}
-            aria-label="Volver al cat??logo"
+            aria-label="Volver al catálogo"
             className="p-2 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
           >
             <X size={22} />
@@ -66,7 +66,7 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
         </div>
       </header>
 
-      {/* PESTA??AS */}
+      {/* PESTAÑAS */}
       <div role="tablist" aria-label="Secciones de la cuenta" className="grid grid-cols-3 gap-3 sm:gap-4">
         <PestanaBoton
           activa={pestana === 'pedidos'}
@@ -87,7 +87,7 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
           onClick={() => setPestana('direcciones')}
           icono={<MapPin size={18} className="text-amber-500" />}
           titulo="Direcciones"
-          sub="Env??os"
+          sub="Envíos"
         />
       </div>
 

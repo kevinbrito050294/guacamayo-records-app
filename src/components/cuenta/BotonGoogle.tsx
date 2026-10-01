@@ -75,7 +75,7 @@ export function BotonGoogle({ onCredencial, onError }: BotonGoogleProps) {
       })
       .catch(() => {
         if (!vivo) return;
-        const mensaje = 'No se pudo cargar el acceso con Google. Us?? tu email y contrase??a.';
+        const mensaje = 'No se pudo cargar el acceso con Google. Usá tu email y contraseña.';
         setFallo(mensaje);
         cbError.current?.(mensaje);
       });
@@ -89,7 +89,7 @@ export function BotonGoogle({ onCredencial, onError }: BotonGoogleProps) {
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">o continu?? con</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">o continuá con</span>
         <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
       </div>
 

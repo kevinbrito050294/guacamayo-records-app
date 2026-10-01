@@ -46,7 +46,7 @@ export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
   };
 
   const vaciar = async () => {
-    if (!confirm('??Vaciar tu lista de favoritos?')) return;
+    if (!confirm('¿Vaciar tu lista de favoritos?')) return;
     setError('');
     setTrabajando(true);
     const res = await vaciarFavoritos();
@@ -61,15 +61,15 @@ export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
     return (
       <Vacio
         icono={<Heart size={40} />}
-        titulo="Sin favoritos todav??a"
-        texto="Toc?? el coraz??n en cualquier disco del cat??logo y queda guardado ac??."
+        titulo="Sin favoritos todavía"
+        texto="Tocá el corazón en cualquier disco del catálogo y queda guardado acá."
         accion={(
           <button
             type="button"
             onClick={onVerCatalogo}
             className="bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 dark:hover:bg-white transition-all active:scale-95"
           >
-            Explorar cat??logo
+            Explorar catálogo
           </button>
         )}
       />
@@ -125,7 +125,7 @@ export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
                   {favorito.titulo || 'Vinilo no disponible'}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate mb-3">
-                  {favorito.artista || '???'}
+                  {favorito.artista || '—'}
                 </p>
 
                 {favorito.precio_venta !== null && disponible ? (

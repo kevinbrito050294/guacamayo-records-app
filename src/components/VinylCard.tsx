@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ViniloCatalogo, PreciosConvertidos, CarritoItem } from '../types/database';
 import { Plus, ShoppingCart, X, ChevronLeft, ChevronRight, AlertCircle, Heart } from 'lucide-react';
 // `precio_venta` es DECIMAL y llega como string: el formateo del precio en USD
-// pasa por el helper que ya usan el cat??logo, los favoritos y "mis pedidos", as??
+// pasa por el helper que ya usan el catálogo, los favoritos y "mis pedidos", así
 // que la card no inventa su propio `Number(...).toFixed(2)`.
 import { importeUsd } from '../lib/cuenta';
 
@@ -12,7 +12,7 @@ interface VinylCardProps {
   onAdd: () => void;
   divisaActiva: 'USD' | 'ARS' | 'USDT';
   carrito: CarritoItem[]; // <-- Agregamos el carrito para validar stock en tiempo real
-  // Favoritos: opcionales para que la card siga sirviendo sin sesi??n.
+  // Favoritos: opcionales para que la card siga sirviendo sin sesión.
   favorito?: boolean;
   onToggleFavorito?: (id: string) => void;
 }
@@ -21,7 +21,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
   const [modalAbierto, setModalAbierto] = useState(false);
   const [fotoActual, setFotoActual] = useState(0);
 
-  // LOGICA DE STOCK DIN??MICO
+  // LOGICA DE STOCK DINÁMICO
   const itemEnCarrito = carrito.find(item => item.vinilo.id === vinilo.id);
   const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
   
@@ -55,7 +55,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
     <>
       <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-300 group ${limiteAlcanzado && !sinStockReal ? 'ring-2 ring-amber-500/30' : ''}`}>
         
-        {/* IMAGEN DEL VINILO CON NAVEGACI??N INTERNA */}
+        {/* IMAGEN DEL VINILO CON NAVEGACIÓN INTERNA */}
         <div 
           className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-zoom-in"
           onClick={() => !sinStockReal && imagenes.length > 0 && setModalAbierto(true)}
@@ -78,7 +78,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
             </div>
           )}
 
-          {/* INDICADOR DE POSICI??N */}
+          {/* INDICADOR DE POSICIÓN */}
           {!sinStockReal && hayVariasFotos && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
               {imagenes.map((_, idx) => (
@@ -87,7 +87,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
             </div>
           )}
 
-          {/* CORAZ??N DE FAVORITO */}
+          {/* CORAZÓN DE FAVORITO */}
           {onToggleFavorito && (
             <button
               type="button"
@@ -104,9 +104,9 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
             </button>
           )}
 
-          {/* BADGE DE ESTADO DIN??MICO */}
+          {/* BADGE DE ESTADO DINÁMICO */}
           <div className={`absolute top-4 right-4 ${sinStockReal ? 'bg-red-500' : limiteAlcanzado ? 'bg-orange-600' : 'bg-slate-900/90 dark:bg-amber-500'} text-white dark:text-slate-950 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider shadow-lg z-20`}>
-            {sinStockReal ? 'Agotado' : limiteAlcanzado ? 'L??mite alcanzado' : vinilo.calidad || 'Nuevo'}
+            {sinStockReal ? 'Agotado' : limiteAlcanzado ? 'Límite alcanzado' : vinilo.calidad || 'Nuevo'}
           </div>
         </div>
         
@@ -130,7 +130,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                {limiteAlcanzado && !sinStockReal ? 'Sin m??s stock' : (divisaActiva === 'ARS' ? 'Precio ARS' : 'Precio Final')}
+                {limiteAlcanzado && !sinStockReal ? 'Sin más stock' : (divisaActiva === 'ARS' ? 'Precio ARS' : 'Precio Final')}
               </span>
               {!sinStockReal ? (
                 <>
@@ -163,7 +163,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
         </div>
       </div>
 
-      {/* MODAL DE GALER??A */}
+      {/* MODAL DE GALERÍA */}
       {modalAbierto && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 md:p-10 transition-all">
           <button onClick={() => setModalAbierto(false)} className="absolute top-6 right-6 text-white/50 hover:text-white z-50 p-2 bg-white/10 rounded-full transition-colors"><X size={32}/></button>

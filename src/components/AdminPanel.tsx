@@ -13,7 +13,7 @@ import { ViniloCatalogo, Cupon, CalidadVinilo, TipoCupon } from '../types/databa
 import { apiUrl } from '../lib/api';
 // Los DECIMAL (`total_pago`, `descuento_aplicado`, `cupones.valor`) llegan como
 // string desde mysql2: `importeUsd` es el helper que ya usan "mis pedidos", el
-// cat??logo y los favoritos, as?? que el panel no inventa otro formato.
+// catálogo y los favoritos, así que el panel no inventa otro formato.
 import { importeUsd } from '../lib/cuenta';
 
 type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons';
@@ -39,7 +39,7 @@ interface PedidoApi {
   whatsapp_cliente: string | null;
   // `total_pago` es DECIMAL y mysql2 devuelve los DECIMAL como STRING ("45.00"),
   // no como number: por eso el tipo lo declara number|string. Sin el Number()
-  // el panel pintaba el string crudo y se ve??a `$45.00` en vez de `USD 45.00`
+  // el panel pintaba el string crudo y se veía `$45.00` en vez de `USD 45.00`
   // (y con miles, `$1234.0000`).
   total_pago: number | string | null;
   items: PedidoItem[] | string | null;
@@ -61,12 +61,12 @@ const ETIQUETAS_ESTADO_PEDIDO: Record<string, string> = {
 
 const etiquetaEstadoPedido = (estado: string) => ETIQUETAS_ESTADO_PEDIDO[estado] || estado;
 
-// El listado de cupones se tipa con `Cupon` directo (database.ts). Antes hab??a
+// El listado de cupones se tipa con `Cupon` directo (database.ts). Antes había
 // un `CuponAdmin` local que le sumaba `creado_en` al tipo base porque
-// `database.ts` todav??a no lo ten??a; dej?? de hacer falta cuando el tipo base
-// qued?? alineado con la migraci??n 2026-09-28 (el listado trae `creado_en`).
+// `database.ts` todavía no lo tenía; dejó de hacer falta cuando el tipo base
+// quedó alineado con la migración 2026-09-28 (el listado trae `creado_en`).
 
-// El `error` del server se muestra tal cual (dise??o de todas las rutas de
+// El `error` del server se muestra tal cual (diseño de todas las rutas de
 // admin): se lee del cuerpo sin castear a `any`.
 function mensajeDeError(cuerpo: unknown, porDefecto: string): string {
   if (typeof cuerpo === 'object' && cuerpo !== null) {
@@ -91,8 +91,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const getApiUrl = useCallback(() => apiUrl(), []);
 
-  // --- L??GICA DE SESI??N Y SEGURIDAD ---
-  // La sesi??n vive en una cookie httpOnly: ac?? no hay token que guardar.
+  // --- LÓGICA DE SESIÓN Y SEGURIDAD ---
+  // La sesión vive en una cookie httpOnly: acá no hay token que guardar.
   const cerrarSesionTotal = useCallback(async () => {
     try {
       await fetch(`${getApiUrl()}/api/admin/logout`, { method: 'POST', credentials: 'include' });
@@ -106,13 +106,13 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const resetTimer = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      alert("Sesi??n finalizada por inactividad (15 min)");
+      alert("Sesión finalizada por inactividad (15 min)");
       cerrarSesionTotal();
     }, 15 * 60 * 1000);
   }, [cerrarSesionTotal]);
 
   useEffect(() => {
-    // Si la cookie ya no es v??lida (expir??, se cerr?? en otro lado), se vuelve al login.
+    // Si la cookie ya no es válida (expiró, se cerró en otro lado), se vuelve al login.
     fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' }).then(res => {
       if (!res.ok) onBack();
     }).catch(() => onBack());
@@ -128,8 +128,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           cerrarSesionTotal();
         }
       } catch {
-        console.error("Error latido - reintentando en el pr??ximo ciclo");
-        // No cerramos sesi??n por un error de red puntual
+        console.error("Error latido - reintentando en el próximo ciclo");
+        // No cerramos sesión por un error de red puntual
       }
     };
 
@@ -174,7 +174,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   v.codigo?.toLowerCase().includes(busquedaInv.toLowerCase())
 );
 
-  // --- MANEJO DE IM??GENES ---
+  // --- MANEJO DE IMÁGENES ---
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -190,8 +190,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       const fotosActuales = formEdit.imagen_url ? formEdit.imagen_url.split(',') : [];
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
-      alert(`??? ${nuevasFotos.length} im??genes a??adidas`);
-    } catch { alert("??? Error al subir imagen"); } 
+      alert(`✅ ${nuevasFotos.length} imágenes añadidas`);
+    } catch { alert("❌ Error al subir imagen"); } 
     finally { setSubiendo(false); }
   };
 
@@ -223,24 +223,24 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        // El PUT manda el precio como n??mero, pero lo que queda en la lista es
+        // El PUT manda el precio como número, pero lo que queda en la lista es
         // una fila de la base y `precio_venta` es DECIMAL: vuelve como string.
-        // Sin el String() el tipo mintir??a y el pr??ximo que lo formatee sin
-        // Number() lo descubre en producci??n.
+        // Sin el String() el tipo mintiría y el próximo que lo formatee sin
+        // Number() lo descubre en producción.
         const guardado = { ...formEdit, precio_venta: String(payload.precio_venta), stock_actual: payload.stock_actual };
         setVinilos(vinilos.map(v => v.id === id ? { ...v, ...guardado } : v));
         setEditandoId(null);
-        alert("??? Cambios guardados");
+        alert("✅ Cambios guardados");
       }
-    } catch { alert("??? Error de conexi??n"); }
+    } catch { alert("❌ Error de conexión"); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("??Eliminar este vinilo?")) return;
+    if (!confirm("¿Eliminar este vinilo?")) return;
     try {
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) setVinilos(vinilos.filter(v => v.id !== id));
-    } catch { alert("??? Error al eliminar"); }
+    } catch { alert("❌ Error al eliminar"); }
   };
 
   const renderImage = (url: string | undefined) => {
@@ -254,7 +254,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         <div className="max-w-md bg-white dark:bg-slate-900 p-8 rounded-3xl border border-red-200 dark:border-red-900/30 text-center shadow-2xl">
           <AlertTriangle className="mx-auto mb-4 text-red-500" size={48} />
           <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">Acceso Restringido</h2>
-          <p className="text-slate-500 text-sm mb-6">Ya hay una sesi??n activa o tu token ha expirado.</p>
+          <p className="text-slate-500 text-sm mb-6">Ya hay una sesión activa o tu token ha expirado.</p>
           <button onClick={cerrarSesionTotal} className="w-full bg-slate-900 dark:bg-white dark:text-slate-950 text-white py-3 rounded-xl font-black text-xs uppercase">
             REINTENTAR ACCESO
           </button>
@@ -276,12 +276,12 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
-          <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gesti??n" />
+          <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
           <TabButton active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} icon={<Ticket />} title="Cupones" sub="Promos" />
           <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')} icon={<Plus />} title="Nuevo" sub="Carga" />
           <TabButton active={activeTab === 'bulk'} onClick={() => setActiveTab('bulk')} icon={<Upload />} title="Importar" sub="CSV" />
-          <TabButton active={activeTab === 'currency'} onClick={() => setActiveTab('currency')} icon={<Settings />} title="Tasas" sub="D??lar/ARS" />
+          <TabButton active={activeTab === 'currency'} onClick={() => setActiveTab('currency')} icon={<Settings />} title="Tasas" sub="Dólar/ARS" />
           <TabButton active={activeTab === 'manual'} onClick={() => setActiveTab('manual')} icon={<Book />} title="Manual" sub="Ayuda" />
         </div>
 
@@ -303,7 +303,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                 <table className="w-full text-left border-separate border-spacing-y-2">
                   <thead>
                     <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-black">
-                      <th className="pb-4 px-2">Producto / Galer??a</th>
+                      <th className="pb-4 px-2">Producto / Galería</th>
                       <th className="pb-4 px-2 text-center">Precio/Stock/Calidad</th>
                       <th className="pb-4 px-2 text-right">Acciones</th>
                     </tr>
@@ -319,7 +319,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div className="space-y-4">
                                   <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">T??tulo</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Título</label>
                                     <input className="w-full font-bold border-none rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.titulo || ''} onChange={e => setFormEdit({...formEdit, titulo: e.target.value})} />
                                   </div>
                                   <div className="grid grid-cols-2 gap-4">
@@ -328,15 +328,15 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                       <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.artista || ''} onChange={e => setFormEdit({...formEdit, artista: e.target.value})} />
                                     </div>
                                     <div>
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">G??nero</label>
+                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Género</label>
                                   <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.genero || ''} onChange={e => setFormEdit({...formEdit, genero: e.target.value})} placeholder="Ej: Rock" />
                                   </div>
                                 <div>
-                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">C??digo (SKU)</label>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Código (SKU)</label>
                                   <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.codigo || ''} onChange={e => setFormEdit({...formEdit, codigo: e.target.value})} placeholder="LP-001" />
                                   </div>
                                 <div>
-                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Pa??s de origen</label>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">País de origen</label>
                                   <input className="w-full text-sm border-none rounded-xl p-3 dark:bg-slate-900 dark:text-slate-300" value={formEdit.pais_origen || ''} onChange={e => setFormEdit({...formEdit, pais_origen: e.target.value})} placeholder="Ej: UK, USA, ARG" />
                                   </div>
                                 </div>
@@ -366,7 +366,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                   </div>
                                 </div>
                                 <div className="md:col-span-2 space-y-3">
-                                  <label className="text-[10px] font-black uppercase text-slate-500 block">Galer??a</label>
+                                  <label className="text-[10px] font-black uppercase text-slate-500 block">Galería</label>
                                   <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                                     {formEdit.imagen_url?.split(',').filter(u => u !== '').map((url, idx) => (
                                       <div key={idx} className={`relative aspect-square rounded-xl overflow-hidden border-2 ${idx === 0 ? 'border-amber-500' : 'border-transparent'}`}>
@@ -462,10 +462,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 // --- SUBCOMPONENTES ---
 
 // Banner de error del panel. Estaba duplicado cuatro veces (alta/listado de
-// cupones, acciones sobre un cup??n y los dos errores de la lista de pedidos) y
-// los resultados sal??an distintos seg??n de d??nde ven??an. Un solo marcado para
-// los cuatro: mismo `role="alert"`, mismos colores, y un bot??n de reintentar
-// donde tiene sentido (los que son un fallo de lectura, no de la acci??n).
+// cupones, acciones sobre un cupón y los dos errores de la lista de pedidos) y
+// los resultados salían distintos según de dónde venían. Un solo marcado para
+// los cuatro: mismo `role="alert"`, mismos colores, y un botón de reintentar
+// donde tiene sentido (los que son un fallo de lectura, no de la acción).
 function BannerAviso({ texto, onCerrar, onReintentar }: {
   texto: string;
   onCerrar: () => void;
@@ -548,28 +548,28 @@ const FORM_CUPON_VACIO: FormCupon = {
 function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   const [cupones, setCupones] = useState<Cupon[]>([]);
   const [nuevo, setNuevo] = useState({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
-  // id del cup??n con una operaci??n en curso, para deshabilitar sus dos botones.
+  // id del cupón con una operación en curso, para deshabilitar sus dos botones.
   const [ocupado, setOcupado] = useState<number | null>(null);
-  // Cup??n abierto en el modal de edici??n.
+  // Cupón abierto en el modal de edición.
   const [editando, setEditando] = useState<Cupon | null>(null);
   const [formEdicion, setFormEdicion] = useState<FormCupon>(FORM_CUPON_VACIO);
   const [errorEdicion, setErrorEdicion] = useState('');
-  // El listado se recarga despu??s de cada acci??n. Antes el fallo se iba al
-  // console y la tabla quedaba vac??a, que es indistinguible de "no ten??s
-  // cupones": un 401 por sesi??n vencida se ve??a como un panel sin datos.
+  // El listado se recarga después de cada acción. Antes el fallo se iba al
+  // console y la tabla quedaba vacía, que es indistinguible de "no tenés
+  // cupones": un 401 por sesión vencida se veía como un panel sin datos.
   const [errorListado, setErrorListado] = useState('');
-  // La primera carga no mostraba nada: la tabla sal??a vac??a y a los 200 ms
-  // aparec??an las filas. Con `cargando` se distingue "todav??a no s??" de
-  // "no ten??s cupones".
+  // La primera carga no mostraba nada: la tabla salía vacía y a los 200 ms
+  // aparecían las filas. Con `cargando` se distingue "todavía no sé" de
+  // "no tenés cupones".
   const [cargando, setCargando] = useState(true);
-  // Fallo de la ??ltima acci??n sobre un cup??n (crear, resetear, activar o
-  // borrar). Antes cada una de las cuatro ten??a su propio alert() nativo, que en
-  // una tabla de administraci??n se ve??a como otra aplicaci??n.
+  // Fallo de la última acción sobre un cupón (crear, resetear, activar o
+  // borrar). Antes cada una de las cuatro tenía su propio alert() nativo, que en
+  // una tabla de administración se veía como otra aplicación.
   const [errorAccion, setErrorAccion] = useState('');
-  // Confirmaci??n en l??nea de las dos acciones destructivas. Se hace en la misma
-  // fila, con un "??S???" y un "No": el panel ya ped??a confirmaci??n (con
+  // Confirmación en línea de las dos acciones destructivas. Se hace en la misma
+  // fila, con un "¿Sí?" y un "No": el panel ya pedía confirmación (con
   // confirm()), pero un modal del navegador encima de la tabla tapa el contexto
-  // de lo que se est?? por borrar.
+  // de lo que se está por borrar.
   const [porConfirmar, setPorConfirmar] = useState<{ id: number; accion: 'resetear' | 'borrar' } | null>(null);
 
   const fetchCupones = async () => {
@@ -577,25 +577,25 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
     try {
       const res = await fetch(`${getApiUrl()}/api/admin/cupones`, { credentials: 'include' });
       if (!res.ok) {
-        setErrorListado(mensajeDeError(await res.json().catch(() => null), `el servidor respondi?? ${res.status}`));
+        setErrorListado(mensajeDeError(await res.json().catch(() => null), `el servidor respondió ${res.status}`));
         return;
       }
       const data: unknown = await res.json();
       setCupones(Array.isArray(data) ? (data as Cupon[]) : []);
       setErrorListado('');
     } catch {
-      setErrorListado('No se pudieron cargar los cupones: error de conexi??n con el servidor.');
+      setErrorListado('No se pudieron cargar los cupones: error de conexión con el servidor.');
     } finally {
       setCargando(false);
     }
   };
   useEffect(() => { fetchCupones(); }, []);
 
-  // --- Estado "real" del cup??n ---
+  // --- Estado "real" del cupón ---
   // activo = 1 no alcanza para decir que sirve: la fecha y el contador de usos
-  // manda igual. El backend usa CURDATE() (fecha del servidor); ac?? se usa la
+  // manda igual. El backend usa CURDATE() (fecha del servidor); acá se usa la
   // fecha local, que es la que ve el admin. Los dos cortes son strings
-  // YYYY-MM-DD, as?? que compararlos como texto ordena por fecha.
+  // YYYY-MM-DD, así que compararlos como texto ordena por fecha.
   const hoy = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -606,7 +606,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
 
   const crearCupon = async () => {
     if (!nuevo.codigo || !nuevo.valor) {
-      setErrorAccion('Complet?? el c??digo y el valor del cup??n.');
+      setErrorAccion('Completá el código y el valor del cupón.');
       return;
     }
     setErrorAccion('');
@@ -618,22 +618,22 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
         body: JSON.stringify(nuevo)
       });
       if (res.ok) {
-        // Sin mensaje de ??xito: la fila nueva aparece en la tabla, que es la
-        // confirmaci??n. Un toast ac?? tapar??a justo lo que se quiere ver.
+        // Sin mensaje de éxito: la fila nueva aparece en la tabla, que es la
+        // confirmación. Un toast acá taparía justo lo que se quiere ver.
         setNuevo({ codigo: '', tipo: 'porcentaje', valor: '', fecha_expiracion: '', uso_maximo: '' });
         await fetchCupones();
       } else {
-        // El server valida (c??digo repetido, porcentaje > 100, fecha inv??lida...)
-        // y devuelve el motivo: se muestra tal cual, no un "error" gen??rico.
+        // El server valida (código repetido, porcentaje > 100, fecha inválida...)
+        // y devuelve el motivo: se muestra tal cual, no un "error" genérico.
         const data: unknown = await res.json().catch(() => null);
-        setErrorAccion(mensajeDeError(data, 'No se pudo crear el cup??n'));
+        setErrorAccion(mensajeDeError(data, 'No se pudo crear el cupón'));
       }
-    } catch { setErrorAccion('No se pudo crear el cup??n: error de conexi??n con el servidor.'); }
+    } catch { setErrorAccion('No se pudo crear el cupón: error de conexión con el servidor.'); }
   };
 
-  // --- EDICI??N ---
-  // Antes no hab??a forma de corregir un `valor` mal cargado sin borrar y
-  // recrear el cup??n (y eso perd??a `usos_actuales`). El PUT es parcial: se
+  // --- EDICIÓN ---
+  // Antes no había forma de corregir un `valor` mal cargado sin borrar y
+  // recrear el cupón (y eso perdía `usos_actuales`). El PUT es parcial: se
   // mandan solo los campos del formulario.
   const abrirEdicion = (c: Cupon) => {
     setEditando(c);
@@ -661,13 +661,13 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
     const usoMaximo = formEdicion.uso_maximo === '' ? null : Number(formEdicion.uso_maximo);
     const usosActuales = Number(formEdicion.usos_actuales || 0);
 
-    // Mismas reglas que server.js validarCupon(): se chequean ac?? para no
-    // gastar un request en algo que ya se sabe, y para poder se??alar el campo.
-    if (!formEdicion.codigo.trim()) return setErrorEdicion('El c??digo del cup??n no puede estar vac??o');
-    if (!Number.isFinite(valor) || valor <= 0) return setErrorEdicion('El valor tiene que ser un n??mero mayor a 0');
-    if (formEdicion.tipo === 'porcentaje' && valor > 100) return setErrorEdicion('Un cup??n de porcentaje no puede ser mayor a 100');
+    // Mismas reglas que server.js validarCupon(): se chequean acá para no
+    // gastar un request en algo que ya se sabe, y para poder señalar el campo.
+    if (!formEdicion.codigo.trim()) return setErrorEdicion('El código del cupón no puede estar vacío');
+    if (!Number.isFinite(valor) || valor <= 0) return setErrorEdicion('El valor tiene que ser un número mayor a 0');
+    if (formEdicion.tipo === 'porcentaje' && valor > 100) return setErrorEdicion('Un cupón de porcentaje no puede ser mayor a 100');
     if (usoMaximo !== null && (!Number.isInteger(usoMaximo) || usoMaximo < 1)) {
-      return setErrorEdicion('El uso m??ximo tiene que ser un entero mayor o igual a 1');
+      return setErrorEdicion('El uso máximo tiene que ser un entero mayor o igual a 1');
     }
     if (usoMaximo !== null && (!Number.isInteger(usosActuales) || usosActuales < 0)) {
       return setErrorEdicion('Los usos actuales tienen que ser un entero mayor o igual a 0');
@@ -677,17 +677,17 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       codigo: formEdicion.codigo.trim().toUpperCase(),
       tipo: formEdicion.tipo,
       valor,
-      // El <input type="date"> vac??o es '' y el server lo traduce a NULL = sin
-      // l??mite (server.js:628), as?? que ac?? va el string tal cual.
+      // El <input type="date"> vacío es '' y el server lo traduce a NULL = sin
+      // límite (server.js:628), así que acá va el string tal cual.
       fecha_expiracion: formEdicion.fecha_expiracion,
       // `usoMaximo` ya sale validado (entero >= 1, o null) y null es justamente
-      // el "sin l??mite" del server: se manda el n??mero y no el texto del input,
+      // el "sin límite" del server: se manda el número y no el texto del input,
       // para que el contrato no dependa de un parseo del otro lado.
       uso_maximo: usoMaximo,
       activo: formEdicion.activo === '1' ? 1 : 0
     };
     // Sin `uso_maximo` el contador no significa nada (la fila nunca se agota y el
-    // server no lo valida), as?? que no se manda y el input queda deshabilitado.
+    // server no lo valida), así que no se manda y el input queda deshabilitado.
     if (usoMaximo !== null) cuerpo.usos_actuales = usosActuales;
 
     setOcupado(editando.id);
@@ -700,20 +700,20 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       });
       const data: unknown = await res.json().catch(() => null);
       if (res.ok) {
-        // 409 = el c??digo nuevo ya lo tiene otro cup??n; 400 = usos_actuales
+        // 409 = el código nuevo ya lo tiene otro cupón; 400 = usos_actuales
         // mayor que uso_maximo. Los dos los dice el server con su propio texto.
         cerrarEdicion();
         await fetchCupones();
       } else {
-        setErrorEdicion(mensajeDeError(data, 'No se pudo guardar el cup??n'));
+        setErrorEdicion(mensajeDeError(data, 'No se pudo guardar el cupón'));
       }
-    } catch { setErrorEdicion('Error de conexi??n'); }
+    } catch { setErrorEdicion('Error de conexión'); }
     finally { setOcupado(null); }
   };
 
-  // Resetear usos: un cup??n agotado vuelve a servir sin tocar c??digo ni valor.
-  // La confirmaci??n la pide `porConfirmar` (el bot??n de la fila), no un
-  // confirm(): ver la fila que se est?? por tocar importa m??s que el modal del
+  // Resetear usos: un cupón agotado vuelve a servir sin tocar código ni valor.
+  // La confirmación la pide `porConfirmar` (el botón de la fila), no un
+  // confirm(): ver la fila que se está por tocar importa más que el modal del
   // navegador.
   const resetearUsos = async (c: Cupon) => {
     setPorConfirmar(null);
@@ -732,7 +732,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
         const data: unknown = await res.json().catch(() => null);
         setErrorAccion(`No se pudo resetear el contador de ${c.codigo}: ${mensajeDeError(data, 'el servidor no dio un motivo')}`);
       }
-    } catch { setErrorAccion('No se pudo resetear el contador: error de conexi??n con el servidor.'); }
+    } catch { setErrorAccion('No se pudo resetear el contador: error de conexión con el servidor.'); }
     finally { setOcupado(null); }
   };
 
@@ -754,7 +754,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
         const data: unknown = await res.json().catch(() => null);
         setErrorAccion(`No se pudo cambiar el estado de ${c.codigo}: ${mensajeDeError(data, 'el servidor no dio un motivo')}`);
       }
-    } catch { setErrorAccion('No se pudo cambiar el estado: error de conexi??n con el servidor.'); }
+    } catch { setErrorAccion('No se pudo cambiar el estado: error de conexión con el servidor.'); }
     finally { setOcupado(null); }
   };
 
@@ -773,27 +773,27 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
         const data: unknown = await res.json().catch(() => null);
         setErrorAccion(`No se pudo borrar ${c.codigo}: ${mensajeDeError(data, 'el servidor no dio un motivo')}`);
       }
-    } catch { setErrorAccion('No se pudo borrar el cup??n: error de conexi??n con el servidor.'); }
+    } catch { setErrorAccion('No se pudo borrar el cupón: error de conexión con el servidor.'); }
     finally { setOcupado(null); }
   };
 
   return (
     <div className="space-y-8">
       <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border dark:border-slate-800">
-        <h3 className="text-xs font-black uppercase tracking-widest mb-4 text-amber-500">Crear Nuevo Cup??n</h3>
+        <h3 className="text-xs font-black uppercase tracking-widest mb-4 text-amber-500">Crear Nuevo Cupón</h3>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          <input placeholder="C??DIGO" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none uppercase font-bold" value={nuevo.codigo} onChange={e => setNuevo({...nuevo, codigo: e.target.value})} />
+          <input placeholder="CÓDIGO" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none uppercase font-bold" value={nuevo.codigo} onChange={e => setNuevo({...nuevo, codigo: e.target.value})} />
           <select className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.tipo} onChange={e => setNuevo({...nuevo, tipo: e.target.value})}>
             <option value="porcentaje">% Porcentaje</option>
             <option value="fijo">Monto Fijo (USD)</option>
           </select>
           <input type="number" placeholder="Valor" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.valor} onChange={e => setNuevo({...nuevo, valor: e.target.value})} />
           <input type="date" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none text-slate-400" value={nuevo.fecha_expiracion} onChange={e => setNuevo({...nuevo, fecha_expiracion: e.target.value})} />
-          {/* Vac??o = sin l??mite de usos. Es lo que habilita el estado AGOTADO en la tabla. */}
-          <input type="number" min="1" placeholder="Usos m??x. (opcional)" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.uso_maximo} onChange={e => setNuevo({...nuevo, uso_maximo: e.target.value})} />
+          {/* Vacío = sin límite de usos. Es lo que habilita el estado AGOTADO en la tabla. */}
+          <input type="number" min="1" placeholder="Usos máx. (opcional)" className="bg-white dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none" value={nuevo.uso_maximo} onChange={e => setNuevo({...nuevo, uso_maximo: e.target.value})} />
           <button onClick={crearCupon} className="bg-amber-500 text-slate-950 font-black rounded-xl hover:bg-amber-600 transition-all flex items-center justify-center gap-2"><Plus size={18}/> CREAR</button>
         </div>
-        {/* El alta no tiene campo `activo` a prop??sito: un cup??n nuevo nace activo
+        {/* El alta no tiene campo `activo` a propósito: un cupón nuevo nace activo
             y se apaga desde la tabla si hace falta. */}
       </div>
       {errorListado && (
@@ -807,7 +807,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
       <div className="overflow-hidden rounded-2xl border dark:border-slate-800">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-widest text-slate-500">
-            <tr><th className="p-4">C??digo</th><th className="p-4">Beneficio</th><th className="p-4">Expiraci??n</th><th className="p-4 text-center">Usos</th><th className="p-4 text-right">Estado</th><th className="p-4 text-right">Acciones</th></tr>
+            <tr><th className="p-4">Código</th><th className="p-4">Beneficio</th><th className="p-4">Expiración</th><th className="p-4 text-center">Usos</th><th className="p-4 text-right">Estado</th><th className="p-4 text-right">Acciones</th></tr>
           </thead>
           <tbody className="divide-y dark:divide-slate-800">
             {cargando ? (
@@ -816,7 +816,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
               </tr>
             ) : cupones.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-[10px] font-black uppercase tracking-widest opacity-50">Todav??a no hay cupones</td>
+                <td colSpan={6} className="p-6 text-center text-[10px] font-black uppercase tracking-widest opacity-50">Todavía no hay cupones</td>
               </tr>
             ) : cupones.map(c => (
               <tr key={c.id} className="dark:text-slate-300">
@@ -826,12 +826,12 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                     <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500">creado {formatearFechaHora(c.creado_en)}</div>
                   )}
                 </td>
-                {/* `valor` tambi??n es DECIMAL: sin el Number() un 20% se ve??a
+                {/* `valor` también es DECIMAL: sin el Number() un 20% se veía
                     como "20.00%" y un fijo de 5 como "USD 5.00" con el mismo
-                    formato pero sin saber qu?? significaba. */}
+                    formato pero sin saber qué significaba. */}
                 <td className="p-4">{c.tipo === 'porcentaje' ? `${Number(c.valor)}%` : importeUsd(c.valor)}</td>
-                <td className="p-4 text-xs">{c.fecha_expiracion ? formatearFechaCorta(c.fecha_expiracion) : '??? Sin l??mite'}</td>
-                <td className="p-4 text-center text-xs font-mono">{c.usos_actuales} / {c.uso_maximo || '???'}</td>
+                <td className="p-4 text-xs">{c.fecha_expiracion ? formatearFechaCorta(c.fecha_expiracion) : '∞ Sin límite'}</td>
+                <td className="p-4 text-center text-xs font-mono">{c.usos_actuales} / {c.uso_maximo || '∞'}</td>
                 <td className="p-4 text-right">
                   <div className="flex items-center justify-end gap-1 flex-wrap">
                     {estaVencido(c) && <span className="text-[9px] font-black px-2 py-1 rounded bg-red-500/10 text-red-500">VENCIDO</span>}
@@ -844,15 +844,15 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 text-right leading-tight">
                         {porConfirmar.accion === 'borrar'
-                          ? `??Borrar ${c.codigo}? Los pedidos hechos no se tocan.`
-                          : `??Poner en cero los usos de ${c.codigo}?`}
+                          ? `¿Borrar ${c.codigo}? Los pedidos hechos no se tocan.`
+                          : `¿Poner en cero los usos de ${c.codigo}?`}
                       </span>
                       <button
                         type="button"
                         onClick={() => porConfirmar.accion === 'borrar' ? void borrarCupon(c) : void resetearUsos(c)}
                         className="px-2.5 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[9px] font-black uppercase transition-colors"
                       >
-                        S??
+                        Sí
                       </button>
                       <button
                         type="button"
@@ -864,16 +864,16 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                     </div>
                   ) : (
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => abrirEdicion(c)} title="Editar cup??n" className="p-2 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white transition-all">
+                      <button onClick={() => abrirEdicion(c)} title="Editar cupón" className="p-2 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white transition-all">
                         <Edit2 size={14} />
                       </button>
                       <button onClick={() => setPorConfirmar({ id: c.id, accion: 'resetear' })} disabled={ocupado === c.id || Number(c.usos_actuales || 0) === 0} title="Resetear el contador de usos" className="p-2 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-slate-950 transition-all disabled:opacity-30">
                         <RotateCcw size={14} />
                       </button>
-                      <button onClick={() => void toggleActivo(c)} disabled={ocupado === c.id} title={c.activo ? 'Desactivar cup??n' : 'Activar cup??n'} className="p-2 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-slate-950 transition-all disabled:opacity-30">
+                      <button onClick={() => void toggleActivo(c)} disabled={ocupado === c.id} title={c.activo ? 'Desactivar cupón' : 'Activar cupón'} className="p-2 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-slate-950 transition-all disabled:opacity-30">
                         <Power size={14} />
                       </button>
-                      <button onClick={() => setPorConfirmar({ id: c.id, accion: 'borrar' })} disabled={ocupado === c.id} title="Borrar cup??n" className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-30">
+                      <button onClick={() => setPorConfirmar({ id: c.id, accion: 'borrar' })} disabled={ocupado === c.id} title="Borrar cupón" className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-30">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -890,13 +890,13 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
           className="fixed inset-0 z-[110] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
-          aria-label={`Editar cup??n ${editando.codigo}`}
+          aria-label={`Editar cupón ${editando.codigo}`}
         >
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-amber-500">Editar Cup??n</h3>
-                <p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mt-1">#{editando.id} ?? PUT parcial: solo se tocan los campos del formulario</p>
+                <h3 className="text-sm font-black uppercase tracking-widest text-amber-500">Editar Cupón</h3>
+                <p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mt-1">#{editando.id} · PUT parcial: solo se tocan los campos del formulario</p>
               </div>
               <button onClick={cerrarEdicion} aria-label="Cerrar" className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <X size={18} />
@@ -905,7 +905,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">C??digo</label>
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Código</label>
                 <input
                   className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none uppercase font-bold"
                   value={formEdicion.codigo}
@@ -937,7 +937,7 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Expiraci??n (vac??o = sin l??mite)</label>
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Expiración (vacío = sin límite)</label>
                 <input
                   type="date"
                   className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none text-slate-700 dark:text-slate-200"
@@ -946,11 +946,11 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Usos m??x. (vac??o = ilimitado)</label>
+                <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Usos máx. (vacío = ilimitado)</label>
                 <input
                   type="number"
                   min="1"
-                  placeholder="Sin l??mite"
+                  placeholder="Sin límite"
                   className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none"
                   value={formEdicion.uso_maximo}
                   onChange={e => setFormEdicion({ ...formEdicion, uso_maximo: e.target.value })}
@@ -962,13 +962,13 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
                   type="number"
                   min="0"
                   disabled={formEdicion.uso_maximo === ''}
-                  title={formEdicion.uso_maximo === '' ? 'Sin l??mite de usos no hay contador que editar' : 'Ajust?? el contador a mano (ej: dejarlo en 0 para reutilizar el cup??n)'}
+                  title={formEdicion.uso_maximo === '' ? 'Sin límite de usos no hay contador que editar' : 'Ajustá el contador a mano (ej: dejarlo en 0 para reutilizar el cupón)'}
                   className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-sm border-none ring-1 ring-slate-200 dark:ring-slate-700 outline-none disabled:opacity-40 disabled:cursor-not-allowed font-mono"
                   value={formEdicion.usos_actuales}
                   onChange={e => setFormEdicion({ ...formEdicion, usos_actuales: e.target.value })}
                 />
                 {formEdicion.uso_maximo === '' && (
-                  <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">Sin usos m??x. no hay contador</p>
+                  <p className="text-[9px] font-bold uppercase text-slate-400 mt-1">Sin usos máx. no hay contador</p>
                 )}
               </div>
               <div>
@@ -1013,19 +1013,19 @@ function CouponManager({ getApiUrl }: { getApiUrl: () => string }) {
   );
 }
 
-// --- ORDERS LIST CON CORRECCI??N ---
+// --- ORDERS LIST CON CORRECCIÓN ---
 function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: () => string, onOrderUpdate: () => void, setSessionError: (val: boolean) => void }) {
   const [orders, setOrders] = useState<PedidoApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'pending' | 'history'>('pending');
-  // Errores de la ??ltima acci??n (cancelar/finalizar): se muestran en la lista
+  // Errores de la última acción (cancelar/finalizar): se muestran en la lista
   // en vez de un alert(), para que el motivo (404/409 del server) quede a la vista.
   const [errorPedidos, setErrorPedidos] = useState('');
-  // Pedido con una operaci??n en curso: deshabilita sus botones para no
-  // mandar dos veces el mismo PUT (el segundo responder??a 409).
+  // Pedido con una operación en curso: deshabilita sus botones para no
+  // mandar dos veces el mismo PUT (el segundo respondería 409).
   const [ocupadoPedido, setOcupadoPedido] = useState<number | null>(null);
-  // El loader tapaba el componente entero, as?? que cada vez que se cancelaba o
-  // finalizaba un pedido la lista desaparec??a y volv??a a aparecer. Con `cargado`
+  // El loader tapaba el componente entero, así que cada vez que se cancelaba o
+  // finalizaba un pedido la lista desaparecía y volvía a aparecer. Con `cargado`
   // solo se reemplaza todo en la primera carga; las recargas siguientes dejan
   // ver la lista vieja mientras llega la nueva.
   const [cargado, setCargado] = useState(false);
@@ -1036,9 +1036,9 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
       setLoading(true);
       const res = await fetch(`${getApiUrl()}/api/pedidos`, { credentials: 'include' });
       // Un 200 con cuerpo que no es un arreglo (o un 401) tiene que quedar
-      // dicho: si no, la lista vac??a se lee como "no ten??s pedidos".
+      // dicho: si no, la lista vacía se lee como "no tenés pedidos".
       if (!res.ok) {
-        setErrorListado(mensajeDeError(await res.json().catch(() => null), `el servidor respondi?? ${res.status}`));
+        setErrorListado(mensajeDeError(await res.json().catch(() => null), `el servidor respondió ${res.status}`));
         if (res.status === 401) setSessionError(true);
         return;
       }
@@ -1046,7 +1046,7 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
       setOrders(Array.isArray(data) ? (data as PedidoApi[]) : []);
       setErrorListado('');
     } catch {
-      setErrorListado('No se pudo cargar el listado de pedidos: error de conexi??n con el servidor.');
+      setErrorListado('No se pudo cargar el listado de pedidos: error de conexión con el servidor.');
     } finally {
       setLoading(false);
       setCargado(true);
@@ -1055,7 +1055,7 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
   useEffect(() => { fetchOrders(); }, []);
 
   const finalizarPedido = async (order: PedidoApi) => {
-    if (!confirm("??Finalizar?")) return;
+    if (!confirm("¿Finalizar?")) return;
     setOcupadoPedido(order.id_pedido);
     setErrorPedidos('');
     try {
@@ -1066,21 +1066,21 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
         setSessionError(true);
       } else {
         const cuerpo: unknown = await res.json().catch(() => null);
-        setErrorPedidos(`Pedido #${order.numero_orden ?? order.id_pedido}: ${mensajeDeError(cuerpo, `el servidor respondi?? ${res.status}`)}`);
+        setErrorPedidos(`Pedido #${order.numero_orden ?? order.id_pedido}: ${mensajeDeError(cuerpo, `el servidor respondió ${res.status}`)}`);
       }
-    } catch { setErrorPedidos('No se pudo finalizar: error de conexi??n con el servidor.'); }
+    } catch { setErrorPedidos('No se pudo finalizar: error de conexión con el servidor.'); }
     finally { setOcupadoPedido(null); }
   };
 
   const cancelarPedido = async (order: PedidoApi) => {
-    if (!confirm("??Cancelar pedido? Se devolver?? el stock al inventario.")) return;
+    if (!confirm("¿Cancelar pedido? Se devolverá el stock al inventario.")) return;
 
     setOcupadoPedido(order.id_pedido);
     setErrorPedidos('');
     try {
-      // SIN `items`: el server repone el stock desde el snapshot que se guard??
-      // en la fila del pedido. Mandarlos desde ac?? era redundante y, si la
-      // lista ven??a desactualizada, pod??a devolver stock equivocado.
+      // SIN `items`: el server repone el stock desde el snapshot que se guardó
+      // en la fila del pedido. Mandarlos desde acá era redundante y, si la
+      // lista venía desactualizada, podía devolver stock equivocado.
       const res = await fetch(`${getApiUrl()}/api/pedidos/${order.id_pedido}/cancelar`, {
         method: 'PUT',
         credentials: 'include'
@@ -1095,10 +1095,10 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
         // 404 = el pedido no existe; 409 = ya estaba cancelado o su estado es
         // terminal. El server lo explica y se muestra tal cual.
         const cuerpo: unknown = await res.json().catch(() => null);
-        setErrorPedidos(`Pedido #${order.numero_orden ?? order.id_pedido}: ${mensajeDeError(cuerpo, `el servidor respondi?? ${res.status}`)}`);
+        setErrorPedidos(`Pedido #${order.numero_orden ?? order.id_pedido}: ${mensajeDeError(cuerpo, `el servidor respondió ${res.status}`)}`);
       }
     } catch {
-      setErrorPedidos('No se pudo cancelar: error de conexi??n con el servidor.');
+      setErrorPedidos('No se pudo cancelar: error de conexión con el servidor.');
     } finally {
       setOcupadoPedido(null);
     }
@@ -1124,7 +1124,7 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
       <div className="grid gap-4">
         {currentOrders.length === 0 ? (
           <p className="py-10 text-center text-[10px] font-black uppercase tracking-widest opacity-50">
-            {orders.length === 0 ? 'Todav??a no hay pedidos' : 'No hay pedidos en esta pesta??a'}
+            {orders.length === 0 ? 'Todavía no hay pedidos' : 'No hay pedidos en esta pestaña'}
           </p>
         ) : currentOrders.map(order => (
           <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
@@ -1163,7 +1163,7 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
           </div>
         ))}
         {currentOrders.length === 0 && (
-          <div className="text-center py-10 text-slate-400 uppercase text-[10px] font-black italic">No hay pedidos en esta secci??n</div>
+          <div className="text-center py-10 text-slate-400 uppercase text-[10px] font-black italic">No hay pedidos en esta sección</div>
         )}
       </div>
     </div>
@@ -1173,10 +1173,10 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
 function UserManual() {
   return (
     <div className="p-4 space-y-4 text-sm dark:text-slate-400">
-      <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda r??pida</h3>
-      <p>??? El buscador filtra por t??tulo o artista en tiempo real.</p>
-      <p>??? Los iconos de <strong>M??sica</strong> y <strong>Escudo</strong> indican el g??nero y calidad cargados.</p>
-      <p>??? <strong>Sesi??n Robusta:</strong> El sistema env??a un "latido" cada 10s para mantener tu acceso exclusivo y liberar la sesi??n al cerrar.</p>
+      <h3 className="font-black dark:text-white uppercase flex items-center gap-2"><Disc size={18} className="text-amber-500"/> Ayuda rápida</h3>
+      <p>• El buscador filtra por título o artista en tiempo real.</p>
+      <p>• Los iconos de <strong>Música</strong> y <strong>Escudo</strong> indican el género y calidad cargados.</p>
+      <p>• <strong>Sesión Robusta:</strong> El sistema envía un "latido" cada 10s para mantener tu acceso exclusivo y liberar la sesión al cerrar.</p>
     </div>
   );
 }
