@@ -76,6 +76,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.use('/uploads', express.static(uploadDir));
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 app.get('/android-update.json', (req, res, next) => {
     res.sendFile(path.join(__dirname, 'android-update.json'), err => {
         if (err) next(err);
