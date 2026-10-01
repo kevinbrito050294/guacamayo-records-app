@@ -2,6 +2,7 @@ package com.guacamayorecords.admin;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,19 +26,35 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Executor;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+import android.util.Log;
+import android.webkit.JavascriptInterface;
+
 public class MainActivity extends BridgeActivity {
     private static final String UPDATE_URL =
             "https://www.guacamayorecords.com/android-update.json";
+    private static final String KEY_ALIAS = "guacamayo-admin-credentials";
+    private static final String CREDENTIALS_PREFS = "admin_biometric_credentials";
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private boolean biometricPromptShown;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getBridge().getWebView().addJavascriptInterface(new AndroidBiometricBridge(), "AndroidBiometric");
         // WebView restores httpOnly cookies asynchronously after the activity
         // starts; checking immediately can miss an existing admin session.
         new Handler(Looper.getMainLooper()).postDelayed(this::checkBiometricUnlock, 1500);
@@ -75,6 +92,12 @@ public class MainActivity extends BridgeActivity {
                         Toast.makeText(MainActivity.this,
                                 "No se pudo verificar la huella.", Toast.LENGTH_SHORT).show();
                     }
+
+                    @Override
+                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                        super.onAuthenticationSucceeded(result);
+                        autoLoginWithStoredCredentials();
+                    }
                 });
 
         BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
@@ -85,6 +108,92 @@ public class MainActivity extends BridgeActivity {
                 .setConfirmationRequired(false)
                 .build();
         prompt.authenticate(promptInfo);
+    }
+
+    private void autoLoginWithStoredCredentials() {
+        String[] credentials = readAdminCredentials();
+        if (credentials == null) {
+            runOnUiThread(() -> Toast.makeText(this,
+                    "Ingresá una vez con email y contraseña para activar la huella.",
+                    Toast.LENGTH_LONG).show());
+            return;
+        }
+
+        String script = "(async function(){const response=await fetch('/api/admin/login',{" +
+                "method:'POST',credentials:'include',headers:{'Content-Type':'application/json'}," +
+                "body:JSON.stringify({email:" + JSONObject.quote(credentials[0]) +
+                ",password:" + JSONObject.quote(credentials[1]) + "})});" +
+                "if(response.ok){window.location.reload();}" +
+                "else{alert('No se pudo iniciar sesión con la credencial guardada.');}" +
+                "})();";
+        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript(script, null));
+    }
+
+    private SecretKey getCredentialsKey() throws Exception {
+        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+        keyStore.load(null);
+        if (!keyStore.containsAlias(KEY_ALIAS)) {
+            KeyGenerator generator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+            generator.init(new KeyGenParameterSpec.Builder(
+                    KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .build());
+            generator.generateKey();
+        }
+        return ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEY_ALIAS, null)).getSecretKey();
+    }
+
+    private String encryptCredential(String value) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, getCredentialsKey());
+        String iv = Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP);
+        String encrypted = Base64.encodeToString(
+                cipher.doFinal(value.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
+        return iv + ":" + encrypted;
+    }
+
+    private String decryptCredential(String value) throws Exception {
+        String[] parts = value.split(":", 2);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, getCredentialsKey(), new GCMParameterSpec(
+                128, Base64.decode(parts[0], Base64.NO_WRAP)));
+        return new String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8);
+    }
+
+    private void saveAdminCredentials(String email, String password) {
+        try {
+            getSharedPreferences(CREDENTIALS_PREFS, MODE_PRIVATE).edit()
+                    .putString("email", encryptCredential(email))
+                    .putString("password", encryptCredential(password))
+                    .apply();
+        } catch (Exception error) {
+            Log.e("GuacamayoAdmin", "No se pudieron guardar las credenciales seguras", error);
+            runOnUiThread(() -> Toast.makeText(this,
+                    "No se pudo activar el acceso biométrico.", Toast.LENGTH_LONG).show());
+        }
+    }
+
+    private String[] readAdminCredentials() {
+        try {
+            SharedPreferences preferences = getSharedPreferences(CREDENTIALS_PREFS, MODE_PRIVATE);
+            String email = preferences.getString("email", null);
+            String password = preferences.getString("password", null);
+            if (email == null || password == null) return null;
+            return new String[]{decryptCredential(email), decryptCredential(password)};
+        } catch (Exception error) {
+            return null;
+        }
+    }
+
+    public final class AndroidBiometricBridge {
+        @JavascriptInterface
+        public void saveAdminCredentials(String email, String password) {
+            if (email != null && !email.isEmpty() && password != null && !password.isEmpty()) {
+                MainActivity.this.saveAdminCredentials(email, password);
+            }
+        }
     }
 
     private void checkForUpdate() {
