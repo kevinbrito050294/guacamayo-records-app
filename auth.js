@@ -29,6 +29,7 @@ const COOKIE_ADMIN = 'gr_admin';
 const COOKIE_CLIENTE = 'gr_cliente';
 const HORAS_SESION_ADMIN = 12;
 const DIAS_SESION_CLIENTE = 30;
+const MINUTOS_INACTIVIDAD_CLIENTE = 15;
 const MINUTOS_ACTIVIDAD_ADMIN = 1;   // lock de sesion unica (423)
 const MAX_INTENTOS = 5;               // intentos fallidos por email+ip
 const VENTANA_INTENTOS_MS = 15 * 60 * 1000;
@@ -216,12 +217,13 @@ async function leerSesion(sql, req, tipo) {
            LEFT JOIN \`admin_usuarios\` a ON a.\`id\` = s.\`admin_usuario_id\`
            LEFT JOIN \`usuarios\` u ON u.\`id\` = s.\`usuario_id\`
           WHERE s.\`token_hash\` = ?
-            AND s.\`tipo\` = ?
-            AND s.\`expira_en\` > NOW()
-            AND (s.\`tipo\` <> 'admin'   OR a.\`activo\` = 1)
+             AND s.\`tipo\` = ?
+             AND s.\`expira_en\` > NOW()
+             AND (s.\`tipo\` <> 'cliente' OR s.\`ultima_actividad\` > DATE_SUB(NOW(), INTERVAL ? MINUTE))
+             AND (s.\`tipo\` <> 'admin'   OR a.\`activo\` = 1)
             AND (s.\`tipo\` <> 'cliente' OR u.\`activo\` = 1)
           LIMIT 1`,
-        [hashToken(token), tipo]
+        [hashToken(token), tipo, MINUTOS_INACTIVIDAD_CLIENTE]
     );
 
     const sesion = filas[0];

@@ -76,6 +76,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.use('/uploads', express.static(uploadDir));
+app.get('/android-update.json', express.static(path.join(__dirname, 'android-update.json')));
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- CONEXI??N DB (RAILWAY) ---
