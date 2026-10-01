@@ -10,16 +10,19 @@ interface CatalogProps {
   onAddToCart: (vinilo: ViniloCatalogo) => void;
   divisaActiva: 'USD' | 'ARS' | 'USDT';
   carrito: CarritoItem[];
-  tasas: ConfiguracionDivisa[]; // <-- AÑADIDO
+  tasas: ConfiguracionDivisa[]; // <-- A??ADIDO
+  // Favoritos: opcionales para no romper los usos de Catalog sin cuenta.
+  idsFavoritos?: Set<number>;
+  onToggleFavorito?: (id: string) => void;
 }
 
-export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: CatalogProps) {
+export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas, idsFavoritos, onToggleFavorito }: CatalogProps) {
   const [busqueda, setBusqueda] = useState('');
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   
   const discosRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // LÓGICA DE CONVERSIÓN LOCAL (Más rápido y sin errores de API individual)
+  // L??GICA DE CONVERSI??N LOCAL (M??s r??pido y sin errores de API individual)
   const preciosMap = useMemo(() => {
     const mapa: { [key: string]: PreciosConvertidos } = {};
     
@@ -28,10 +31,15 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
     const tasaUsdt = tasas.find(t => t.tipo === 'USDT')?.tasa || 1;
 
     vinilos.forEach(v => {
+      // `precio_venta` es DECIMAL y llega como string: la aritm??tica de abajo lo
+      // convertir??a sola, pero `usd` se queda con el valor crudo y despu??s se
+      // formatea con toFixed(). Sin el Number() expl??cito, cambiar a pesos o
+      // USDT andar??a de milagro y ver el precio en USD romper??a la card.
+      const precioUsd = Number(v.precio_venta);
       mapa[v.id] = {
-        usd: v.precio_venta,
-        ars: v.precio_venta * tasaBlue,
-        usdt: (v.precio_venta * tasaBlue) / tasaUsdt
+        usd: precioUsd,
+        ars: precioUsd * tasaBlue,
+        usdt: (precioUsd * tasaBlue) / tasaUsdt
       };
     });
     return mapa;
@@ -59,7 +67,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
     }
   };
 
-  // Función auxiliar para formatear precios según divisa
+  // Funci??n auxiliar para formatear precios seg??n divisa
   const formatearPrecio = (id: string) => {
     const p = preciosMap[id];
     if (!p) return '...';
@@ -76,7 +84,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
   return (
     <main className="max-w-7xl mx-auto px-4 py-6 md:py-12 transition-colors duration-500 overflow-x-hidden">
       
-      {/* HEADER: LOGO Y TÍTULO */}
+      {/* HEADER: LOGO Y T??TULO */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 md:mb-16">
         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 text-center md:text-left">
           <div className="relative w-20 h-20 md:w-24 md:h-24 shadow-2xl rounded-2xl overflow-hidden border-4 border-white dark:border-slate-800 rotate-[-3deg] ring-2 ring-amber-400/20 flex-shrink-0">
@@ -89,7 +97,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
               <span className="text-amber-500 block md:inline md:ml-3">RECORDS</span>
             </h1>
             <p className="text-slate-700 dark:text-slate-400 mt-2 text-lg md:text-xl font-medium tracking-tight">
-              Los mejores <span className="text-amber-600/80 dark:text-amber-400 font-bold">vinilos</span> con la mejor cotización
+              Los mejores <span className="text-amber-600/80 dark:text-amber-400 font-bold">vinilos</span> con la mejor cotizaci??n
             </p>
           </div>
         </div>
@@ -100,7 +108,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar artista o álbum..."
+              placeholder="Buscar artista o ??lbum..."
               value={busqueda}
               onChange={(e) => {
                 setBusqueda(e.target.value);
@@ -145,6 +153,8 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
                   onAdd={() => onAddToCart(vinilo)}
                   divisaActiva={divisaActiva}
                   carrito={carrito}
+                  favorito={idsFavoritos ? idsFavoritos.has(Number(vinilo.id)) : false}
+                  onToggleFavorito={onToggleFavorito}
                 />
               </div>
             ))}
@@ -157,7 +167,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
         )}
       </div>
 
-      {/* FOOTER DE COTIZACIÓN */}
+      {/* FOOTER DE COTIZACI??N */}
       <div className="mt-12 md:mt-20 p-6 md:p-8 bg-slate-900 dark:bg-amber-500 rounded-[2rem] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 transition-all">
         <div className="flex items-center gap-4">
           <div className="bg-amber-400/20 dark:bg-slate-900/20 p-3 rounded-xl">
@@ -174,7 +184,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas }: 
         </div>
         
         <div className="text-[10px] font-black text-emerald-400 dark:text-slate-900 border border-emerald-500/40 dark:border-slate-900/40 px-6 py-3 rounded-full uppercase tracking-widest bg-emerald-500/5">
-          ● Cotización Actualizada
+          ??? Cotizaci??n Actualizada
         </div>
       </div>
     </main>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Upload, AlertCircle, Check } from 'lucide-react';
+import { apiUrl } from '../../lib/api';
 
 interface CSVRow {
   codigo?: string;
@@ -72,9 +73,7 @@ export function BulkImporter() {
     try {
       setLoading(true);
 
-      const apiBaseUrl = window.location.hostname === 'localhost'
-        ? 'http://localhost:3001'
-        : window.location.origin;
+      const apiBaseUrl = apiUrl();
 
       // Enviamos todo el lote en una sola peticion (transaccion unica en el servidor)
       const lote = preview
@@ -93,6 +92,7 @@ export function BulkImporter() {
 
       const response = await fetch(`${apiBaseUrl}/api/vinilos/bulk-update`, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(lote),
       });
@@ -167,7 +167,7 @@ export function BulkImporter() {
             <table className="w-full text-sm">
               <thead className="bg-slate-100 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-2 text-left font-semibold text-slate-900">Código</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-900">C??digo</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-900">Imagen URL</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-900">Stock</th>
                 </tr>

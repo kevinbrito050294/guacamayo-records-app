@@ -9,11 +9,11 @@ export function CurrencySelector({ divisaActual, onDivisaChange }: CurrencySelec
   return (
     <div className="relative flex items-center bg-slate-100 dark:bg-slate-800/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-500/50 transition-all group shadow-inner min-w-0">
       
-      {/* Icono decorativo - Se oculta en móviles muy pequeños para ganar espacio */}
+      {/* Icono decorativo - Se oculta en m??viles muy peque??os para ganar espacio */}
       <Wallet className="hidden xs:block w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 mr-1.5 sm:mr-2 transition-colors flex-shrink-0" />
       
       <div className="flex flex-col min-w-0 overflow-hidden">
-        {/* Etiqueta pequeña superior: Acortada en móvil para que no desborde */}
+        {/* Etiqueta peque??a superior: Acortada en m??vil para que no desborde */}
         <span className="text-[7px] sm:text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase leading-none mb-0.5 tracking-tighter truncate">
           <span className="xs:hidden">Divisa</span>
           <span className="hidden xs:inline">Moneda Principal</span>

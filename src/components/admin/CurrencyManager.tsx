@@ -19,7 +19,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
   async function cargarTasas() {
     try {
       setLoading(true);
-      const response = await fetch(`${getApiUrl()}/api/configuracion_divisas`);
+      const response = await fetch(`${getApiUrl()}/api/configuracion_divisas`, { credentials: 'include' });
       
       if (!response.ok) throw new Error('Error al conectar con el servidor');
       
@@ -29,7 +29,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
       if (Array.isArray(data)) {
         setTasas(data);
       } else {
-        console.error('La API no devolvió un array:', data);
+        console.error('La API no devolvi?? un array:', data);
         setTasas([]);
       }
     } catch (error) {
@@ -50,6 +50,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
       setSaving(true);
       const response = await fetch(`${getApiUrl()}/api/configuracion_divisas/${tipo}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tasa: nuevaTasa })
       });
@@ -58,10 +59,10 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
 
       setMessage({ type: 'success', text: `Tasa ${tipo.replace('_', ' ')} actualizada correctamente` });
       
-      // Limpiamos el mensaje después de 3 segundos
+      // Limpiamos el mensaje despu??s de 3 segundos
       setTimeout(() => setMessage(null), 3000);
       
-      // Recargamos para ver la fecha de actualización nueva
+      // Recargamos para ver la fecha de actualizaci??n nueva
       await cargarTasas(); 
     } catch (error) {
       console.error('Error saving rate:', error);
@@ -74,14 +75,14 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 dark:text-slate-400">
-        <div className="animate-spin text-3xl mb-4">💿</div>
+        <div className="animate-spin text-3xl mb-4">????</div>
         <p className="font-mono text-[10px] tracking-widest uppercase font-black">Sincronizando divisas...</p>
       </div>
     );
   }
 
   const etiquetas: { [key: string]: string } = {
-    DOLAR_BLUE: 'Dólar Blue (ARS)',
+    DOLAR_BLUE: 'D??lar Blue (ARS)',
     USDT: 'USDT (P2P Binance)',
   };
 
@@ -160,7 +161,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
 
       <div className="p-5 bg-slate-900 dark:bg-slate-800/80 rounded-3xl border-l-4 border-amber-500 shadow-xl">
         <p className="text-[11px] text-slate-300 leading-relaxed font-medium uppercase tracking-tight">
-          <strong className="text-amber-500">⚠️ ATENCIÓN:</strong> El cambio en estas tasas afecta globalmente el precio en pesos (ARS) de todo el catálogo. Asegúrate de que los valores sean correctos antes de actualizar.
+          <strong className="text-amber-500">?????? ATENCI??N:</strong> El cambio en estas tasas afecta globalmente el precio en pesos (ARS) de todo el cat??logo. Aseg??rate de que los valores sean correctos antes de actualizar.
         </p>
       </div>
     </div>

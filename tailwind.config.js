@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // 1. IMPORTANTE: Esto permite que el botón active el modo oscuro
+  // 1. IMPORTANTE: Esto permite que el bot??n active el modo oscuro
   darkMode: 'class', 
   
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -11,7 +11,7 @@ export default {
       fontFamily: {
         guacamayo: ['"Bebas Neue"', 'sans-serif'],
       },
-      // 3. OPCIONAL: Colores personalizados si quieres el ámbar exacto
+      // 3. OPCIONAL: Colores personalizados si quieres el ??mbar exacto
       colors: {
         guacamayo: {
           yellow: '#F2C94C', // El amarillo de tu logo

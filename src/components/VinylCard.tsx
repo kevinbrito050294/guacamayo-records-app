@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { ViniloCatalogo, PreciosConvertidos, CarritoItem } from '../types/database';
-import { Plus, ShoppingCart, X, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Plus, ShoppingCart, X, ChevronLeft, ChevronRight, AlertCircle, Heart } from 'lucide-react';
+// `precio_venta` es DECIMAL y llega como string: el formateo del precio en USD
+// pasa por el helper que ya usan el cat??logo, los favoritos y "mis pedidos", as??
+// que la card no inventa su propio `Number(...).toFixed(2)`.
+import { importeUsd } from '../lib/cuenta';
 
 interface VinylCardProps {
   vinilo: ViniloCatalogo;
@@ -8,13 +12,16 @@ interface VinylCardProps {
   onAdd: () => void;
   divisaActiva: 'USD' | 'ARS' | 'USDT';
   carrito: CarritoItem[]; // <-- Agregamos el carrito para validar stock en tiempo real
+  // Favoritos: opcionales para que la card siga sirviendo sin sesi??n.
+  favorito?: boolean;
+  onToggleFavorito?: (id: string) => void;
 }
 
-export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: VinylCardProps) {
+export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favorito = false, onToggleFavorito }: VinylCardProps) {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [fotoActual, setFotoActual] = useState(0);
 
-  // LOGICA DE STOCK DINÁMICO
+  // LOGICA DE STOCK DIN??MICO
   const itemEnCarrito = carrito.find(item => item.vinilo.id === vinilo.id);
   const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
   
@@ -26,11 +33,11 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
   const hayVariasFotos = imagenes.length > 1;
 
   const renderPrecioPrincipal = () => {
-    if (!precios) return `USD ${Number(vinilo.precio_venta).toFixed(2)}`;
+    if (!precios) return importeUsd(vinilo.precio_venta);
     switch (divisaActiva) {
       case 'ARS': return precios.ars > 0 ? `$${Math.round(precios.ars).toLocaleString('es-AR')}` : 'Consultar';
       case 'USDT': return `${precios.usdt.toFixed(2)} USDT`;
-      default: return `USD ${Number(vinilo.precio_venta).toFixed(2)}`;
+      default: return importeUsd(vinilo.precio_venta);
     }
   };
 
@@ -48,7 +55,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
     <>
       <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-300 group ${limiteAlcanzado && !sinStockReal ? 'ring-2 ring-amber-500/30' : ''}`}>
         
-        {/* IMAGEN DEL VINILO CON NAVEGACIÓN INTERNA */}
+        {/* IMAGEN DEL VINILO CON NAVEGACI??N INTERNA */}
         <div 
           className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-zoom-in"
           onClick={() => !sinStockReal && imagenes.length > 0 && setModalAbierto(true)}
@@ -71,7 +78,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
             </div>
           )}
 
-          {/* INDICADOR DE POSICIÓN */}
+          {/* INDICADOR DE POSICI??N */}
           {!sinStockReal && hayVariasFotos && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
               {imagenes.map((_, idx) => (
@@ -80,9 +87,26 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
             </div>
           )}
 
-          {/* BADGE DE ESTADO DINÁMICO */}
+          {/* CORAZ??N DE FAVORITO */}
+          {onToggleFavorito && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleFavorito(vinilo.id); }}
+              aria-pressed={favorito}
+              aria-label={favorito ? `Quitar ${vinilo.titulo} de favoritos` : `Agregar ${vinilo.titulo} a favoritos`}
+              className={`absolute top-4 left-4 z-20 p-2 rounded-full shadow-lg backdrop-blur-md transition-all active:scale-90 ${
+                favorito
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'bg-white/90 dark:bg-slate-900/90 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400'
+              }`}
+            >
+              <Heart size={18} className={favorito ? 'fill-current' : ''} />
+            </button>
+          )}
+
+          {/* BADGE DE ESTADO DIN??MICO */}
           <div className={`absolute top-4 right-4 ${sinStockReal ? 'bg-red-500' : limiteAlcanzado ? 'bg-orange-600' : 'bg-slate-900/90 dark:bg-amber-500'} text-white dark:text-slate-950 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider shadow-lg z-20`}>
-            {sinStockReal ? 'Agotado' : limiteAlcanzado ? 'Límite alcanzado' : vinilo.calidad || 'Nuevo'}
+            {sinStockReal ? 'Agotado' : limiteAlcanzado ? 'L??mite alcanzado' : vinilo.calidad || 'Nuevo'}
           </div>
         </div>
         
@@ -106,14 +130,14 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                {limiteAlcanzado && !sinStockReal ? 'Sin más stock' : (divisaActiva === 'ARS' ? 'Precio ARS' : 'Precio Final')}
+                {limiteAlcanzado && !sinStockReal ? 'Sin m??s stock' : (divisaActiva === 'ARS' ? 'Precio ARS' : 'Precio Final')}
               </span>
               {!sinStockReal ? (
                 <>
                   <p className={`text-2xl font-black tracking-tighter transition-colors ${limiteAlcanzado ? 'text-orange-500' : 'text-slate-900 dark:text-amber-500'}`}>
                     {renderPrecioPrincipal()}
                   </p>
-                  {divisaActiva !== 'USD' && <p className="text-[11px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Ref: USD {Number(vinilo.precio_venta).toFixed(2)}</p>}
+                  {divisaActiva !== 'USD' && <p className="text-[11px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Ref: {importeUsd(vinilo.precio_venta)}</p>}
                 </>
               ) : <p className="text-xl font-bold text-slate-400 line-through tracking-tighter">{renderPrecioPrincipal()}</p>}
             </div>
@@ -139,7 +163,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito }: Vin
         </div>
       </div>
 
-      {/* MODAL DE GALERÍA */}
+      {/* MODAL DE GALER??A */}
       {modalAbierto && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 md:p-10 transition-all">
           <button onClick={() => setModalAbierto(false)} className="absolute top-6 right-6 text-white/50 hover:text-white z-50 p-2 bg-white/10 rounded-full transition-colors"><X size={32}/></button>
