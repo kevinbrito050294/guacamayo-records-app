@@ -321,9 +321,9 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
 
 app.put('/api/vinilos/:id', requiereAdmin, (req, res, next) => {
     const { id } = req.params;
-    const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
-    const query = `UPDATE inventario_vinilos SET codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=? WHERE id=?`; 
-    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, id], (err) => {
+    const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, destacado } = req.body;
+    const query = `UPDATE inventario_vinilos SET codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=?, destacado=? WHERE id=?`;
+    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, Number(destacado) === 1 ? 1 : 0, id], (err) => {
         if (err) return next(err);
         res.json({ message: 'OK' });
     });
