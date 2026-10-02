@@ -235,6 +235,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     } catch { alert("❌ Error de conexión"); }
   };
 
+  const iniciarEdicion = (vinilo: ViniloCatalogo) => {
+    setFormEdit({ ...vinilo });
+    setEditandoId(vinilo.id);
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este vinilo?")) return;
     try {
@@ -314,12 +319,41 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                         <input aria-label="Artista" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="Artista" value={formEdit.artista || ''} onChange={e => setFormEdit({ ...formEdit, artista: e.target.value })} />
                         <input aria-label="Código SKU" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="SKU" value={formEdit.codigo || ''} onChange={e => setFormEdit({ ...formEdit, codigo: e.target.value })} />
                       </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input aria-label="Género" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="Género" value={formEdit.genero || ''} onChange={e => setFormEdit({ ...formEdit, genero: e.target.value })} />
+                        <input aria-label="País de origen" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="País de origen" value={formEdit.pais_origen || ''} onChange={e => setFormEdit({ ...formEdit, pais_origen: e.target.value })} />
+                      </div>
                       <div className="grid grid-cols-3 gap-2">
                         <input aria-label="Precio USD" type="number" step="0.01" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="USD" value={formEdit.precio_venta ?? ''} onChange={e => setFormEdit({ ...formEdit, precio_venta: e.target.value })} />
                         <input aria-label="Stock" type="number" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="Stock" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({ ...formEdit, stock_actual: Number(e.target.value) })} />
                         <select aria-label="Calidad" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.calidad || ''} onChange={e => setFormEdit({ ...formEdit, calidad: e.target.value as CalidadVinilo })}>
-                          {['M', 'NM', 'EX', 'VG+', 'VG', 'G'].map(c => <option key={c} value={c}>{c}</option>)}
+                          {['NM', 'EX', 'VG+', 'VG', 'G'].map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
+                      </div>
+                      <textarea aria-label="Descripción" rows={3} className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm resize-y" placeholder="Descripción / detalles" value={formEdit.descripcion || ''} onChange={e => setFormEdit({ ...formEdit, descripcion: e.target.value })} />
+                      <label className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900 p-3 text-xs font-black uppercase dark:text-white cursor-pointer">
+                        <input type="checkbox" checked={Boolean(formEdit.destacado)} onChange={e => setFormEdit({ ...formEdit, destacado: e.target.checked ? 1 : 0 })} className="accent-amber-500 w-4 h-4" />
+                        Mostrar como destacado
+                      </label>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-slate-500">Galería de imágenes</span>
+                          <span className="text-[10px] text-slate-400">{formEdit.imagen_url?.split(',').filter(Boolean).length || 0} fotos</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          {formEdit.imagen_url?.split(',').filter(Boolean).map((url, idx) => (
+                            <div key={`${url}-${idx}`} className={`relative aspect-square rounded-xl overflow-hidden border-2 ${idx === 0 ? 'border-amber-500' : 'border-transparent'}`}>
+                              <img src={renderImage(url)} className="w-full h-full object-cover" alt={`Imagen ${idx + 1}`} />
+                              <div className="absolute inset-x-0 bottom-0 bg-black/65 p-1 flex justify-center gap-1">
+                                {idx !== 0 && <button type="button" onClick={() => hacerPrincipal(idx)} className="p-1 bg-amber-500 text-slate-950 rounded" aria-label="Hacer portada"><Star size={12} /></button>}
+                                <button type="button" onClick={() => eliminarFoto(idx)} className="p-1 bg-red-500 text-white rounded" aria-label="Eliminar imagen"><Trash2 size={12} /></button>
+                              </div>
+                            </div>
+                          ))}
+                          <label className={`aspect-square rounded-xl border-2 border-dashed flex items-center justify-center ${subiendo ? 'border-amber-500 bg-amber-500/10' : 'border-slate-300 dark:border-slate-700 text-slate-400'}`}>
+                            {subiendo ? <Disc className="animate-spin text-amber-500" size={20} /> : <><Plus size={20} /><input type="file" accept="image/*" className="hidden" multiple onChange={handleMultipleFileUpload} disabled={subiendo} /></>}
+                          </label>
+                        </div>
                       </div>
                       <button type="button" onClick={() => handleSave(v.id)} className="w-full bg-emerald-500 text-white py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2"><Save size={16} /> GUARDAR CAMBIOS</button>
                     </div>
@@ -343,7 +377,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                           <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>{v.stock_actual} en stock</div>
                         </div>
                         <div className="flex gap-1">
-                          <button type="button" onClick={() => setEditandoId(v.id)} className="p-3 rounded-xl bg-amber-500/10 text-amber-600" aria-label="Editar vinilo"><Edit2 size={18} /></button>
+                         <button type="button" onClick={() => iniciarEdicion(v)} className="p-3 rounded-xl bg-amber-500/10 text-amber-600" aria-label="Editar vinilo"><Edit2 size={18} /></button>
                           <button type="button" onClick={() => handleDelete(v.id)} className="p-3 rounded-xl bg-red-500/10 text-red-500" aria-label="Eliminar vinilo"><Trash2 size={18} /></button>
                         </div>
                       </div>
@@ -409,7 +443,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Calidad</label>
                                       <select className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold text-amber-500" value={formEdit.calidad || ''} onChange={e => setFormEdit({...formEdit, calidad: e.target.value as CalidadVinilo})}>
-                                        {['M','NM','EX','VG+','VG','G'].map(c => <option key={c} value={c}>{c}</option>)}
+                                         {['NM','EX','VG+','VG','G'].map(c => <option key={c} value={c}>{c}</option>)}
                                       </select>
                                     </div>
                                   </div>
@@ -483,7 +517,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   >
                               <Star size={20} fill={v.destacado ? 'currentColor' : 'none'} />
                                 </button>
-                                <button onClick={() => { setEditandoId(v.id); setFormEdit(v); }} className="p-2 text-slate-400 hover:text-amber-500"><Edit2 size={20}/></button>
+                                 <button onClick={() => iniciarEdicion(v)} className="p-2 text-slate-400 hover:text-amber-500"><Edit2 size={20}/></button>
                                 <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={20}/></button>
                               </div>
                               </td>
