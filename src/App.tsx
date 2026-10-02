@@ -92,7 +92,9 @@ function AppShell() {
       console.error("Error al notificar logout al server:", err); 
     } finally {
       setIsAdminAuthenticated(false);
-      setCurrentPage('catalog');
+      // El cierre del panel no debe dejar al usuario dentro del catálogo ni
+      // conservar una vista administrativa: siempre vuelve al login admin.
+      setCurrentPage('admin');
       setLoginError('');
     }
   }, [getApiUrl]);
