@@ -96,6 +96,9 @@ function AppShell() {
       // conservar una vista administrativa: siempre vuelve al login admin.
       setCurrentPage('admin');
       setLoginError('');
+      // En Android el WebView puede conservar una ruta previa; forzar la URL
+      // admin evita que una navegación externa termine en el catálogo.
+      window.location.replace('/?admin=1');
     }
   }, [getApiUrl]);
 
