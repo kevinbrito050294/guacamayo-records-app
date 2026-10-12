@@ -1,4 +1,4 @@
-import { ConfiguracionDivisa, PreciosConvertidos } from '../types/database';
+import { ConfiguracionDivisa, DecimalValue, MonedaPrecio, PreciosConvertidos, TasasCambio } from '../types/database';
 import { apiUrl } from './api';
 
 let tasasCache: { [key: string]: number } = {};
@@ -6,6 +6,11 @@ let lastFetch = 0;
 
 // Determinamos la URL base dinámicamente
 const API_BASE_URL = apiUrl();
+
+function decimalToNumber(value: DecimalValue): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // Consultamos a nuestro propio servidor Node.js (MySQL)
 async function obtenerTasas() {
@@ -26,7 +31,7 @@ async function obtenerTasas() {
 
     const nuevasTasas: { [key: string]: number } = {};
     data.forEach((config) => {
-      nuevasTasas[config.tipo] = config.tasa;
+      nuevasTasas[config.tipo] = decimalToNumber(config.tasa);
     });
 
     tasasCache = nuevasTasas;
@@ -43,11 +48,50 @@ async function obtenerTasas() {
   }
 }
 
+export async function obtenerTasasDisponibles(): Promise<TasasCambio> {
+  const tasas = await obtenerTasasSinFallback();
+  if (tasas.DOLAR_BLUE <= 0 || tasas.USDT <= 0) {
+    throw new Error('Faltan tasas válidas de DOLAR_BLUE y USDT');
+  }
+  return tasas;
+}
+
+async function obtenerTasasSinFallback(): Promise<TasasCambio> {
+  const ahora = Date.now();
+  if (tasasCache.DOLAR_BLUE > 0 && tasasCache.USDT > 0 && ahora - lastFetch < 60000) {
+    return { DOLAR_BLUE: tasasCache.DOLAR_BLUE, USDT: tasasCache.USDT };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/configuracion_divisas`, { credentials: 'include' });
+  if (!response.ok) throw new Error('No se pudo cargar la configuración de tasas');
+
+  const data: ConfiguracionDivisa[] = await response.json();
+  const nuevasTasas = {
+    DOLAR_BLUE: decimalToNumber(data.find(config => config.tipo === 'DOLAR_BLUE')?.tasa ?? 0),
+    USDT: decimalToNumber(data.find(config => config.tipo === 'USDT')?.tasa ?? 0),
+  };
+  tasasCache = nuevasTasas;
+  lastFetch = ahora;
+  return nuevasTasas;
+}
+
+export function convertirDesdeUsd(precioUSD: number, moneda: MonedaPrecio, tasas: TasasCambio): number {
+  if (moneda === 'USD') return Math.round(precioUSD * 100) / 100;
+  if (moneda === 'ARS') return Math.round(precioUSD * tasas.DOLAR_BLUE * 100) / 100;
+  return Math.round(precioUSD * (tasas.DOLAR_BLUE / tasas.USDT) * 10000) / 10000;
+}
+
+export function convertirAUsd(precio: number, moneda: MonedaPrecio, tasas: TasasCambio): number {
+  if (moneda === 'USD') return precio;
+  if (moneda === 'ARS') return precio / tasas.DOLAR_BLUE;
+  return precio * tasas.USDT / tasas.DOLAR_BLUE;
+}
+
 export async function convertirPrecio(precioUSD: number): Promise<PreciosConvertidos> {
   const tasas = await obtenerTasas();
   
-  const blue = tasas['DOLAR_BLUE'] || 1250;
-  const usdt = tasas['USDT'] || 1200;
+  const blue = decimalToNumber(tasas['DOLAR_BLUE']) || 1250;
+  const usdt = decimalToNumber(tasas['USDT']) || 1200;
 
   return {
     usd: Math.round(precioUSD * 100) / 100,
@@ -57,12 +101,15 @@ export async function convertirPrecio(precioUSD: number): Promise<PreciosConvert
   };
 }
 
-export async function actualizarTasa(tipo: 'DOLAR_BLUE' | 'USDT', nuevaTasa: number) {
+export async function actualizarTasa(tipo: 'DOLAR_BLUE' | 'USDT', nuevaTasa: DecimalValue) {
+  const tasa = decimalToNumber(nuevaTasa);
+  if (tasa <= 0) throw new Error('La tasa debe ser mayor a 0');
+
   const response = await fetch(`${API_BASE_URL}/api/configuracion_divisas/${tipo}`, {
     method: 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tasa: nuevaTasa })
+    body: JSON.stringify({ tasa })
   });
 
   if (!response.ok) {
