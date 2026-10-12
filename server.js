@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { randomBytes } from 'crypto';
+import { randomBytes, createSign } from 'crypto';
 import 'dotenv/config';
 import { crearAuthRouter, middlewaresAuth, limpiarSesionesVencidas, purgarIntentos } from './auth.js';
 
@@ -91,6 +91,65 @@ const db = mysql.createPool(process.env.MYSQL_URL);
 // cupones. El resto de las rutas sigue con db.query() en callbacks.
 const sql = db.promise();
 
+let firebaseTokenCache = null;
+
+function firebaseServiceAccount() {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!raw) return null;
+    try {
+        const account = JSON.parse(raw);
+        return account.project_id && account.client_email && account.private_key ? account : null;
+    } catch (error) {
+        console.error('FIREBASE_SERVICE_ACCOUNT_JSON no es JSON válido:', error.message);
+        return null;
+    }
+}
+
+async function firebaseAccessToken(account) {
+    if (firebaseTokenCache && firebaseTokenCache.expiresAt > Date.now() + 60_000) return firebaseTokenCache.token;
+    const now = Math.floor(Date.now() / 1000);
+    const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const header = encode({ alg: 'RS256', typ: 'JWT' });
+    const claims = encode({ iss: account.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 });
+    const signature = createSign('RSA-SHA256').update(`${header}.${claims}`).sign(account.private_key, 'base64url');
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${header}.${claims}.${signature}` }),
+    });
+    if (!response.ok) throw new Error(`OAuth Firebase respondió ${response.status}`);
+    const data = await response.json();
+    firebaseTokenCache = { token: data.access_token, expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000 };
+    return firebaseTokenCache.token;
+}
+
+async function notificarNuevoPedido({ idPedido, numeroOrden, nombreCliente }) {
+    const account = firebaseServiceAccount();
+    if (!account) return;
+    const [tokens] = await sql.query('SELECT `id`, `token` FROM `admin_push_tokens` WHERE `activo` = 1');
+    if (tokens.length === 0) return;
+    const accessToken = await firebaseAccessToken(account);
+    await Promise.all(tokens.map(async fila => {
+        const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: {
+                token: fila.token,
+                notification: { title: 'Nuevo pedido recibido', body: `${numeroOrden || `#${idPedido}`} · ${nombreCliente || 'Cliente invitado'}` },
+                data: { tipo: 'pedido_nuevo', pedido_id: String(idPedido) },
+                android: { priority: 'high', notification: { channel_id: 'pedidos', sound: 'default' } },
+            } }),
+        });
+        if (response.ok) return;
+        const body = await response.text();
+        if (response.status === 404 || body.includes('UNREGISTERED') || body.includes('INVALID_ARGUMENT')) {
+            await sql.query('DELETE FROM `admin_push_tokens` WHERE `id` = ?', [fila.id]);
+        } else {
+            console.error(`FCM no pudo enviar al token ${fila.id}: HTTP ${response.status}`);
+        }
+    }));
+}
+
 // ==========================================
 // 0. AUTENTICACIÓN (ver auth.js)
 // ==========================================
@@ -98,7 +157,24 @@ const sql = db.promise();
 app.use('/api', crearAuthRouter(db));
 
 // Middlewares para proteger las rutas del backoffice que viven mas abajo.
-const { requiereAdmin, requiereCliente, sesionClienteOpcional } = middlewaresAuth(db);
+const { requiereAdmin, requireAdminRole, requiereCliente, sesionClienteOpcional } = middlewaresAuth(db);
+const requiereAdminMaximo = requireAdminRole('admin');
+
+app.post('/api/admin/push-token', requiereAdmin, async (req, res, next) => {
+    try {
+        const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+        if (!token || token.length > 512) return res.status(400).json({ error: 'Token de notificaciones no válido' });
+        await sql.query(
+            `INSERT INTO \`admin_push_tokens\` (\`admin_usuario_id\`, \`token\`, \`plataforma\`, \`activo\`, \`ultimo_registro\`)
+             VALUES (?, ?, 'android', 1, NOW())
+             ON DUPLICATE KEY UPDATE \`admin_usuario_id\` = VALUES(\`admin_usuario_id\`), \`activo\` = 1, \`ultimo_registro\` = NOW()`,
+            [req.auth.admin.id, token]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
 
 // Limpieza periodica: sesiones vencidas, contadores de intentos de login y
 // ventanas de los rate limits por IP. Las dos ultimas son funciones declaradas
@@ -217,24 +293,234 @@ function purgarRateLimitsPorIP() {
 // ==========================================
 // 1. GESTIÓN DE DIVISAS
 // ==========================================
-// GET es publico: el catalogo necesita las tasas para convertir precios.
-app.get('/api/configuracion_divisas', (req, res, next) => {
-    db.query('SELECT * FROM configuracion_divisas', (err, results) => {
-        // El error de MySQL no se devuelve al cliente: lo responde el error handler
-        // del final, que no filtra nombres de tablas ni de columnas.
-        if (err) return next(err);
-        res.json(results || []);
-    });
+// La migración de modo 2 agrega a configuracion_divisas: modo, fuente,
+// ultima_sincronizacion, estado, error_sincronizacion y sync_slot. `sync_slot` es la
+// marca persistente que evita que dos procesos hagan la misma sincronización.
+// BINANCE_SYNC_HOURS acepta HH:mm separados por coma; por defecto son 09:00 y
+// 21:00. BINANCE_SYNC_TIMEZONE por defecto es America/Argentina/Buenos_Aires.
+const TIPOS_DIVISA = ['DOLAR_BLUE', 'USDT'];
+const BINANCE_SYMBOL = 'USDTARS';
+// api1 mantiene el mismo endpoint oficial y evita el bloqueo geografico que
+// devuelve api.binance.com desde algunas regiones de Railway.
+const BINANCE_API_URLS = (process.env.BINANCE_API_URLS || [
+    process.env.BINANCE_API_URL,
+    'https://data-api.binance.vision/api/v3/ticker/price',
+    'https://api1.binance.com/api/v3/ticker/price',
+    'https://api2.binance.com/api/v3/ticker/price',
+    'https://api.binance.com/api/v3/ticker/price',
+].filter(Boolean).join(','))
+    .split(',')
+    .map(url => url.trim())
+    .filter(Boolean);
+const BINANCE_SYNC_TIMEOUT_MS = 8000;
+const BINANCE_SYNC_HOURS_CONFIGURADAS = (process.env.BINANCE_SYNC_HOURS || '09:00,21:00')
+    .split(',')
+    .map(hora => hora.trim())
+    .filter(hora => /^([01]\d|2[0-3]):[0-5]\d$/.test(hora))
+    .sort();
+const BINANCE_SYNC_HOURS = BINANCE_SYNC_HOURS_CONFIGURADAS.length > 0
+    ? [...new Set(BINANCE_SYNC_HOURS_CONFIGURADAS)]
+    : ['09:00', '21:00'];
+const BINANCE_SYNC_TIMEZONE = process.env.BINANCE_SYNC_TIMEZONE || 'America/Argentina/Buenos_Aires';
+let sincronizacionBinanceEnCurso = null;
+
+const filaDivisaPublica = fila => ({
+    tipo: fila.tipo,
+    tasa: fila.tasa,
+    modo: fila.modo,
+    fuente: fila.fuente,
+    ultima_sincronizacion: fila.ultima_sincronizacion,
+    estado: fila.estado
 });
 
-app.put('/api/configuracion_divisas/:tipo', requiereAdmin, (req, res, next) => {
-    const { tipo } = req.params;
-    const { tasa } = req.body;
-    db.query('UPDATE configuracion_divisas SET tasa = ?, ultima_actualizacion = NOW() WHERE tipo = ?', [tasa, tipo], (err) => {
-        if (err) return next(err);
-        res.json({ success: true });
-    });
+function horaLocalBinance() {
+    let partes;
+    try {
+        partes = new Intl.DateTimeFormat('en-CA', {
+            timeZone: BINANCE_SYNC_TIMEZONE,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }).formatToParts(new Date()).reduce((resultado, parte) => {
+            if (parte.type !== 'literal') resultado[parte.type] = parte.value;
+            return resultado;
+        }, {});
+    } catch (error) {
+        console.error('Zona horaria invalida para Binance:', error.message);
+        return null;
+    }
+    const hora = `${partes.hour}:${partes.minute}`;
+    const programada = BINANCE_SYNC_HOURS.filter(valor => valor <= hora).pop();
+    return programada ? `${partes.year}-${partes.month}-${partes.day}T${programada}` : null;
+}
+
+async function obtenerTasaBinance() {
+    const errores = [];
+    for (const baseUrl of BINANCE_API_URLS) {
+        const controlador = new AbortController();
+        const temporizador = setTimeout(() => controlador.abort(), BINANCE_SYNC_TIMEOUT_MS);
+        try {
+            const url = new URL(baseUrl);
+            url.searchParams.set('symbol', BINANCE_SYMBOL);
+            const respuesta = await fetch(url, { signal: controlador.signal });
+            if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+            const datos = await respuesta.json();
+            const tasa = Number(datos?.price);
+            if (datos?.symbol !== BINANCE_SYMBOL || !Number.isFinite(tasa) || tasa <= 0) {
+                throw new Error('respuesta invalida');
+            }
+            return { tasa, fuente: baseUrl };
+        } catch (error) {
+            errores.push(`${baseUrl}: ${error.message}`);
+        } finally {
+            clearTimeout(temporizador);
+        }
+    }
+    throw new Error(`Binance no disponible (${errores.join('; ')})`);
+}
+
+async function marcarErrorBinance(mensaje) {
+    try {
+        await sql.query(
+            `UPDATE configuracion_divisas
+                SET estado = 'error', fuente = 'binance', error_sincronizacion = ?
+              WHERE tipo IN (?, ?)`,
+            [String(mensaje).slice(0, 500), ...TIPOS_DIVISA]
+        );
+    } catch (error) {
+        console.error('No se pudo registrar el error de Binance:', error.message);
+    }
+}
+
+async function reclamarSlotBinance(slot) {
+    const conexion = await db.promise().getConnection();
+    try {
+        await conexion.beginTransaction();
+        const [filas] = await conexion.query(
+            'SELECT tipo, sync_slot FROM configuracion_divisas WHERE tipo IN (?, ?) FOR UPDATE',
+            TIPOS_DIVISA
+        );
+        if (filas.length !== TIPOS_DIVISA.length || filas.some(fila => fila.sync_slot === slot)) {
+            await conexion.rollback();
+            return false;
+        }
+        await conexion.query(
+            `UPDATE configuracion_divisas
+                SET sync_slot = ?, estado = 'sincronizando', error_sincronizacion = NULL
+              WHERE tipo IN (?, ?)`,
+            [slot, ...TIPOS_DIVISA]
+        );
+        await conexion.commit();
+        return true;
+    } catch (error) {
+        await conexion.rollback();
+        throw error;
+    } finally {
+        conexion.release();
+    }
+}
+
+async function guardarTasaBinance(tasa) {
+    const conexion = await db.promise().getConnection();
+    try {
+        await conexion.beginTransaction();
+        await conexion.query(
+            `UPDATE configuracion_divisas
+                SET tasa = ?, modo = 'binance', fuente = 'binance',
+                    ultima_sincronizacion = NOW(), ultima_actualizacion = NOW(),
+                    estado = 'activo', error_sincronizacion = NULL
+              WHERE tipo IN (?, ?)`,
+            [tasa, ...TIPOS_DIVISA]
+        );
+        await conexion.commit();
+    } catch (error) {
+        await conexion.rollback();
+        throw error;
+    } finally {
+        conexion.release();
+    }
+}
+
+async function sincronizarBinance({ slot = null, forzar = false } = {}) {
+    if (sincronizacionBinanceEnCurso) return sincronizacionBinanceEnCurso;
+    sincronizacionBinanceEnCurso = (async () => {
+        if (!forzar && !(await reclamarSlotBinance(slot))) return { omitida: true };
+        try {
+            const resultado = await obtenerTasaBinance();
+            await guardarTasaBinance(resultado.tasa);
+            return resultado;
+        } catch (error) {
+            await marcarErrorBinance(error.message);
+            throw error;
+        }
+    })();
+    try {
+        return await sincronizacionBinanceEnCurso;
+    } finally {
+        sincronizacionBinanceEnCurso = null;
+    }
+}
+
+// GET es publico: devuelve solo el contrato necesario para el catalogo y el
+// estado operativo. Nunca expone updated_by, errores internos ni configuración.
+app.get('/api/configuracion_divisas', async (req, res, next) => {
+    try {
+        const [filas] = await sql.query(
+            `SELECT tipo, tasa, modo, fuente, ultima_sincronizacion, estado
+               FROM configuracion_divisas WHERE tipo IN (?, ?) ORDER BY tipo`,
+            TIPOS_DIVISA
+        );
+        res.json(filas.map(filaDivisaPublica));
+    } catch (error) {
+        next(error);
+    }
 });
+
+app.put('/api/configuracion_divisas/:tipo', requiereAdminMaximo, async (req, res, next) => {
+    try {
+        const { tipo } = req.params;
+        const { tasa } = req.body || {};
+        if (!TIPOS_DIVISA.includes(tipo)) return res.status(400).json({ error: 'Tipo de divisa invalido' });
+        if (typeof tasa !== 'number' || !Number.isFinite(tasa) || tasa <= 0) {
+            return res.status(400).json({ error: 'La tasa debe ser un numero finito mayor que cero' });
+        }
+        const [resultado] = await sql.query(
+            `UPDATE configuracion_divisas
+                SET tasa = ?, modo = 'manual', fuente = 'manual',
+                    ultima_actualizacion = NOW(), estado = 'activo', error_sincronizacion = NULL
+              WHERE tipo = ?`,
+            [tasa, tipo]
+        );
+        if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Divisa no encontrada' });
+        res.json({ success: true, tipo, tasa, modo: 'manual', fuente: 'manual' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.post('/api/configuracion_divisas/sincronizar-binance', requiereAdminMaximo, async (req, res, next) => {
+    try {
+        const resultado = await sincronizarBinance({ forzar: true });
+        if (resultado.omitida) return res.status(409).json({ error: 'Ya hay una sincronizacion en curso' });
+        res.json({ success: true, fuente: 'binance', tasa: resultado.tasa });
+    } catch (error) {
+        res.status(502).json({ error: 'No se pudo sincronizar Binance' });
+    }
+});
+
+async function revisarSincronizacionBinance() {
+    const slot = horaLocalBinance();
+    if (!slot) return;
+    try {
+        await sincronizarBinance({ slot });
+    } catch (error) {
+        console.error('Error en sincronizacion programada de Binance:', error.message);
+    }
+}
+
+// Revisa cada minuto; el slot se guarda en DB, por lo que no duplica entre
+// reinicios ni entre instancias. No se ejecuta como consecuencia de un GET.
+setInterval(revisarSincronizacionBinance, 60 * 1000).unref();
+revisarSincronizacionBinance().catch(error => console.error('Error iniciando scheduler Binance:', error.message));
 
 // ==========================================
 // 2. GESTIÓN DE VINILOS
@@ -266,6 +552,10 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
 
     for (const item of entradas) {
         if (!item || !item.codigo) return res.status(400).json({ error: 'Cada fila debe incluir codigo' });
+        if (Object.prototype.hasOwnProperty.call(item, 'version') && item.version !== null && item.version !== undefined && item.version !== '') {
+            const version = Number(item.version);
+            if (!Number.isInteger(version) || version < 0) return res.status(400).json({ error: 'version debe ser un entero mayor o igual a 0' });
+        }
         if (item.stock_actual !== null && item.stock_actual !== undefined) {
             const stock = Number(item.stock_actual);
             if (!Number.isInteger(stock) || stock < 0) {
@@ -295,10 +585,21 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
 
                 if (sets.length === 0) return resolve({ actualizados: 0, omitidos: 1 });
 
+                const tieneVersion = Object.prototype.hasOwnProperty.call(item, 'version')
+                    && item.version !== null && item.version !== undefined && item.version !== '';
+                if (tieneVersion) sets.push('version = version + 1');
                 vals.push(item.codigo);
-                conn.query(`UPDATE inventario_vinilos SET ${sets.join(', ')} WHERE codigo = ?`, vals, (e, r) => {
+                if (tieneVersion) vals.push(Number(item.version));
+                const condicion = tieneVersion ? 'WHERE codigo = ? AND version = ?' : 'WHERE codigo = ?';
+                conn.query(`UPDATE inventario_vinilos SET ${sets.join(', ')} ${condicion}`, vals, (e, r) => {
                     if (e) return reject(e);
-                    resolve({ actualizados: r.affectedRows, omitidos: r.affectedRows === 0 ? 1 : 0 });
+                    if (r.affectedRows > 0) return resolve({ actualizados: 1, omitidos: 0, conflictos: 0 });
+                    if (!tieneVersion) return resolve({ actualizados: 0, omitidos: 1, conflictos: 0 });
+                    conn.query('SELECT `id`, `codigo`, `version` FROM inventario_vinilos WHERE codigo = ?', [item.codigo], (consultaError, filas) => {
+                        if (consultaError) return reject(consultaError);
+                        if (filas.length === 0) return resolve({ actualizados: 0, omitidos: 1, conflictos: 0 });
+                        resolve({ actualizados: 0, omitidos: 0, conflictos: [{ codigo: item.codigo, id: filas[0].id, version: Number(filas[0].version) }] });
+                    });
                 });
             }));
 
@@ -306,9 +607,10 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
                 .then(resultados => {
                     const actualizados = resultados.reduce((a, b) => a + b.actualizados, 0);
                     const omitidos = resultados.reduce((a, b) => a + b.omitidos, 0);
+                    const conflictos = resultados.flatMap(resultado => resultado.conflictos || []);
                     conn.commit(() => {
                         conn.release();
-                        res.json({ success: true, actualizados, omitidos, recibidos: entradas.length });
+                        res.json({ success: true, actualizados, omitidos, conflictos, recibidos: entradas.length });
                     });
                 })
                 // La liberacion va primero que el next: si la conexion se devuelve
@@ -322,10 +624,25 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
 app.put('/api/vinilos/:id', requiereAdmin, (req, res, next) => {
     const { id } = req.params;
     const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, destacado } = req.body;
-    const query = `UPDATE inventario_vinilos SET codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=?, destacado=? WHERE id=?`;
-    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, Number(destacado) === 1 ? 1 : 0, id], (err) => {
+    const tieneVersion = Object.prototype.hasOwnProperty.call(req.body || {}, 'version')
+        && req.body.version !== null && req.body.version !== undefined && req.body.version !== '';
+    if (tieneVersion && (!Number.isInteger(Number(req.body.version)) || Number(req.body.version) < 0)) {
+        return res.status(400).json({ error: 'version debe ser un entero mayor o igual a 0' });
+    }
+    const campos = 'codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=?, destacado=?';
+    const query = tieneVersion
+        ? `UPDATE inventario_vinilos SET ${campos}, version=version+1 WHERE id=? AND version=?`
+        : `UPDATE inventario_vinilos SET ${campos} WHERE id=?`;
+    const valores = [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, Number(destacado) === 1 ? 1 : 0, id];
+    if (tieneVersion) valores.push(Number(req.body.version));
+    db.query(query, valores, (err, resultado) => {
         if (err) return next(err);
-        res.json({ message: 'OK' });
+        if (!tieneVersion || resultado.affectedRows > 0) return res.json({ message: 'OK', version: tieneVersion ? Number(req.body.version) + 1 : undefined });
+        db.query('SELECT * FROM inventario_vinilos WHERE id = ?', [id], (consultaError, filas) => {
+            if (consultaError) return next(consultaError);
+            if (filas.length === 0) return res.status(404).json({ error: 'Vinilo no encontrado' });
+            res.status(409).json({ error: 'El vinilo cambió en el servidor. Recargá los datos antes de guardar.', actual: filas[0] });
+        });
     });
 });
 
@@ -340,9 +657,24 @@ app.delete('/api/vinilos/:id', requiereAdmin, (req, res, next) => {
 app.put('/api/vinilos/:id/destacado', requiereAdmin, (req, res, next) => {
     const { id } = req.params;
     const { destacado } = req.body;
-    db.query('UPDATE inventario_vinilos SET destacado = ? WHERE id = ?', [destacado, id], (err) => {
+    const tieneVersion = Object.prototype.hasOwnProperty.call(req.body || {}, 'version')
+        && req.body.version !== null && req.body.version !== undefined && req.body.version !== '';
+    if (tieneVersion && (!Number.isInteger(Number(req.body.version)) || Number(req.body.version) < 0)) {
+        return res.status(400).json({ error: 'version debe ser un entero mayor o igual a 0' });
+    }
+    const query = tieneVersion
+        ? 'UPDATE inventario_vinilos SET destacado = ?, version = version + 1 WHERE id = ? AND version = ?'
+        : 'UPDATE inventario_vinilos SET destacado = ? WHERE id = ?';
+    const valores = [destacado, id];
+    if (tieneVersion) valores.push(Number(req.body.version));
+    db.query(query, valores, (err, resultado) => {
         if (err) return next(err);
-        res.json({ success: true });
+        if (!tieneVersion || resultado.affectedRows > 0) return res.json({ success: true, version: tieneVersion ? Number(req.body.version) + 1 : undefined });
+        db.query('SELECT * FROM inventario_vinilos WHERE id = ?', [id], (consultaError, filas) => {
+            if (consultaError) return next(consultaError);
+            if (filas.length === 0) return res.status(404).json({ error: 'Vinilo no encontrado' });
+            res.status(409).json({ error: 'El vinilo cambió en el servidor. Recargá los datos antes de guardar.', actual: filas[0] });
+        });
     });
 });
 
@@ -382,6 +714,211 @@ class ErrorPedido extends Error {
         this.name = 'ErrorPedido';
     }
 }
+
+// Las Plumas se almacenan como centavos de USD: no se usan DECIMAL ni floats
+// para decidir saldos. La migración crea estas tres tablas y las referencias
+// únicas hacen que los efectos de pedidos sean idempotentes.
+const PLUMAS_PORCENTAJE_PREMIO = 5;
+const PLUMAS_MAX_PORCENTAJE_PAGO = 50;
+
+async function cuentaRecompensas(conn, usuarioId) {
+    await conn.query(
+        'INSERT IGNORE INTO `recompensas_cuentas` (`usuario_id`, `saldo`) VALUES (?, 0)',
+        [usuarioId]
+    );
+    const [filas] = await conn.query(
+        'SELECT `usuario_id`, `saldo` FROM `recompensas_cuentas` WHERE `usuario_id` = ? FOR UPDATE',
+        [usuarioId]
+    );
+    if (!filas[0]) throw new ErrorPedido('No se pudo abrir la cuenta de recompensas');
+    return filas[0];
+}
+
+async function movimientoRecompensas(conn, { usuarioId, tipo, unidades, pedidoId = null, referencia, referenciaTipo = null, expiraEn = null }) {
+    try {
+        const [resultado] = await conn.query(
+            `INSERT INTO \`recompensas_ledger\`
+                (\`usuario_id\`, \`tipo\`, \`unidades\`, \`pedido_id\`, \`referencia_id\`, \`referencia_tipo\`, \`expira_en\`)
+             VALUES (?, ?, ?, ?, ?, ?, IF(? = 1, DATE_ADD(NOW(), INTERVAL 12 MONTH), NULL))`,
+            [usuarioId, tipo, unidades, pedidoId, referencia, referenciaTipo, expiraEn ? 1 : 0]
+        );
+        return { id: Number(resultado.insertId), creado: true };
+    } catch (error) {
+        if (error.code !== 'ER_DUP_ENTRY') throw error;
+    }
+    const [existentes] = await conn.query(
+        'SELECT `id` FROM `recompensas_ledger` WHERE `usuario_id` = ? AND `referencia_id` = ? FOR UPDATE',
+        [usuarioId, referencia]
+    );
+    if (!existentes[0]) throw new ErrorPedido('No se pudo confirmar el movimiento de recompensas');
+    return { id: Number(existentes[0].id), creado: false };
+}
+
+function unidadesDesdeDolares(valor) {
+    return Math.max(0, Math.round(Number(valor) * 100));
+}
+
+function unidadesSolicitadas(valor) {
+    if (valor === undefined || valor === null || valor === '') return 0;
+    const unidades = Number(valor);
+    if (!Number.isInteger(unidades) || unidades < 0) throw new ErrorPedido('Las recompensas_unidades deben ser un entero mayor o igual a 0');
+    return unidades;
+}
+
+// ==========================================
+// 2.5 RECOMPENSAS (PLUMAS)
+// ==========================================
+app.get('/api/recompensas/saldo', requiereCliente, async (req, res, next) => {
+    try {
+        const [filas] = await sql.query(
+            'SELECT `saldo` FROM `recompensas_cuentas` WHERE `usuario_id` = ?',
+            [req.auth.usuario.id]
+        );
+        res.json({ saldo_unidades: Number(filas[0]?.saldo || 0), valor_usd: Number(filas[0]?.saldo || 0) / 100 });
+    } catch (e) { next(e); }
+});
+
+// Consulta liviana para avisar al panel de pedidos nuevos sin descargar todo
+// el historial cada vez que se revisa el estado.
+app.get('/api/admin/pedidos/novedades', requiereAdmin, (req, res, next) => {
+    const desdeId = Number.parseInt(String(req.query.desde_id || '0'), 10);
+    const idInicial = Number.isFinite(desdeId) && desdeId >= 0 ? desdeId : 0;
+    db.query(
+        `SELECT id_pedido, numero_orden, fecha, nombre_cliente, estado
+           FROM pedidos
+          WHERE id_pedido > ? AND estado = 'pendiente'
+          ORDER BY id_pedido ASC
+          LIMIT 20`,
+        [idInicial],
+        (err, results) => {
+            if (err) return next(err);
+            res.json(results);
+        }
+    );
+});
+
+app.get('/api/recompensas/movimientos', requiereCliente, async (req, res, next) => {
+    try {
+        const limite = Math.min(100, Math.max(1, Number(req.query.limite) || 50));
+        const [filas] = await sql.query(
+            `SELECT \`id\`, \`tipo\`, \`unidades\`, \`pedido_id\`, \`referencia_id\`, \`referencia_tipo\`, \`creado_en\`
+               FROM \`recompensas_ledger\`
+              WHERE \`usuario_id\` = ? ORDER BY \`id\` DESC LIMIT ?`,
+            [req.auth.usuario.id, limite]
+        );
+        res.json(filas);
+    } catch (e) { next(e); }
+});
+
+app.post('/api/recompensas/cotizar', requiereCliente, async (req, res, next) => {
+    try {
+        const body = req.body || {};
+        if (!Array.isArray(body.items) || body.items.length === 0) return res.status(400).json({ error: 'El pedido no tiene items' });
+        const pedidos = body.items.map(item => {
+            const id = Number(item?.id); const cantidad = Number(item?.cantidad);
+            if (!Number.isInteger(id) || id < 1 || !Number.isInteger(cantidad) || cantidad < 1) throw new ErrorPedido('Items inválidos');
+            return { id, cantidad };
+        });
+        const conn = await sql.getConnection();
+        try {
+            await conn.beginTransaction();
+            const ids = [...new Set(pedidos.map(p => p.id))].sort((a, b) => a - b);
+            const [vinilos] = await conn.query(
+                `SELECT \`id\`, \`precio_venta\` FROM \`inventario_vinilos\` WHERE \`id\` IN (${ids.map(() => '?').join(',')}) FOR UPDATE`, ids
+            );
+            const precios = new Map(vinilos.map(v => [Number(v.id), Number(v.precio_venta)]));
+            if (pedidos.some(p => !precios.has(p.id))) throw new ErrorPedido('Uno de los vinilos ya no está disponible');
+            const subtotal = Math.round(pedidos.reduce((s, p) => s + precios.get(p.id) * p.cantidad, 0) * 100) / 100;
+            let total = subtotal;
+            if (body.cupon_id !== undefined && body.cupon_id !== null && body.cupon_id !== '') {
+                const cuponId = Number(body.cupon_id);
+                if (!Number.isInteger(cuponId) || cuponId < 1) throw new ErrorPedido('El cupón no es válido');
+                const [cupones] = await conn.query(`SELECT \`tipo\`, \`valor\`, \`activo\`, DATE_FORMAT(\`fecha_expiracion\`, '%Y-%m-%d') AS \`fecha_expiracion\`, DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS \`hoy\`, \`uso_maximo\`, \`usos_actuales\` FROM \`cupones\` WHERE \`id\` = ? FOR UPDATE`, [cuponId]);
+                const cupon = cupones[0];
+                if (!cupon || !cupon.activo || (cupon.fecha_expiracion && cupon.fecha_expiracion < cupon.hoy) || (cupon.uso_maximo !== null && Number(cupon.usos_actuales) >= Number(cupon.uso_maximo))) throw new ErrorPedido('El cupón no es válido');
+                const descuentoCupon = cupon.tipo === 'porcentaje' ? subtotal * Number(cupon.valor) / 100 : Number(cupon.valor);
+                total = Math.max(0, Math.round((subtotal - descuentoCupon) * 100) / 100);
+            }
+            const cuenta = await cuentaRecompensas(conn, req.auth.usuario.id);
+            const unidades = unidadesSolicitadas(body.recompensas_unidades);
+            const maximas = Math.min(Number(cuenta.saldo), Math.floor(unidadesDesdeDolares(total) * PLUMAS_MAX_PORCENTAJE_PAGO / 100));
+            await conn.rollback();
+            res.json({ saldo_unidades: Number(cuenta.saldo), subtotal_usd: subtotal, total_neto_usd: total, max_unidades: maximas, recompensas_unidades: Math.min(unidades, maximas), descuento_recompensas_usd: Math.min(unidades, maximas) / 100 });
+        } finally { conn.release(); }
+    } catch (e) { if (e instanceof ErrorPedido) return res.status(400).json({ error: e.message }); next(e); }
+});
+
+app.get('/api/admin/recompensas/ledger', requiereAdmin, async (req, res, next) => {
+    try {
+        const usuarioId = req.query.usuario_id === undefined ? null : Number(req.query.usuario_id);
+        if (usuarioId !== null && (!Number.isInteger(usuarioId) || usuarioId < 1)) return res.status(400).json({ error: 'usuario_id inválido' });
+        const [filas] = await sql.query(
+            `SELECT m.\`id\`, m.\`usuario_id\`, u.\`email\`, u.\`nombre\`, m.\`tipo\`, m.\`unidades\`, m.\`pedido_id\`, m.\`referencia_id\`, m.\`referencia_tipo\`, m.\`creado_en\`
+               FROM \`recompensas_ledger\` m JOIN \`usuarios\` u ON u.\`id\` = m.\`usuario_id\`
+              WHERE (? IS NULL OR m.\`usuario_id\` = ?) ORDER BY m.\`id\` DESC LIMIT 500`, [usuarioId, usuarioId]
+        );
+        res.json(filas);
+    } catch (e) { next(e); }
+});
+
+app.post('/api/admin/recompensas/ajustes', requiereAdminMaximo, async (req, res, next) => {
+    const body = req.body || {};
+    const usuarioId = Number(body.usuario_id);
+    const unidades = Number(body.unidades);
+    const motivo = typeof body.motivo === 'string'
+        ? body.motivo.trim()
+        : (typeof body.descripcion === 'string' ? body.descripcion.trim() : '');
+    const claveRecibida = typeof body.idempotency_key === 'string'
+        ? body.idempotency_key.trim()
+        : (typeof body.referencia === 'string' ? body.referencia.trim() : '');
+    if (typeof body.idempotency_key === 'string' && typeof body.referencia === 'string'
+        && body.idempotency_key.trim() !== body.referencia.trim()) {
+        return res.status(400).json({ error: 'idempotency_key y referencia deben coincidir' });
+    }
+    const tieneClaveValida = claveRecibida.length >= 1
+        && claveRecibida.length <= 128
+        && !/[\u0000-\u001f\u007f]/.test(claveRecibida);
+    if (!Number.isInteger(usuarioId) || usuarioId < 1
+        || !Number.isInteger(unidades) || unidades === 0 || Math.abs(unidades) > 100000
+        || motivo.length < 10 || motivo.length > 500 || !tieneClaveValida) {
+        return res.status(400).json({ error: 'usuario_id válido, unidades enteras entre -100000 y 100000 (no nulas), motivo de 10 a 500 caracteres e idempotency_key son obligatorios' });
+    }
+    const referencia = `ajuste:${claveRecibida}`;
+    const pedidoId = body.pedido_id === undefined || body.pedido_id === null || body.pedido_id === ''
+        ? null
+        : Number(body.pedido_id);
+    if (pedidoId !== null && (!Number.isInteger(pedidoId) || pedidoId < 1)) return res.status(400).json({ error: 'pedido_id inválido' });
+    let conn = null;
+    try {
+        conn = await sql.getConnection(); await conn.beginTransaction();
+        const [usuarios] = await conn.query('SELECT `id` FROM `usuarios` WHERE `id` = ? FOR SHARE', [usuarioId]);
+        if (!usuarios[0]) throw new ErrorPedido('El usuario no existe');
+        if (pedidoId !== null) {
+            const [pedidos] = await conn.query('SELECT `id_pedido` FROM `pedidos` WHERE `id_pedido` = ? AND `usuario_id` = ? FOR SHARE', [pedidoId, usuarioId]);
+            if (!pedidos[0]) throw new ErrorPedido('El pedido no existe o no pertenece al usuario');
+        }
+        const cuenta = await cuentaRecompensas(conn, usuarioId);
+        const movimiento = await movimientoRecompensas(conn, { usuarioId, tipo: 'ajuste', unidades, pedidoId, referencia, referenciaTipo: 'ajuste' });
+        if (!movimiento.creado) {
+            const [existente] = await conn.query(
+                'SELECT `id`, `usuario_id`, `unidades`, `pedido_id`, `referencia_id`, `referencia_tipo`, `creado_en` FROM `recompensas_ledger` WHERE `id` = ?',
+                [movimiento.id]
+            );
+            const fila = existente[0];
+            if (!fila || Number(fila.usuario_id) !== usuarioId || Number(fila.unidades) !== unidades || (fila.pedido_id === null ? null : Number(fila.pedido_id)) !== pedidoId) {
+                throw new ErrorPedido('La idempotency_key ya fue usada con otro ajuste');
+            }
+            await conn.commit();
+            return res.json({ success: true, idempotente: true, movimiento: { ...fila, motivo, idempotency_key: claveRecibida }, saldo_unidades: Number(cuenta.saldo) });
+        }
+        const saldo = Number(cuenta.saldo) + unidades;
+        if (saldo < 0) throw new ErrorPedido('El ajuste no puede dejar saldo negativo');
+        await conn.query('UPDATE `recompensas_cuentas` SET `saldo` = ? WHERE `usuario_id` = ?', [saldo, usuarioId]);
+        await conn.commit();
+        res.json({ success: true, idempotente: false, movimiento: { id: movimiento.id, usuario_id: usuarioId, pedido_id: pedidoId, tipo: 'ajuste', unidades, motivo, idempotency_key: claveRecibida }, saldo_unidades: saldo });
+    } catch (e) { if (conn) await conn.rollback().catch(() => {}); if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'La idempotency_key ya fue aplicada' }); if (e instanceof ErrorPedido) return res.status(400).json({ error: e.message }); next(e); }
+    finally { if (conn) conn.release(); }
+});
 
 // El `numero_orden` NO sale de un azar: sale del `id_pedido` autoincremental
 // (ver el INSERT de mas abajo). Pocos reintentos alcanzan porque lo unico que
@@ -476,6 +1013,9 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             return { id, cantidad };
         });
 
+        const recompensasUnidades = unidadesSolicitadas(body.recompensas_unidades);
+        if (recompensasUnidades > 0 && !perfil) throw new ErrorPedido('Necesitás iniciar sesión para usar Plumas');
+
         conn = await sql.getConnection();
         await conn.beginTransaction();
 
@@ -557,6 +1097,8 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         // backoffice no podia mostrar cuanto se descontó ni auditarlo.
         let descuento = 0;
         let cuponAplicado = null;
+        let recompensasUsadas = 0;
+        let descuentoRecompensas = 0;
         const cuponId = (body.cupon_id === '' || body.cupon_id === null || body.cupon_id === undefined)
             ? null
             : Number(body.cupon_id);
@@ -631,6 +1173,17 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             }
         }
 
+        // El cupón se aplica primero; el límite de Plumas se calcula sobre el
+        // subtotal neto y el saldo se bloquea antes de consumirlo.
+        if (recompensasUnidades > 0) {
+            const cuenta = await cuentaRecompensas(conn, usuario_id);
+            const maximas = Math.min(Number(cuenta.saldo), Math.floor(unidadesDesdeDolares(total) * PLUMAS_MAX_PORCENTAJE_PAGO / 100));
+            if (recompensasUnidades > maximas) throw new ErrorPedido(`Podés usar como máximo ${maximas} Plumas en este pedido`);
+            recompensasUsadas = recompensasUnidades;
+            descuentoRecompensas = recompensasUsadas / 100;
+            total = Math.round((total - descuentoRecompensas) * 100) / 100;
+        }
+
         // --- 4) Stock (la resta sigue siendo condicional: no se puede quedar en negativo) ---
         for (const p of pedidos) {
             const [resultado] = await conn.query(
@@ -687,8 +1240,9 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                          \`divisa_preferida\`, \`estado\`, \`fecha\`, \`items\`, \`usuario_id\`,
                          \`cupon_id\`, \`cupon_codigo\`, \`descuento_aplicado\`,
                          \`direccion_id\`, \`direccion_apodo\`, \`direccion\`, \`direccion_ciudad\`,
-                         \`direccion_provincia\`, \`direccion_codigo_postal\`)
-                     VALUES (?, ?, ?, ?, ?, 'pendiente', NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                         \`direccion_provincia\`, \`direccion_codigo_postal\`, \`recompensas_ganadas\`,
+                         \`recompensas_usadas\`, \`descuento_recompensas_usd\`, \`recompensas_reversionadas\`)
+                     VALUES (?, ?, ?, ?, ?, 'pendiente', NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         tokenTemporal(),
                         // Los valores ya vienen recortados (M-3): las columnas son
@@ -711,7 +1265,11 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
                         direccionSnapshot.direccion,
                         direccionSnapshot.ciudad,
                         direccionSnapshot.provincia,
-                        direccionSnapshot.codigo_postal
+                        direccionSnapshot.codigo_postal,
+                        0,
+                        recompensasUsadas,
+                        descuentoRecompensas,
+                        0
                     ]
                 );
             } catch (e) {
@@ -728,6 +1286,28 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
             // texto.
             numero_orden = `GR-${String(insercion.insertId).padStart(4, '0')}`;
             await conn.query('UPDATE `pedidos` SET `numero_orden` = ? WHERE `id_pedido` = ?', [numero_orden, insercion.insertId]);
+            if (recompensasUsadas > 0) {
+                const consumoLedger = await movimientoRecompensas(conn, { usuarioId: usuario_id, tipo: 'canje', unidades: -recompensasUsadas, pedidoId: insercion.insertId, referencia: `pedido:${insercion.insertId}:canje`, referenciaTipo: 'pedido' });
+                const consumoLedgerId = consumoLedger.id;
+                const [lotes] = await conn.query(
+                    `SELECT l.\`id\`, l.\`unidades\`, COALESCE(SUM(c.\`unidades\` - c.\`unidades_reversionadas\`), 0) AS \`usadas\`
+                       FROM \`recompensas_ledger\` l LEFT JOIN \`recompensas_consumos\` c ON c.\`origen_ledger_id\` = l.\`id\`
+                      WHERE l.\`usuario_id\` = ? AND l.\`unidades\` > 0 AND l.\`tipo\` IN ('ganancia', 'ajuste') AND (l.\`expira_en\` IS NULL OR l.\`expira_en\` > NOW())
+                   GROUP BY l.\`id\`, l.\`unidades\` HAVING l.\`unidades\` > \`usadas\` ORDER BY l.\`id\` ASC FOR UPDATE`, [usuario_id]
+                );
+                let restantes = recompensasUsadas;
+                for (const lote of lotes) {
+                    if (restantes === 0) break;
+                    const disponibles = Number(lote.unidades) - Number(lote.usadas);
+                    const usadas = Math.min(restantes, disponibles);
+                    await conn.query('INSERT INTO `recompensas_consumos` (`usuario_id`, `consumo_ledger_id`, `origen_ledger_id`, `unidades`) VALUES (?, ?, ?, ?)', [usuario_id, consumoLedgerId, lote.id, usadas]);
+                    restantes -= usadas;
+                }
+                if (restantes !== 0) throw new ErrorPedido('El saldo de Plumas cambió. Intentá de nuevo.');
+                if (consumoLedger.creado) {
+                    await conn.query('UPDATE `recompensas_cuentas` SET `saldo` = `saldo` - ? WHERE `usuario_id` = ?', [recompensasUsadas, usuario_id]);
+                }
+            }
             insertOk = true;
         }
 
@@ -736,7 +1316,9 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         if (!insertOk) throw new ErrorPedido('No se pudo guardar el pedido. Intentá de nuevo.');
 
         await conn.commit();
-        res.json({ success: true, numero_orden, total_pago: total, cupon: cuponAplicado, descuento });
+        void notificarNuevoPedido({ idPedido: insercion.insertId, numeroOrden: numero_orden, nombreCliente: nombreGuardado })
+            .catch(error => console.error('No se pudo enviar la notificación de pedido:', error.message));
+        res.json({ success: true, numero_orden, total_pago: total, cupon: cuponAplicado, descuento, recompensas_usadas: recompensasUsadas, descuento_recompensas_usd: descuentoRecompensas });
     } catch (e) {
         // Todo lo que se hizo en la transaccion (stock, usos del cupon, fila del
         // pedido) se deshace: un error de negocio no deja el inventario tocado.
@@ -767,7 +1349,7 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
         await conn.beginTransaction();
 
         const [filas] = await conn.query(
-            'SELECT `estado`, `items`, `cupon_id` FROM `pedidos` WHERE `id_pedido` = ? FOR UPDATE',
+            'SELECT `estado`, `items`, `cupon_id`, `usuario_id`, `recompensas_usadas`, `recompensas_ganadas`, `recompensas_reversionadas` FROM `pedidos` WHERE `id_pedido` = ? FOR UPDATE',
             [id]
         );
 
@@ -794,12 +1376,12 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
             return res.status(409).json({ error: `No se puede cancelar un pedido en estado "${pedido.estado}"` });
         }
 
-        // `items` es la foto de lo comprado. Es tolerante a propósito: un pedido
-        // viejo puede tener NULL o un JSON corrupto, y en ese caso se cancela
-        // igual pero sin stock que devolver.
+        // `items` es la foto de lo comprado. Se aceptan también los formatos de
+        // pedidos antiguos (`id_vinilo`, `qty` y `vinilo.id`) para que cancelar
+        // siempre reponga el stock que se descontó originalmente.
         let itemsPedido = [];
         try {
-            const parseados = JSON.parse(pedido.items);
+            const parseados = Array.isArray(pedido.items) ? pedido.items : JSON.parse(pedido.items || '[]');
             itemsPedido = Array.isArray(parseados) ? parseados : [];
         } catch {
             itemsPedido = [];
@@ -807,8 +1389,8 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
 
         let stockRepuesto = 0;
         for (const item of itemsPedido) {
-            const idVinilo = Number(item?.id);
-            const cantidad = Number(item?.cantidad);
+            const idVinilo = Number(item?.id ?? item?.id_vinilo ?? item?.vinilo?.id);
+            const cantidad = Number(item?.cantidad ?? item?.qty ?? item?.quantity);
             if (!Number.isInteger(idVinilo) || idVinilo < 1) continue;
             if (!Number.isInteger(cantidad) || cantidad < 1) continue;
             await conn.query(
@@ -816,6 +1398,13 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
                 [cantidad, idVinilo]
             );
             stockRepuesto += cantidad;
+        }
+
+        // No se marca como cancelado un pedido cuyo snapshot no se pudo leer:
+        // hacerlo dejaría la venta cancelada pero el inventario sin devolver.
+        if (itemsPedido.length > 0 && stockRepuesto === 0) {
+            await conn.rollback();
+            return res.status(409).json({ error: 'No se pudo leer el detalle del pedido para devolver el stock' });
         }
 
         // Contraparte del `usos_actuales + 1` del POST /api/pedidos: el uso se
@@ -834,6 +1423,38 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
                 'UPDATE `cupones` SET `usos_actuales` = GREATEST(0, `usos_actuales` - 1) WHERE `id` = ? AND `uso_maximo` IS NOT NULL',
                 [pedido.cupon_id]
             );
+        }
+
+        if (pedido.usuario_id) {
+            const cuenta = await cuentaRecompensas(conn, pedido.usuario_id);
+            const [consumos] = await conn.query(
+                'SELECT c.`id`, c.`unidades`, c.`unidades_reversionadas` FROM `recompensas_consumos` c JOIN `recompensas_ledger` l ON l.`id` = c.`consumo_ledger_id` WHERE l.`pedido_id` = ? AND c.`usuario_id` = ? FOR UPDATE',
+                [id, pedido.usuario_id]
+            );
+            const usadas = consumos.reduce((s, c) => s + Math.max(0, Number(c.unidades) - Number(c.unidades_reversionadas)), 0);
+            if (usadas > 0) {
+                for (const consumo of consumos) {
+                    const pendientes = Math.max(0, Number(consumo.unidades) - Number(consumo.unidades_reversionadas));
+                    if (pendientes > 0) await conn.query('UPDATE `recompensas_consumos` SET `unidades_reversionadas` = `unidades_reversionadas` + ? WHERE `id` = ?', [pendientes, consumo.id]);
+                }
+                await conn.query('UPDATE `recompensas_cuentas` SET `saldo` = `saldo` + ? WHERE `usuario_id` = ?', [usadas, pedido.usuario_id]);
+                const reversionCanje = await movimientoRecompensas(conn, { usuarioId: pedido.usuario_id, tipo: 'reversion_canje', unidades: usadas, pedidoId: id, referencia: `pedido:${id}:reversion-canje`, referenciaTipo: 'pedido' });
+                if (!reversionCanje.creado) {
+                    await conn.rollback();
+                    return res.status(409).json({ error: 'La reversión de Plumas ya estaba registrada' });
+                }
+            }
+            const ganadas = Number(pedido.recompensas_ganadas || 0) - Number(pedido.recompensas_reversionadas || 0);
+            if (ganadas > 0) {
+                if (Number(cuenta.saldo) + usadas < ganadas) throw new ErrorPedido('No se puede revertir el premio porque el saldo ya fue consumido');
+                await conn.query('UPDATE `recompensas_cuentas` SET `saldo` = `saldo` - ? WHERE `usuario_id` = ?', [ganadas, pedido.usuario_id]);
+                const reversionGanancia = await movimientoRecompensas(conn, { usuarioId: pedido.usuario_id, tipo: 'reversion_ganancia', unidades: -ganadas, pedidoId: id, referencia: `pedido:${id}:reversion-ganancia`, referenciaTipo: 'pedido' });
+                if (!reversionGanancia.creado) {
+                    await conn.rollback();
+                    return res.status(409).json({ error: 'La reversión de Plumas ya estaba registrada' });
+                }
+                await conn.query('UPDATE `pedidos` SET `recompensas_reversionadas` = ? WHERE `id_pedido` = ?', [ganadas, id]);
+            }
         }
 
         await conn.query('UPDATE `pedidos` SET `estado` = ? WHERE `id_pedido` = ?', ['cancelado', id]);
@@ -863,9 +1484,9 @@ app.put('/api/pedidos/:id/cancelar', requiereAdmin, async (req, res, next) => {
 //     pero la fila nunca cambio. Por eso el SELECT primero y el 404.
 //   - `id_pedido` es INT: un id no entero no puede matchear, y mejor un 400
 //     claro que un UPDATE silencioso.
-//   El UPDATE final va sin `WHERE estado = 'pendiente'` porque la validacion ya
-//   se hizo contra la fila leida bajo lock: entre el SELECT y el commit nadie
-//   mas puede cambiar este pedido.
+//   El UPDATE tambien exige `estado = 'pendiente'` como defensa en profundidad:
+//   aunque el SELECT bajo lock ya valido el estado, la escritura no debe poder
+//   cambiar un pedido terminal si esta garantia se modifica en el futuro.
 app.put('/api/pedidos/:id/finalizar', requiereAdmin, async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'El id del pedido no es válido' });
@@ -879,7 +1500,7 @@ app.put('/api/pedidos/:id/finalizar', requiereAdmin, async (req, res, next) => {
         // lock, dos admins podrian finalizar/cancelar a la vez y el segundo
         // fallaria recien despues de validar sobre una fila vieja.
         const [filas] = await conn.query(
-            'SELECT `estado` FROM `pedidos` WHERE `id_pedido` = ? FOR UPDATE',
+            'SELECT `estado`, `usuario_id`, `total_pago`, `descuento_recompensas_usd`, `recompensas_ganadas` FROM `pedidos` WHERE `id_pedido` = ? FOR UPDATE',
             [id]
         );
 
@@ -910,7 +1531,30 @@ app.put('/api/pedidos/:id/finalizar', requiereAdmin, async (req, res, next) => {
             return res.status(409).json({ error: `No se puede finalizar un pedido en estado "${pedido.estado}"` });
         }
 
-        await conn.query('UPDATE `pedidos` SET `estado` = ? WHERE `id_pedido` = ?', ['finalizado', id]);
+        const [actualizacion] = await conn.query(
+            'UPDATE `pedidos` SET `estado` = ? WHERE `id_pedido` = ? AND `estado` = ?',
+            ['finalizado', id, 'pendiente']
+        );
+        if (actualizacion.affectedRows !== 1) {
+            await conn.rollback();
+            return res.status(409).json({ error: 'El pedido ya no está pendiente' });
+        }
+
+        let recompensasGanadas = Number(pedido.recompensas_ganadas || 0);
+        if (pedido.usuario_id && recompensasGanadas === 0) {
+            const netoCents = unidadesDesdeDolares(Number(pedido.total_pago) + Number(pedido.descuento_recompensas_usd || 0));
+            recompensasGanadas = Math.floor(netoCents * PLUMAS_PORCENTAJE_PREMIO / 100);
+            if (recompensasGanadas > 0) {
+                await cuentaRecompensas(conn, pedido.usuario_id);
+                const ganancia = await movimientoRecompensas(conn, { usuarioId: pedido.usuario_id, tipo: 'ganancia', unidades: recompensasGanadas, pedidoId: id, referencia: `pedido:${id}:ganancia`, referenciaTipo: 'pedido', expiraEn: true });
+                if (!ganancia.creado) {
+                    await conn.rollback();
+                    return res.status(409).json({ error: 'La ganancia de Plumas ya estaba registrada' });
+                }
+                await conn.query('UPDATE `recompensas_cuentas` SET `saldo` = `saldo` + ? WHERE `usuario_id` = ?', [recompensasGanadas, pedido.usuario_id]);
+                await conn.query('UPDATE `pedidos` SET `recompensas_ganadas` = ? WHERE `id_pedido` = ?', [recompensasGanadas, id]);
+            }
+        }
 
         await conn.commit();
         res.json({ success: true });
@@ -1260,7 +1904,7 @@ app.put('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
     }
 });
 
-app.delete('/api/admin/cupones/:id', requiereAdmin, async (req, res, next) => {
+app.delete('/api/admin/cupones/:id', requiereAdminMaximo, async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
