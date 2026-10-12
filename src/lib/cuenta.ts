@@ -56,6 +56,8 @@ export interface ItemPedido {
   id?: number;
   cantidad?: number;
   titulo?: string;
+  precio_unitario?: number | string | null;
+  subtotal?: number | string | null;
 }
 
 export interface PedidoCliente {
@@ -78,6 +80,23 @@ export interface PedidoCliente {
   // migrar esas columnas no existen y llegan `undefined`.
   cupon_codigo?: string | null;
   descuento_aplicado?: number | string | null;
+  recompensas_ganadas?: number | string | null;
+  recompensas_usadas?: number | string | null;
+  descuento_recompensas_usd?: number | string | null;
+}
+
+export interface SaldoRecompensas {
+  unidades: number;
+  valor_usd?: number | string | null;
+}
+
+export interface CotizacionRecompensas {
+  unidades: number;
+  descuento_usd: number | string;
+  unidades_disponibles?: number;
+  max_unidades?: number;
+  recompensas_unidades?: number;
+  descuento_recompensas_usd?: number | string;
 }
 
 export interface DatosLogin {
@@ -121,6 +140,8 @@ export interface ValorCuenta {
   alternarFavorito: (viniloId: number) => Promise<ResultadoAccion>;
   refrescarFavoritos: () => Promise<ResultadoAccion>;
   vaciarFavoritos: () => Promise<ResultadoAccion>;
+  saldoRecompensas: SaldoRecompensas | null;
+  refrescarSaldoRecompensas: () => Promise<ResultadoAccion>;
 }
 
 export const CuentaContext = createContext<ValorCuenta | null>(null);
@@ -180,6 +201,14 @@ export async function pedir<T = unknown>(ruta: string, opciones: OpcionesPeticio
   }
 }
 
+export function solicitarRecuperacion(email: string): Promise<RespuestaApi<unknown>> {
+  return pedir('/api/auth/recuperar', { method: 'POST', cuerpo: { email } });
+}
+
+export function restablecerPassword(token: string, password: string): Promise<RespuestaApi<unknown>> {
+  return pedir('/api/auth/restablecer', { method: 'POST', cuerpo: { token, password } });
+}
+
 // --- Helpers de presentacion ---
 
 /** Las imagenes guardadas pueden ser relativas ("/uploads/x.jpg"): hay que prefixarlas. */
@@ -191,21 +220,46 @@ export function imgUrl(url: string | null | undefined): string {
   return `${apiUrl()}${primera.startsWith('/') ? '' : '/'}${primera}`;
 }
 
-/** MySQL devuelve 'YYYY-MM-DD HH:mm:ss' o un ISO de JSON.stringify: se normaliza. */
+/** MySQL no trae zona horaria: se muestran sus componentes tal cual, sin correr el día. */
 export function formatearFecha(valor: string | null | undefined): string {
   if (!valor) return '';
-  const fecha = new Date(valor.includes('T') ? valor : valor.replace(' ', 'T'));
-  if (Number.isNaN(fecha.getTime())) return valor;
-  return fecha.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const texto = String(valor);
+  const mysql = /^(\d{4})-(\d{2})-(\d{2})/.exec(texto);
+  if (mysql) return `${mysql[3]}/${mysql[2]}/${mysql[1]}`;
+  const fecha = new Date(texto);
+  if (Number.isNaN(fecha.getTime())) return texto;
+  return new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric' }).format(fecha);
 }
 
-/** La columna `items` es TEXT: si un dia guardaron algo roto, el pedido igual se muestra. */
-export function itemsDePedido(pedido: PedidoCliente): ItemPedido[] {
-  if (Array.isArray(pedido.items)) return pedido.items;
-  if (typeof pedido.items !== 'string') return [];
+/** Fecha y hora explícitas; los datetime MySQL se interpretan como hora local argentina. */
+export function formatearFechaHora(valor: string | null | undefined): string {
+  if (!valor) return '';
+  const texto = String(valor);
+  const mysql = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(texto);
+  if (mysql) return `${mysql[3]}/${mysql[2]}/${mysql[1]} ${mysql[4]}:${mysql[5]}`;
+  const fecha = new Date(texto);
+  if (Number.isNaN(fecha.getTime())) return texto;
+  return new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(fecha);
+}
+
+/** La columna `items` es TEXT: tolera JSON, arrays y filas parcialmente antiguas. */
+export function itemsDePedido(pedido: { items: ItemPedido[] | string | null }): ItemPedido[] {
+  if (Array.isArray(pedido.items)) return pedido.items.filter(item => item && typeof item === 'object');
+  if (typeof pedido.items !== 'string' || !pedido.items.trim()) return [];
   try {
     const parseado: unknown = JSON.parse(pedido.items);
-    return Array.isArray(parseado) ? (parseado as ItemPedido[]) : [];
+    if (!Array.isArray(parseado)) return [];
+    return parseado.filter(item => item && typeof item === 'object').map(item => {
+      const fila = item as Record<string, unknown>;
+      const vinilo = fila.vinilo && typeof fila.vinilo === 'object' ? fila.vinilo as Record<string, unknown> : null;
+      return {
+        id: Number(fila.id ?? fila.id_vinilo ?? vinilo?.id) || undefined,
+        cantidad: Number(fila.cantidad ?? fila.qty ?? fila.quantity ?? 1) || 1,
+        titulo: String(fila.titulo ?? fila.nombre ?? fila.name ?? vinilo?.titulo ?? 'Vinilo'),
+        precio_unitario: (fila.precio_unitario ?? fila.precio ?? fila.price) as number | string | null | undefined,
+        subtotal: (fila.subtotal ?? fila.total) as number | string | null | undefined,
+      };
+    });
   } catch {
     return [];
   }
@@ -225,4 +279,27 @@ export function itemsDePedido(pedido: PedidoCliente): ItemPedido[] {
  */
 export function importeUsd(valor: number | string | null | undefined): string {
   return `USD ${Number(valor ?? 0).toFixed(2)}`;
+}
+
+export async function obtenerSaldoRecompensas(): Promise<RespuestaApi<SaldoRecompensas>> {
+  const respuesta = await pedir<SaldoRecompensas | { saldo?: number | string; unidades?: number | string; saldo_unidades?: number | string }>('/api/recompensas/saldo');
+  if (!respuesta.ok || !respuesta.data) return respuesta as RespuestaApi<SaldoRecompensas>;
+  const datos = respuesta.data;
+  const unidades = 'unidades' in datos
+    ? Number(datos.unidades)
+    : 'saldo_unidades' in datos
+      ? Number(datos.saldo_unidades)
+      : Number(datos.saldo);
+  return { ...respuesta, data: { unidades: Number.isFinite(unidades) ? Math.max(0, unidades) : 0 } };
+}
+
+export function normalizarUnidadesRecompensas(valor: number): number {
+  return Math.max(0, Math.floor(Number.isFinite(valor) ? valor : 0));
+}
+
+export async function cotizarRecompensas(unidades: number, items: Array<{ id: string | number; cantidad: number }>): Promise<RespuestaApi<CotizacionRecompensas>> {
+  return pedir<CotizacionRecompensas>('/api/recompensas/cotizar', {
+    method: 'POST',
+    cuerpo: { items, recompensas_unidades: normalizarUnidadesRecompensas(unidades) },
+  });
 }
