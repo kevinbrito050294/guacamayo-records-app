@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ViniloCatalogo, PreciosConvertidos, CarritoItem } from '../types/database';
 import { Plus, ShoppingCart, X, ChevronLeft, ChevronRight, AlertCircle, Heart } from 'lucide-react';
 // `precio_venta` es DECIMAL y llega como string: el formateo del precio en USD
@@ -15,9 +16,11 @@ interface VinylCardProps {
   // Favoritos: opcionales para que la card siga sirviendo sin sesión.
   favorito?: boolean;
   onToggleFavorito?: (id: string) => void;
+  abrirDetalle?: boolean;
+  onCerrarDetalle?: () => void;
 }
 
-export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favorito = false, onToggleFavorito }: VinylCardProps) {
+export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favorito = false, onToggleFavorito, abrirDetalle = false, onCerrarDetalle }: VinylCardProps) {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [fotoActual, setFotoActual] = useState(0);
 
@@ -31,6 +34,23 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
 
   const imagenes = vinilo.imagen_url ? vinilo.imagen_url.split(',') : [];
   const hayVariasFotos = imagenes.length > 1;
+  const cerrarDetalle = useCallback(() => {
+    setModalAbierto(false);
+    onCerrarDetalle?.();
+  }, [onCerrarDetalle]);
+
+  useEffect(() => {
+    if (abrirDetalle) setModalAbierto(true);
+  }, [abrirDetalle]);
+
+  useEffect(() => {
+    if (!modalAbierto) return;
+    const cerrarConEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cerrarDetalle();
+    };
+    document.addEventListener('keydown', cerrarConEscape);
+    return () => document.removeEventListener('keydown', cerrarConEscape);
+  }, [cerrarDetalle, modalAbierto]);
 
   const renderPrecioPrincipal = () => {
     if (!precios) return importeUsd(vinilo.precio_venta);
@@ -53,12 +73,12 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
 
   return (
     <>
-      <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-300 group ${limiteAlcanzado && !sinStockReal ? 'ring-2 ring-amber-500/30' : ''}`}>
+      <div className={`bg-white dark:bg-slate-900 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-300 group ${limiteAlcanzado && !sinStockReal ? 'ring-2 ring-amber-500/30' : ''}`}>
         
         {/* IMAGEN DEL VINILO CON NAVEGACIÓN INTERNA */}
         <div 
           className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-zoom-in"
-          onClick={() => !sinStockReal && imagenes.length > 0 && setModalAbierto(true)}
+            onClick={() => imagenes.length > 0 && setModalAbierto(true)}
         >
           <img 
             src={imagenes[fotoActual] || 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=500'} 
@@ -68,12 +88,12 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
           
           {/* FLECHAS EN LA CARD */}
           {!sinStockReal && hayVariasFotos && (
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-              <button onClick={fotoAnterior} className="p-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-full text-slate-900 dark:text-white shadow-lg hover:bg-amber-500 hover:text-white transition-all">
-                <ChevronLeft size={20} />
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-1.5 opacity-100 sm:px-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 z-10">
+              <button onClick={fotoAnterior} className="p-1.5 sm:p-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-full text-slate-900 dark:text-white shadow-lg hover:bg-amber-500 hover:text-white transition-all">
+                <ChevronLeft size={16} className="sm:h-5 sm:w-5" />
               </button>
-              <button onClick={proximaFoto} className="p-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-full text-slate-900 dark:text-white shadow-lg hover:bg-amber-500 hover:text-white transition-all">
-                <ChevronRight size={20} />
+              <button onClick={proximaFoto} className="p-1.5 sm:p-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-full text-slate-900 dark:text-white shadow-lg hover:bg-amber-500 hover:text-white transition-all">
+                <ChevronRight size={16} className="sm:h-5 sm:w-5" />
               </button>
             </div>
           )}
@@ -111,17 +131,17 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
         </div>
         
         {/* CONTENIDO DE LA CARD */}
-        <div className="p-6">
-          <h3 className="font-black text-2xl text-slate-900 dark:text-white truncate italic uppercase tracking-tighter leading-none mb-1">{vinilo.titulo}</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-3">{vinilo.artista}</p>
-          <div className="flex gap-2 flex-wrap mb-4">
-          {vinilo.pais_origen && (
-            <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-blue-500/10 text-blue-500 uppercase tracking-wider">
+          <div className="p-3 sm:p-6">
+           <h3 className="font-black text-base sm:text-2xl text-slate-900 dark:text-white truncate italic uppercase tracking-tighter leading-none mb-1">{vinilo.titulo}</h3>
+           <p className="text-slate-500 dark:text-slate-400 text-[11px] sm:text-sm font-medium mb-2 sm:mb-3 truncate">{vinilo.artista}</p>
+           <div className="flex gap-1 sm:gap-2 flex-wrap mb-3 sm:mb-4">
+           {vinilo.pais_origen && (
+             <span className="text-[8px] sm:text-[10px] font-black px-1.5 sm:px-2 py-1 rounded-lg bg-blue-500/10 text-blue-500 uppercase tracking-wider truncate max-w-full">
             {vinilo.pais_origen}
             </span>
             )}
           {vinilo.genero && (
-            <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500/10 text-amber-500 uppercase tracking-wider">
+             <span className="text-[8px] sm:text-[10px] font-black px-1.5 sm:px-2 py-1 rounded-lg bg-amber-500/10 text-amber-500 uppercase tracking-wider truncate max-w-full">
             {vinilo.genero}
             </span>
             )}
@@ -129,15 +149,15 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
           
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+               <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                 {limiteAlcanzado && !sinStockReal ? 'Sin más stock' : (divisaActiva === 'ARS' ? 'Precio ARS' : 'Precio Final')}
               </span>
               {!sinStockReal ? (
                 <>
-                  <p className={`text-2xl font-black tracking-tighter transition-colors ${limiteAlcanzado ? 'text-orange-500' : 'text-slate-900 dark:text-amber-500'}`}>
+                   <p className={`text-lg sm:text-2xl font-black tracking-tighter transition-colors ${limiteAlcanzado ? 'text-orange-500' : 'text-slate-900 dark:text-amber-500'}`}>
                     {renderPrecioPrincipal()}
                   </p>
-                  {divisaActiva !== 'USD' && <p className="text-[11px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Ref: {importeUsd(vinilo.precio_venta)}</p>}
+                   {divisaActiva !== 'USD' && <p className="text-[9px] sm:text-[11px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Ref: {importeUsd(vinilo.precio_venta)}</p>}
                 </>
               ) : <p className="text-xl font-bold text-slate-400 line-through tracking-tighter">{renderPrecioPrincipal()}</p>}
             </div>
@@ -145,18 +165,18 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
             <button 
               onClick={onAdd} 
               disabled={botonBloqueado} 
-              className={`p-4 rounded-2xl transition-all shadow-lg active:scale-90 ${
+               className={`p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-all shadow-lg active:scale-90 ${
                 botonBloqueado 
                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-700 shadow-none' 
                 : 'bg-amber-500 hover:bg-slate-900 dark:hover:bg-white text-slate-950 dark:hover:text-slate-900 shadow-amber-500/20'
               }`}
             >
               {sinStockReal ? (
-                <ShoppingCart className="w-6 h-6 opacity-20" />
+                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 opacity-20" />
               ) : limiteAlcanzado ? (
-                <AlertCircle className="w-6 h-6" />
+                 <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />
               ) : (
-                <Plus className="w-6 h-6 stroke-[3px]" />
+                 <Plus className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3px]" />
               )}
             </button>
           </div>
@@ -164,11 +184,27 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
       </div>
 
       {/* MODAL DE GALERÍA */}
-      {modalAbierto && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 md:p-10 transition-all">
-          <button onClick={() => setModalAbierto(false)} className="absolute top-6 right-6 text-white/50 hover:text-white z-50 p-2 bg-white/10 rounded-full transition-colors"><X size={32}/></button>
+      {modalAbierto && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detalle de ${vinilo.titulo}`}
+          onMouseDown={cerrarDetalle}
+          className="fixed inset-0 z-[9999] isolate flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm transition-all md:p-10"
+        >
+          <button
+            type="button"
+            onClick={cerrarDetalle}
+            aria-label="Cerrar detalle del vinilo"
+            className="absolute right-4 top-4 z-[10000] flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black uppercase text-slate-950 shadow-xl transition-colors hover:bg-amber-500 md:right-8 md:top-8"
+          >
+            <X size={20} /> <span className="hidden sm:inline">Cerrar</span>
+          </button>
           
-          <div className="relative max-w-5xl w-full h-full flex items-center justify-center">
+          <div
+            onMouseDown={event => event.stopPropagation()}
+            className="relative max-h-full w-full max-w-6xl grid grid-cols-1 items-center gap-6 overflow-y-auto rounded-[2rem] bg-slate-950/80 p-4 md:grid-cols-[1.1fr_0.9fr] md:p-8"
+          >
             {hayVariasFotos && (
               <>
                 <button onClick={fotoAnterior} className="absolute left-0 z-50 p-3 bg-white/5 hover:bg-white/20 text-white rounded-full transition-all"><ChevronLeft size={40}/></button>
@@ -176,15 +212,37 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
               </>
             )}
             
-            <div className="w-full h-full flex items-center justify-center">
+            <div className="w-full min-h-[280px] md:min-h-[520px] flex items-center justify-center">
               <img 
                 src={imagenes[fotoActual]} 
-                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-300" 
-                alt="Vista ampliada"
+                className="max-w-full max-h-[55vh] md:max-h-[70vh] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-300"
+                alt={`${vinilo.titulo} - vista ampliada`}
               />
             </div>
+            <div className="rounded-2xl bg-white p-6 text-left dark:bg-slate-900">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500">Ficha del vinilo</p>
+              <h2 className="mt-2 text-2xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white">{vinilo.titulo}</h2>
+              <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">{vinilo.artista}</p>
+              <p className="mt-5 text-2xl font-black text-amber-500">{renderPrecioPrincipal()}</p>
+              <div className="mt-5 grid grid-cols-2 gap-2 text-[10px] font-black uppercase">
+                {vinilo.genero && <span className="rounded-lg bg-amber-500/10 p-2 text-amber-600">Género: {vinilo.genero}</span>}
+                {vinilo.calidad && <span className="rounded-lg bg-blue-500/10 p-2 text-blue-600">Calidad: {vinilo.calidad}</span>}
+                {vinilo.pais_origen && <span className="rounded-lg bg-violet-500/10 p-2 text-violet-600">Origen: {vinilo.pais_origen}</span>}
+                <span className={`rounded-lg p-2 ${sinStockReal ? 'bg-red-500/10 text-red-600' : 'bg-emerald-500/10 text-emerald-600'}`}>Stock: {vinilo.stock_actual}</span>
+              </div>
+              <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-700">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Descripción</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-300">{vinilo.descripcion?.trim() || 'Sin descripción disponible.'}</p>
+              </div>
+              {!sinStockReal && !limiteAlcanzado && (
+              <button type="button" onClick={() => { cerrarDetalle(); onAdd(); }} className="mt-6 w-full rounded-xl bg-amber-500 py-3 text-xs font-black uppercase text-slate-950 hover:bg-amber-400">
+                  Agregar al carrito
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
