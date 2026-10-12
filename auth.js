@@ -30,7 +30,6 @@ const COOKIE_CLIENTE = 'gr_cliente';
 const HORAS_SESION_ADMIN = 12;
 const DIAS_SESION_CLIENTE = 30;
 const MINUTOS_INACTIVIDAD_CLIENTE = 15;
-const MINUTOS_ACTIVIDAD_ADMIN = 1;   // lock de sesion unica (423)
 const MAX_INTENTOS = 5;               // intentos fallidos por email+ip
 const VENTANA_INTENTOS_MS = 15 * 60 * 1000;
 const BLOQUEO_MS = 15 * 60 * 1000;
@@ -41,6 +40,16 @@ const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64, maxmem: 64 * 1024 * 1024 };
 
 // Map de intentos fallidos: "email|ip" -> { count, hasta }
 const intentos = new Map();
+
+// Recuperacion de contrasena: limites separados por IP y email para que un
+// atacante no pueda abusar de una sola dimension. Se mantienen acotados igual
+// que el mapa de login.
+const recuperacionIntentos = new Map();
+const MAX_CLAVES_RECUPERACION = 10000;
+const VENTANA_RECUPERACION_MS = 15 * 60 * 1000;
+const MAX_RECUPERACIONES = 5;
+const TTL_RECUPERACION_MINUTOS = 30;
+const MENSAJE_RECUPERACION = 'Si existe una cuenta con ese email, recibiras instrucciones para restablecer tu contrasena.';
 
 // ==========================================
 // HELPERS DE CONTRASENA Y TOKEN
@@ -76,6 +85,67 @@ export function verificarPassword(password, guardado) {
 
 const nuevoToken = () => crypto.randomBytes(32).toString('base64url');
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+function puedeSolicitarRecuperacion(clave) {
+    const ahora = Date.now();
+    const registro = recuperacionIntentos.get(clave);
+    if (!registro || ahora - registro.inicio >= VENTANA_RECUPERACION_MS) {
+        if (recuperacionIntentos.size >= MAX_CLAVES_RECUPERACION) {
+            const [masVieja] = recuperacionIntentos.keys();
+            recuperacionIntentos.delete(masVieja);
+        }
+        recuperacionIntentos.set(clave, { inicio: ahora, cantidad: 1 });
+        return true;
+    }
+    if (registro.cantidad >= MAX_RECUPERACIONES) return false;
+    registro.cantidad += 1;
+    return true;
+}
+
+const purgarRecuperacion = () => {
+    const ahora = Date.now();
+    for (const [clave, registro] of recuperacionIntentos) {
+        if (ahora - registro.inicio >= VENTANA_RECUPERACION_MS) recuperacionIntentos.delete(clave);
+    }
+};
+
+function configuracionCorreo() {
+    const { RESEND_API_KEY, MAIL_FROM, PUBLIC_APP_URL } = process.env;
+    if (!RESEND_API_KEY || !MAIL_FROM || !PUBLIC_APP_URL) return null;
+    return { apiKey: RESEND_API_KEY, from: MAIL_FROM, appUrl: PUBLIC_APP_URL.replace(/\/$/, '') };
+}
+
+async function enviarCorreoRecuperacion(config, email, token) {
+    const enlace = `${config.appUrl}/restablecer-contrasena?token=${encodeURIComponent(token)}`;
+    const respuesta = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            from: config.from,
+            to: [email],
+            subject: 'Restablece tu contrasena de Guacamayo Records',
+            text: `Podes restablecer tu contrasena durante los proximos ${TTL_RECUPERACION_MINUTOS} minutos desde este enlace:\n\n${enlace}\n\nSi no solicitaste este cambio, ignora este email.`
+        })
+    });
+    if (!respuesta.ok) {
+        console.error('[auth] Resend rechazo el correo de recuperacion:', respuesta.status);
+        throw new Error('No se pudo enviar el correo de recuperacion');
+    }
+}
+
+async function registrarAuditoriaRecuperacion(sql, usuarioId) {
+    try {
+        await sql.query(
+            'INSERT INTO `auditoria` (`admin_usuario_id`, `admin_email`, `entidad`, `entidad_id`, `accion`, `datos_antes`, `datos_despues`) VALUES (NULL, NULL, ?, ?, ?, NULL, NULL)',
+            ['usuarios', String(usuarioId), 'restablecer_contrasena']
+        );
+    } catch (e) {
+        if (!['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(e.code)) throw e;
+    }
+}
 
 // ==========================================
 // HELPERS DE COOKIE / REQUEST
@@ -165,6 +235,7 @@ export function purgarIntentos() {
     for (const [clave, registro] of intentos) {
         if (ahora > registro.hasta) intentos.delete(clave);
     }
+    purgarRecuperacion();
 }
 
 // Hash señuelo: sin esto, un email inexistente responde en ~0 ms y uno existente
@@ -199,7 +270,8 @@ async function borrarSesion(sql, req, tipo) {
 
 /**
  * Devuelve la sesion viva del tipo pedido o null.
- * Toca `ultima_actividad` en cada lectura: de ahi sale el lock de sesion unica.
+ * Toca `ultima_actividad` en cada lectura para mantener viva la sesion mientras
+ * el panel trabaja; las sesiones admin pueden coexistir.
  */
 async function leerSesion(sql, req, tipo) {
     const token = leerCookies(req)[nombreCookie(tipo)];
@@ -265,6 +337,22 @@ function requiereAdmin(sql) {
     };
 }
 
+/** Exige autenticacion y, ademas, uno de los roles indicados. */
+function requireAdminRole(sql, ...roles) {
+    const permitidos = new Set(roles);
+    return (req, res, next) => {
+        const comprobar = () => {
+            if (!req.auth?.admin) return res.status(401).json({ error: 'Sesion no valida' });
+            if (!permitidos.has(req.auth.admin.rol)) {
+                return res.status(403).json({ error: 'No tenes permisos para esta operacion' });
+            }
+            next();
+        };
+        if (req.auth?.tipo === 'admin') return comprobar();
+        return requiereAdmin(sql)(req, res, comprobar);
+    };
+}
+
 /** Exige sesion de cliente. Deja req.auth = { tipo:'cliente', usuario }. */
 function requiereCliente(sql) {
     return (req, res, next) => {
@@ -310,6 +398,12 @@ const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const esEmail = (valor) => typeof valor === 'string' && RE_EMAIL.test(valor.trim());
 
 const limpiar = (valor, max) => (typeof valor === 'string' ? valor.trim().slice(0, max) : '');
+
+const activoDe = (valor) => {
+    if (valor === true || valor === 1 || valor === '1' || valor === 'true') return 1;
+    if (valor === false || valor === 0 || valor === '0' || valor === 'false') return 0;
+    return null;
+};
 
 // Un poco de anti-enumeracion: mismo texto para email inexistente y clave mala.
 const ERROR_CREDENCIALES = 'Credenciales incorrectas';
@@ -378,6 +472,7 @@ export function crearAuthRouter(db) {
     const sql = db.promise();
     const router = express.Router();
     const soloAdmin = requiereAdmin(sql);
+    const soloAdminMaximo = requireAdminRole(sql, 'admin');
     const soloCliente = requiereCliente(sql);
 
     // --------------------------------------------------------------
@@ -426,33 +521,7 @@ export function crearAuthRouter(db) {
             }
             if (!admin.activo) return res.status(403).json({ error: 'Cuenta desactivada' });
 
-            // Sesion unica: si otro dispositivo esta activo hace menos de
-            // MINUTOS_ACTIVIDAD_ADMIN, no se permite el segundo ingreso.
-            const [activas] = await sql.query(
-                `SELECT COUNT(*) AS \`total\`
-                   FROM \`sesiones\`
-                  WHERE \`tipo\` = 'admin'
-                    AND \`admin_usuario_id\` = ?
-                    AND \`expira_en\` > NOW()
-                    AND \`ultima_actividad\` > DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
-                [admin.id, MINUTOS_ACTIVIDAD_ADMIN]
-            );
-            if (activas[0].total > 0) {
-                return res.status(423).json({
-                    error: 'BLOQUEADO',
-                    message: 'El panel ya esta abierto en otro dispositivo.'
-                });
-            }
-
             const token = await crearSesion(sql, req, { tipo: 'admin', adminUsuarioId: admin.id });
-
-            // Sesion unica de verdad: las sesiones viejas que quedaron sin
-            // actividad se borran, asi una cookie de una pestana cerrada no
-            // sirve para escribir en el backoffice durante las 12 h del TTL.
-            await sql.query(
-                'DELETE FROM `sesiones` WHERE `tipo` = \'admin\' AND `admin_usuario_id` = ? AND `ultima_actividad` <= DATE_SUB(NOW(), INTERVAL ? MINUTE)',
-                [admin.id, MINUTOS_ACTIVIDAD_ADMIN]
-            );
 
             await sql.query('UPDATE `admin_usuarios` SET `ultimo_acceso` = NOW() WHERE `id` = ?', [admin.id]);
             limpiarIntentos(clave);
@@ -464,6 +533,124 @@ export function crearAuthRouter(db) {
         } catch (e) {
             next(e);
         }
+    });
+
+    // --------------------------------------------------------------
+    // 1 bis) ADMINISTRADORES (solo el admin maximo)
+    // --------------------------------------------------------------
+    router.get('/admin/administradores', soloAdmin, soloAdminMaximo, async (req, res, next) => {
+        try {
+            const [filas] = await sql.query(
+                'SELECT `id`, `email`, `nombre`, `rol`, `activo`, `ultimo_acceso` FROM `admin_usuarios` ORDER BY `id` ASC'
+            );
+            res.json(filas);
+        } catch (e) {
+            next(e);
+        }
+    });
+
+    router.post('/admin/administradores', soloAdmin, soloAdminMaximo, async (req, res, next) => {
+        try {
+            const email = limpiar(req.body?.email, 191).toLowerCase();
+            const nombre = limpiar(req.body?.nombre, 100);
+            const password = req.body?.password;
+            const rol = req.body?.rol === undefined ? 'editor' : req.body.rol;
+            const activo = req.body?.activo === undefined ? 1 : activoDe(req.body.activo);
+
+            if (!esEmail(email) || email.length > 191) return res.status(400).json({ error: 'El email no es valido' });
+            if (nombre.length < 2) return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+            if (!['admin', 'editor'].includes(rol)) return res.status(400).json({ error: 'Rol invalido' });
+            if (activo === null) return res.status(400).json({ error: 'Activo invalido' });
+            if (typeof password !== 'string' || password.length < 8 || password.length > 200) {
+                return res.status(400).json({ error: 'La contrasena debe tener entre 8 y 200 caracteres' });
+            }
+
+            const [existentes] = await sql.query('SELECT `id` FROM `admin_usuarios` WHERE LOWER(`email`) = ? LIMIT 1', [email]);
+            if (existentes.length > 0) return res.status(409).json({ error: 'Ya existe un administrador con ese email' });
+            const [resultado] = await sql.query(
+                'INSERT INTO `admin_usuarios` (`email`, `nombre`, `password_hash`, `rol`, `activo`) VALUES (?, ?, ?, ?, ?)',
+                [email, nombre, hashPassword(password), rol, activo]
+            );
+            res.status(201).json({ id: resultado.insertId, email, nombre, rol, activo, ultimo_acceso: null });
+        } catch (e) {
+            if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Ya existe un administrador con ese email' });
+            next(e);
+        }
+    });
+
+    async function actualizarAdministrador(req, res, next) {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id invalido' });
+        const cuerpo = req.body && typeof req.body === 'object' ? req.body : {};
+        let conexion = null;
+        try {
+            conexion = await sql.getConnection();
+            await conexion.beginTransaction();
+            // El mismo orden de bloqueos evita deadlocks entre ediciones simultaneas.
+            const [maximos] = await conexion.execute('SELECT `id`, `activo` FROM `admin_usuarios` WHERE `rol` = \'admin\' FOR UPDATE');
+            const [objetivos] = await conexion.execute(
+                'SELECT `id`, `email`, `nombre`, `rol`, `activo`, `ultimo_acceso` FROM `admin_usuarios` WHERE `id` = ? FOR UPDATE', [id]
+            );
+            if (objetivos.length === 0) {
+                await conexion.rollback();
+                return res.status(404).json({ error: 'Administrador no encontrado' });
+            }
+            const actual = objetivos[0];
+            const nombre = Object.prototype.hasOwnProperty.call(cuerpo, 'nombre') ? limpiar(cuerpo.nombre, 100) : actual.nombre;
+            const rol = Object.prototype.hasOwnProperty.call(cuerpo, 'rol') ? cuerpo.rol : actual.rol;
+            const activo = Object.prototype.hasOwnProperty.call(cuerpo, 'activo') ? activoDe(cuerpo.activo) : Number(actual.activo);
+            if (nombre.length < 2) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+            }
+            if (!['admin', 'editor'].includes(rol)) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'Rol invalido' });
+            }
+            if (![0, 1].includes(activo)) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'Activo invalido' });
+            }
+            if (id === req.auth.admin.id && (rol !== 'admin' || activo !== 1)) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'No podes desactivarte o rebajarte a vos mismo' });
+            }
+
+            // Se bloquean los admins maximos para que dos ediciones no dejen cero activos.
+            const activosRestantes = maximos.filter((fila) => Number(fila.activo) === 1 && fila.id !== id).length
+                + (rol === 'admin' && activo === 1 ? 1 : 0);
+            if (activosRestantes === 0) {
+                await conexion.rollback();
+                return res.status(409).json({ error: 'Debe quedar al menos un admin maximo activo' });
+            }
+            await conexion.execute('UPDATE `admin_usuarios` SET `nombre` = ?, `rol` = ?, `activo` = ? WHERE `id` = ?', [nombre, rol, activo, id]);
+            if (activo === 0) await conexion.execute('DELETE FROM `sesiones` WHERE `tipo` = \'admin\' AND `admin_usuario_id` = ?', [id]);
+            await conexion.commit();
+            res.json({ id, email: actual.email, nombre, rol, activo, ultimo_acceso: actual.ultimo_acceso });
+        } catch (e) {
+            if (conexion) await conexion.rollback().catch(() => {});
+            next(e);
+        } finally {
+            if (conexion) conexion.release();
+        }
+    }
+
+    router.put('/admin/administradores/:id', soloAdmin, soloAdminMaximo, actualizarAdministrador);
+
+    router.post('/admin/administradores/:id/revocar-sesiones', soloAdmin, soloAdminMaximo, async (req, res, next) => {
+        try {
+            const id = Number(req.params.id);
+            if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id invalido' });
+            const [resultado] = await sql.query('DELETE FROM `sesiones` WHERE `tipo` = \'admin\' AND `admin_usuario_id` = ?', [id]);
+            res.json({ success: true, sesiones_revocadas: resultado.affectedRows });
+        } catch (e) {
+            next(e);
+        }
+    });
+
+    router.delete('/admin/administradores/:id', soloAdmin, soloAdminMaximo, async (req, res, next) => {
+        req.body = { ...(req.body || {}), activo: 0 };
+        return actualizarAdministrador(req, res, next);
     });
 
     router.post('/admin/logout', async (req, res, next) => {
@@ -608,6 +795,89 @@ export function crearAuthRouter(db) {
             // otro (MySQL, red) lo maneja el error handler de server.js.
             if (e instanceof ErrorGoogle) return res.status(401).json({ error: e.message });
             next(e);
+        }
+    });
+
+    router.post('/auth/recuperar', async (req, res, next) => {
+        const config = configuracionCorreo();
+        if (!config) {
+            console.error('[auth] Recuperacion no disponible: faltan variables de correo requeridas');
+            return res.status(503).json({ error: 'Servicio de recuperacion no disponible' });
+        }
+
+        const email = limpiar(req.body?.email, 191).toLowerCase();
+        const respuestaGenerica = () => res.status(202).json({ message: MENSAJE_RECUPERACION });
+        if (!esEmail(email)) return respuestaGenerica();
+        if (!puedeSolicitarRecuperacion(`ip:${ipDe(req)}`) || !puedeSolicitarRecuperacion(`email:${email}`)) {
+            return res.status(429).json({ error: 'Demasiadas solicitudes. Intenta nuevamente mas tarde.' });
+        }
+
+        try {
+            const [usuarios] = await sql.query(
+                'SELECT `id` FROM `usuarios` WHERE LOWER(`email`) = ? AND `activo` = 1 LIMIT 1',
+                [email]
+            );
+            if (usuarios.length === 0) return respuestaGenerica();
+
+            const token = nuevoToken();
+            await sql.query('DELETE FROM `recuperacion_password` WHERE `usuario_id` = ? AND `usado_en` IS NULL', [usuarios[0].id]);
+            await sql.query(
+                'INSERT INTO `recuperacion_password` (`usuario_id`, `token_hash`, `expira_en`) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))',
+                [usuarios[0].id, hashToken(token), TTL_RECUPERACION_MINUTOS]
+            );
+            await enviarCorreoRecuperacion(config, email, token);
+            return respuestaGenerica();
+        } catch (e) {
+            console.error('[auth] Error operativo en recuperacion de contrasena:', e.code || 'desconocido');
+            return res.status(503).json({ error: 'Servicio de recuperacion no disponible' });
+        }
+    });
+
+    router.post('/auth/restablecer', async (req, res, next) => {
+        const token = req.body?.token;
+        const password = req.body?.password;
+        if (typeof token !== 'string' || token.length < 20 || typeof password !== 'string' || password.length < 8) {
+            return res.status(400).json({ error: 'Token o contrasena invalida' });
+        }
+
+        const conexion = await sql.getConnection();
+        try {
+            await conexion.beginTransaction();
+            const [tokens] = await conexion.execute(
+                `SELECT \`id\`, \`usuario_id\`
+                   FROM \`recuperacion_password\`
+                  WHERE \`token_hash\` = ? AND \`usado_en\` IS NULL AND \`expira_en\` > NOW()
+                  LIMIT 1 FOR UPDATE`,
+                [hashToken(token)]
+            );
+            if (tokens.length === 0) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'Token invalido o vencido' });
+            }
+
+            const { id: tokenId, usuario_id: usuarioId } = tokens[0];
+            const [actualizado] = await conexion.execute(
+                'UPDATE `usuarios` SET `password_hash` = ? WHERE `id` = ? AND `activo` = 1',
+                [hashPassword(password), usuarioId]
+            );
+            if (actualizado.affectedRows !== 1) {
+                await conexion.rollback();
+                return res.status(400).json({ error: 'Token invalido o vencido' });
+            }
+            await conexion.execute('UPDATE `recuperacion_password` SET `usado_en` = NOW() WHERE `id` = ?', [tokenId]);
+            await conexion.execute('DELETE FROM `sesiones` WHERE `tipo` = \'cliente\' AND `usuario_id` = ?', [usuarioId]);
+            await conexion.commit();
+
+            await registrarAuditoriaRecuperacion(sql, usuarioId);
+            res.json({ message: 'Contrasena restablecida correctamente' });
+        } catch (e) {
+            await conexion.rollback().catch(() => {});
+            if (['ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR'].includes(e.code)) {
+                return res.status(503).json({ error: 'Servicio de recuperacion no disponible' });
+            }
+            next(e);
+        } finally {
+            conexion.release();
         }
     });
 
@@ -881,6 +1151,7 @@ export function middlewaresAuth(db) {
     const sql = db.promise();
     return {
         requiereAdmin: requiereAdmin(sql),
+        requireAdminRole: (...roles) => requireAdminRole(sql, ...roles),
         requiereCliente: requiereCliente(sql),
         sesionClienteOpcional: sesionOpcional(sql, 'cliente')
     };
