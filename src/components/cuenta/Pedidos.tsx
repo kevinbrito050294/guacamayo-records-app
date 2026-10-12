@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Hash, Package, ShoppingBag, Ticket } from 'lucide-react';
-import { pedir, itemsDePedido, formatearFecha, importeUsd, type PedidoCliente } from '../../lib/cuenta';
+import { Feather, Hash, Package, ShoppingBag, Ticket } from 'lucide-react';
+import { pedir, itemsDePedido, formatearFechaHora, importeUsd, type PedidoCliente } from '../../lib/cuenta';
 import { Cargando, MensajeError, Vacio } from './ui';
 
 interface PedidosProps {
@@ -82,7 +82,7 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
                   Orden #{pedido.numero_orden || pedido.id_pedido}
                 </p>
                 <p className="font-black text-slate-900 dark:text-white text-lg uppercase italic tracking-tighter mt-1">
-                  {formatearFecha(pedido.fecha)}
+                   Fecha del pedido: {formatearFechaHora(pedido.fecha) || 'No disponible'}
                 </p>
               </div>
               <span className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${claseEstado(pedido.estado)}`}>
@@ -97,6 +97,8 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
                     <Package size={12} className="text-slate-300 dark:text-slate-600 shrink-0" />
                     <span className="font-medium truncate">{item.titulo || 'Vinilo'}</span>
                     <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 shrink-0">x{item.cantidad ?? 1}</span>
+                    {item.precio_unitario != null && <span className="text-[10px] font-mono text-slate-500 shrink-0">{importeUsd(item.precio_unitario)} c/u</span>}
+                    {item.subtotal != null && <span className="text-[10px] font-mono text-slate-500 shrink-0">{importeUsd(item.subtotal)}</span>}
                   </li>
                 ))}
               </ul>
@@ -121,6 +123,13 @@ export function Pedidos({ onVerCatalogo }: PedidosProps) {
                     -{importeUsd(pedido.descuento_aplicado)}
                   </span>
                 )}
+              </div>
+            )}
+            {(Number(pedido.recompensas_ganadas) > 0 || Number(pedido.recompensas_usadas) > 0) && (
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest bg-violet-500/10 text-violet-500"><Feather size={12} /> Plumas</span>
+                {Number(pedido.recompensas_ganadas) > 0 && <span className="text-[10px] font-bold text-violet-500">+{Number(pedido.recompensas_ganadas)} ganadas</span>}
+                {Number(pedido.recompensas_usadas) > 0 && <span className="text-[10px] font-bold text-slate-500">-{Number(pedido.recompensas_usadas)} usadas</span>}
               </div>
             )}
 
