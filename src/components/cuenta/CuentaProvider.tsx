@@ -3,6 +3,7 @@ import {
   CuentaContext, pedir,
   type Favorito, type ResultadoAccion, type Usuario, type ValorCuenta,
   type DatosLogin, type DatosRegistro,
+  type SaldoRecompensas, obtenerSaldoRecompensas,
 } from '../../lib/cuenta';
 
 const MINUTOS_INACTIVIDAD = 15;
@@ -20,6 +21,7 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
   const [cargando, setCargando] = useState(true);
   const [favoritos, setFavoritos] = useState<Favorito[]>([]);
   const [idsFavoritos, setIdsFavoritos] = useState<Set<number>>(new Set());
+  const [saldoRecompensas, setSaldoRecompensas] = useState<SaldoRecompensas | null>(null);
   const temporizadorInactividad = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refrescarFavoritos = useCallback(async (): Promise<ResultadoAccion> => {
@@ -38,9 +40,14 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
     setUsuario(actual);
     if (actual) {
       void refrescarFavoritos();
+      void (async () => {
+        const saldo = await obtenerSaldoRecompensas();
+        setSaldoRecompensas(saldo.ok ? saldo.data : null);
+      })();
     } else {
       setFavoritos([]);
       setIdsFavoritos(new Set());
+      setSaldoRecompensas(null);
     }
     return actual;
   }, [refrescarFavoritos]);
@@ -83,7 +90,18 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
     setUsuario(null);
     setFavoritos([]);
     setIdsFavoritos(new Set());
+    setSaldoRecompensas(null);
   }, []);
+
+  const refrescarSaldoRecompensas = useCallback(async (): Promise<ResultadoAccion> => {
+    if (!usuario) {
+      setSaldoRecompensas(null);
+      return { ok: true, error: '' };
+    }
+    const res = await obtenerSaldoRecompensas();
+    if (res.ok) setSaldoRecompensas(res.data);
+    return res.ok ? { ok: true, error: '' } : { ok: false, error: res.error };
+  }, [usuario]);
 
   // El navegador cierra la sesión aunque el usuario no haga otra petición.
   // El servidor aplica el mismo límite para que la cookie no siga siendo válida.
@@ -153,6 +171,8 @@ export function CuentaProvider({ children }: { children: ReactNode }) {
     alternarFavorito,
     refrescarFavoritos,
     vaciarFavoritos,
+    saldoRecompensas,
+    refrescarSaldoRecompensas,
   };
 
   return <CuentaContext.Provider value={valor}>{children}</CuentaContext.Provider>;
