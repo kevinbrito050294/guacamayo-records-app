@@ -190,52 +190,52 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
           aria-modal="true"
           aria-label={`Detalle de ${vinilo.titulo}`}
           onMouseDown={cerrarDetalle}
-          className="fixed inset-0 z-[9999] isolate flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm transition-all md:p-10"
+          className="fixed inset-0 z-[9999] isolate flex items-end justify-center bg-black/95 p-0 backdrop-blur-sm transition-all sm:items-center sm:p-4 md:p-10"
         >
           <button
             type="button"
             onClick={cerrarDetalle}
             aria-label="Cerrar detalle del vinilo"
-            className="absolute right-4 top-4 z-[10000] flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black uppercase text-slate-950 shadow-xl transition-colors hover:bg-amber-500 md:right-8 md:top-8"
+            className="absolute right-3 top-3 z-[10000] flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-black uppercase text-slate-950 shadow-xl transition-colors hover:bg-amber-500 sm:right-6 sm:top-6 sm:px-4 md:right-8 md:top-8"
           >
             <X size={20} /> <span className="hidden sm:inline">Cerrar</span>
           </button>
           
           <div
             onMouseDown={event => event.stopPropagation()}
-            className="relative max-h-full w-full max-w-6xl grid grid-cols-1 items-center gap-6 overflow-y-auto rounded-[2rem] bg-slate-950/80 p-4 md:grid-cols-[1.1fr_0.9fr] md:p-8"
+            className="relative max-h-[100dvh] w-full max-w-6xl grid grid-cols-1 items-center gap-3 overflow-y-auto overscroll-contain rounded-t-[2rem] bg-slate-950/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:max-h-full sm:gap-6 sm:rounded-[2rem] sm:p-4 md:grid-cols-[1.1fr_0.9fr] md:p-8"
           >
             {hayVariasFotos && (
               <>
-                <button onClick={fotoAnterior} className="absolute left-0 z-50 p-3 bg-white/5 hover:bg-white/20 text-white rounded-full transition-all"><ChevronLeft size={40}/></button>
-                <button onClick={proximaFoto} className="absolute right-0 z-50 p-3 bg-white/5 hover:bg-white/20 text-white rounded-full transition-all"><ChevronRight size={40}/></button>
+                <button onClick={fotoAnterior} aria-label="Foto anterior" className="absolute left-2 top-[30%] z-50 rounded-full bg-black/45 p-2 text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:left-3 sm:p-3 md:left-0 md:top-1/2"><ChevronLeft size={24} className="sm:h-8 sm:w-8 md:h-10 md:w-10" /></button>
+                <button onClick={proximaFoto} aria-label="Foto siguiente" className="absolute right-2 top-[30%] z-50 rounded-full bg-black/45 p-2 text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:right-3 sm:p-3 md:right-0 md:top-1/2"><ChevronRight size={24} className="sm:h-8 sm:w-8 md:h-10 md:w-10" /></button>
               </>
             )}
             
-            <div className="w-full min-h-[280px] md:min-h-[520px] flex items-center justify-center">
+            <div className="flex h-[42dvh] min-h-[250px] max-h-[430px] w-full items-center justify-center sm:h-[52vh] sm:min-h-[280px] md:h-auto md:min-h-[520px]">
               <img 
                 src={imagenes[fotoActual]} 
-                className="max-w-full max-h-[55vh] md:max-h-[70vh] object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-300"
+                className="max-h-full max-w-full rounded-xl object-contain shadow-2xl animate-in zoom-in-95 duration-300"
                 alt={`${vinilo.titulo} - vista ampliada`}
               />
             </div>
-            <div className="rounded-2xl bg-white p-6 text-left dark:bg-slate-900">
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500">Ficha del vinilo</p>
-              <h2 className="mt-2 text-2xl font-black uppercase italic tracking-tight text-slate-900 dark:text-white">{vinilo.titulo}</h2>
+            <div className="rounded-2xl bg-white p-4 text-left dark:bg-slate-900 sm:p-6">
+              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-500 sm:text-[10px]">Ficha del vinilo</p>
+              <h2 className="mt-2 text-xl font-black uppercase italic leading-tight tracking-tight text-slate-900 dark:text-white sm:text-2xl">{vinilo.titulo}</h2>
               <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">{vinilo.artista}</p>
-              <p className="mt-5 text-2xl font-black text-amber-500">{renderPrecioPrincipal()}</p>
-              <div className="mt-5 grid grid-cols-2 gap-2 text-[10px] font-black uppercase">
+              <p className="mt-4 text-2xl font-black text-amber-500 sm:mt-5">{renderPrecioPrincipal()}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-[9px] font-black uppercase sm:mt-5 sm:text-[10px]">
                 {vinilo.genero && <span className="rounded-lg bg-amber-500/10 p-2 text-amber-600">Género: {vinilo.genero}</span>}
                 {vinilo.calidad && <span className="rounded-lg bg-blue-500/10 p-2 text-blue-600">Calidad: {vinilo.calidad}</span>}
                 {vinilo.pais_origen && <span className="rounded-lg bg-violet-500/10 p-2 text-violet-600">Origen: {vinilo.pais_origen}</span>}
                 <span className={`rounded-lg p-2 ${sinStockReal ? 'bg-red-500/10 text-red-600' : 'bg-emerald-500/10 text-emerald-600'}`}>Stock: {vinilo.stock_actual}</span>
               </div>
-              <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-700">
+              <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700 sm:mt-6 sm:pt-5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Descripción</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-300">{vinilo.descripcion?.trim() || 'Sin descripción disponible.'}</p>
               </div>
               {!sinStockReal && !limiteAlcanzado && (
-              <button type="button" onClick={() => { cerrarDetalle(); onAdd(); }} className="mt-6 w-full rounded-xl bg-amber-500 py-3 text-xs font-black uppercase text-slate-950 hover:bg-amber-400">
+              <button type="button" onClick={() => { cerrarDetalle(); onAdd(); }} className="mt-5 w-full rounded-xl bg-amber-500 py-3.5 text-xs font-black uppercase text-slate-950 shadow-lg shadow-amber-500/20 hover:bg-amber-400 sm:mt-6 sm:py-3">
                   Agregar al carrito
                 </button>
               )}
