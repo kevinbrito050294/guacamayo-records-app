@@ -17,6 +17,17 @@ Para publicar una versión nueva:
 2. Generar el APK release y subirlo a la URL indicada en `android-update.json`.
 3. Actualizar `android-update.json` en el servidor con el nuevo `versionCode`.
 
+La secuencia automatizada está en `scripts/publicar-android.ps1`. Ejecutala desde PowerShell con
+las tres variables de firma configuradas; incrementa ambas versiones, compila, publica el APK y
+falla si el archivo descargado públicamente no coincide byte por byte con el generado.
+
+Esta secuencia es obligatoria para cada cambio que modifique la app Android. La actualización web
+se publica por separado en Railway; como la app carga la URL remota, los cambios exclusivamente
+web llegan sin reinstalar el APK. Si cambia el código nativo, el bridge, la configuración de
+Capacitor o se necesita forzar una actualización del cliente, también hay que generar y publicar
+el APK firmado, aumentar ambas versiones y comprobar que `android-update.json` y la URL del APK
+responden correctamente por HTTPS.
+
 La firma release usa las variables privadas `GUACAMAYO_KEYSTORE_FILE`,
 `GUACAMAYO_KEYSTORE_PASSWORD` y `GUACAMAYO_KEY_ALIAS`. Hay que conservar el mismo
 keystore para todas las versiones: Android rechaza una actualización firmada con
@@ -27,17 +38,40 @@ carga la URL remota al iniciar.
 
 ## Sesión
 
-- Se mantiene un único usuario administrativo.
-- Solo puede existir una sesión admin activa entre la web y Android.
-- Si el panel ya está abierto en otro dispositivo, el backend responde `423`.
+- Se pueden conservar credenciales biométricas de varios administradores, indexadas por
+  `admin.id`. Solo se guarda metadata mínima (`id`, email, nombre y `lastUsed`) y la contraseña
+  queda cifrada con AES/GCM usando una clave del Android Keystore; nunca se devuelve a JavaScript.
+- Las instalaciones existentes migran automáticamente las claves antiguas `email/password` al
+  primer acceso. El email se usa como identificador temporal hasta el siguiente login exitoso.
+- La biometría usa el último administrador seleccionado. El selector "Cambiar cuenta biométrica"
+  permite elegir otra sin borrar las demás; el login manual también selecciona la cuenta autenticada.
+- El bridge expone `listAdminCredentials()` con solo metadata y `selectAdmin(adminId)` para cambiar
+  la cuenta siguiente; no existe un método que devuelva contraseñas a JavaScript.
+- El frontend no usa `localStorage` para credenciales. El método de guardado recibe la contraseña
+  únicamente después de un login correcto y Android la cifra antes de persistirla.
+- La API actual puede responder `423` en versiones antiguas del servidor, pero la multisesión de
+  administradores no debe producir ese conflicto. Los `401` y `403` se muestran como errores de
+  autenticación o permisos, respectivamente.
+- Android conserva la sesión mientras la app pasa a segundo plano; no la revoca en
+  cada cambio breve de ventana, evitando falsos conflictos con el mismo teléfono.
 - Para cambiar de dispositivo hay que cerrar sesión primero.
+
+## Notificaciones de pedidos
+
+La app usa Firebase Cloud Messaging (FCM) para avisar nuevos pedidos aunque esté
+cerrada. El token del teléfono se registra solo después de autenticar al admin y
+el servidor lo elimina si Firebase lo marca como vencido. La variable privada
+`FIREBASE_SERVICE_ACCOUNT_JSON` se configura únicamente en Railway; nunca se guarda
+en Git ni dentro del APK.
 
 ## Desbloqueo biométrico
 
 Al abrir la app Android solicita huella digital o el PIN/patrón del dispositivo
-mediante `BiometricPrompt`. La contraseña nunca se guarda en el teléfono. Si el
-dispositivo no tiene biometría ni bloqueo configurado, se puede continuar con el
-login normal.
+mediante `BiometricPrompt`. La credencial se guarda cifrada con una clave del
+Android Keystore y solo se usa si la cookie de sesión ya expiró; mientras la sesión
+siga activa no se vuelve a hacer login ni se genera el error de dispositivo duplicado.
+Si el dispositivo no tiene biometría ni bloqueo configurado, se puede continuar con
+el login normal.
 
 ## Desarrollo
 
@@ -60,4 +94,5 @@ En Windows, usar `gradlew.bat assembleDebug` desde la carpeta `android`.
 El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 La app no debe publicarse con credenciales embebidas. El usuario y la contraseña
-se ingresan en el login normal del panel.
+se ingresan en el login normal del panel y, después de un login exitoso, quedan
+cifrados localmente en el Android Keystore para el desbloqueo biométrico.
