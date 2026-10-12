@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { CalidadVinilo } from '../../types/database';
+import React, { useEffect, useState } from 'react';
+import { CalidadVinilo, MonedaPrecio, TasasCambio } from '../../types/database';
 import { Save, AlertCircle, Check, Disc, Music, Tag, Hash, DollarSign, Database, AlignLeft } from 'lucide-react';
 import { apiUrl } from '../../lib/api';
+import { convertirAUsd, convertirDesdeUsd, obtenerTasasDisponibles } from '../../lib/currency';
 
 interface VinylFormProps {
   onSuccess?: () => void;
@@ -16,6 +17,9 @@ const CALIDADES: CalidadVinilo[] = ['NM', 'EX', 'VG+', 'VG', 'G'];
 
 export function VinylForm({ onSuccess }: VinylFormProps) {
   const [loading, setLoading] = useState(false);
+  const [monedaPrecio, setMonedaPrecio] = useState<MonedaPrecio>('USD');
+  const [tasas, setTasas] = useState<TasasCambio | null>(null);
+  const [errorTasas, setErrorTasas] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [formData, setFormData] = useState({
     codigo: '',
@@ -32,6 +36,23 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
 
   const getApiUrl = () => apiUrl();
 
+  useEffect(() => {
+    obtenerTasasDisponibles().then(setTasas).catch(error => {
+      setErrorTasas(error instanceof Error ? error.message : 'No se pudieron cargar las tasas');
+    });
+  }, []);
+
+  const precioUsd = Number(formData.precio_venta);
+  const cambiarPrecio = (valor: string) => {
+    const numero = Number(valor);
+    setFormData({
+      ...formData,
+      precio_venta: valor === '' ? '' : (Number.isFinite(numero) && tasas
+        ? String(convertirAUsd(numero, monedaPrecio, tasas))
+        : valor),
+    });
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.codigo || !formData.titulo || !formData.artista || !formData.precio_venta) {
@@ -47,7 +68,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          precio_venta: parseFloat(formData.precio_venta),
+           precio_venta: Number(formData.precio_venta),
           stock_actual: parseInt(formData.stock_actual) || 0,
         }),
       });
@@ -178,18 +199,24 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
             </div>
           </div>
 
-          {/* PRECIO Y STOCK */}
-          <div className="relative">
-            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest mb-2 block">Precio (USD)</label>
-            <div className="relative">
+           {/* PRECIO Y STOCK */}
+           <div className="relative">
+             <div className="mb-2 flex items-center justify-between gap-2">
+               <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 ml-2 uppercase tracking-widest block">Precio ({monedaPrecio})</label>
+               <div className="flex rounded-lg bg-slate-100 dark:bg-slate-950 p-1">
+                 {(['USD', 'ARS', 'USDT'] as MonedaPrecio[]).map(opcion => <button key={opcion} type="button" disabled={opcion !== 'USD' && !tasas} onClick={() => setMonedaPrecio(opcion)} className={`rounded px-2 py-1 text-[9px] font-black ${monedaPrecio === opcion ? 'bg-amber-500 text-slate-950' : 'text-slate-500'} disabled:opacity-40`}>{opcion}</button>)}
+               </div>
+             </div>
+             <div className="relative">
               <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 w-4 h-4" />
               <input
-                type="number" step="0.01" required value={formData.precio_venta}
-                onChange={(e) => setFormData({ ...formData, precio_venta: e.target.value })}
+                 type="number" step={monedaPrecio === 'USDT' ? '0.0001' : '0.01'} required value={formData.precio_venta === '' ? '' : (monedaPrecio === 'USD' || !tasas ? formData.precio_venta : convertirDesdeUsd(precioUsd, monedaPrecio, tasas))}
+                 onChange={(e) => cambiarPrecio(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white transition-all font-bold"
                 placeholder="25.00"
               />
             </div>
+            {errorTasas && <p className="mt-2 text-[10px] font-bold text-amber-600">{errorTasas}. Solo USD disponible hasta actualizar las tasas.</p>}
           </div>
 
           <div className="relative">
