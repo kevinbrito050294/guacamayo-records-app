@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { CarritoItem, ConfiguracionDivisa } from '../types/database';
-import { Trash2, ShoppingBag, X, MessageCircle, Minus, Plus, Disc, Ticket, AlertTriangle, RotateCcw, MapPin } from 'lucide-react';
+import { Trash2, ShoppingBag, X, MessageCircle, Minus, Plus, Disc, Ticket, AlertTriangle, RotateCcw, MapPin, Feather } from 'lucide-react';
 import { apiUrl } from '../lib/api';
 import {
   leerCuponGuardado, guardarCupon, borrarCuponGuardado,
@@ -9,7 +9,7 @@ import {
 // El carrito se monta dentro del <CuentaProvider> (App.tsx), así que puede
 // preguntar si hay sesión: de eso depende qué nombre y qué WhatsApp van a quedar
 // guardados en el pedido (ver `nombreEfectivo` más abajo).
-import { pedir, useCuenta, importeUsd, type Direccion } from '../lib/cuenta';
+import { pedir, useCuenta, importeUsd, cotizarRecompensas, normalizarUnidadesRecompensas, type Direccion } from '../lib/cuenta';
 
 interface CartProps {
   items: CarritoItem[];
@@ -94,19 +94,24 @@ export function Cart({
   // pedido queda bloqueado: mandar sin saber si el descuento entra implicaría
   // que el server cobre un total distinto del que se le mostró al cliente.
   const [verificacionPendiente, setVerificacionPendiente] = useState(false);
+  const [recompensasUnidades, setRecompensasUnidades] = useState(0);
+  const [cotizacionRecompensas, setCotizacionRecompensas] = useState<{ descuentoUsd: number; unidades: number } | null>(null);
+  const [cargandoCotizacion, setCargandoCotizacion] = useState(false);
+  const [errorRecompensas, setErrorRecompensas] = useState('');
 
   // --- QUÉ NOMBRE Y QUÉ WHATSAPP QUEDAN GUARDADOS ---
   // Con sesión abierta el server usa el nombre del PERFIL (anti-impersonación:
   // el panel y "mis pedidos" muestran esos campos como del cliente) y el
   // WhatsApp que el cliente escriba en el form. Mostrar el valor efectivo evita
   // la sorpresa de que el pedido quede a nombre de otro.
-  const { usuario } = useCuenta();
+  const { usuario, saldoRecompensas, refrescarSaldoRecompensas } = useCuenta();
   const usuarioId = usuario?.id ?? null;
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [direccionSeleccionada, setDireccionSeleccionada] = useState<number | null>(null);
   const [cargandoDirecciones, setCargandoDirecciones] = useState(false);
   const [errorDirecciones, setErrorDirecciones] = useState('');
   const [recargaDirecciones, setRecargaDirecciones] = useState(0);
+  const direccionActiva = direcciones.find((direccion) => direccion.id === direccionSeleccionada) ?? null;
   const nombrePerfil = (usuario?.nombre ?? '').trim();
   const nombreIngresado = nombre.trim();
   // El nombre que se acaba guardando, sea invitado o cliente con sesión.
@@ -128,6 +133,36 @@ export function Cart({
   const enviarSinCuponRef = useRef(false);
 
   const API_BASE_URL = apiUrl();
+
+  useEffect(() => {
+    setRecompensasUnidades(0);
+    setCotizacionRecompensas(null);
+    setErrorRecompensas('');
+  }, [usuarioId]);
+
+  useEffect(() => {
+    if (!usuario || recompensasUnidades <= 0) {
+      setCotizacionRecompensas(null);
+      setCargandoCotizacion(false);
+      return;
+    }
+    let vigente = true;
+    setCargandoCotizacion(true);
+    setErrorRecompensas('');
+    void cotizarRecompensas(recompensasUnidades, items.map((item) => ({ id: item.vinilo.id, cantidad: item.cantidad }))).then((res) => {
+      if (!vigente) return;
+      setCargandoCotizacion(false);
+      if (!res.ok || !res.data) {
+        setCotizacionRecompensas(null);
+        setErrorRecompensas(res.error);
+        return;
+      }
+      const unidadesCotizadas = Number(res.data.recompensas_unidades ?? res.data.unidades) || 0;
+      setCotizacionRecompensas({ descuentoUsd: Number(res.data.descuento_recompensas_usd ?? res.data.descuento_usd) || 0, unidades: unidadesCotizadas });
+      if (unidadesCotizadas !== recompensasUnidades) setRecompensasUnidades(unidadesCotizadas);
+    });
+    return () => { vigente = false; };
+  }, [usuario, recompensasUnidades, items]);
 
   // Las direcciones pertenecen a la sesión y no deben pedirse para invitados.
   // Si fallan, el checkout sigue disponible: el envío es opcional hasta que el
@@ -228,9 +263,10 @@ export function Cart({
       // Error de red: NO se borra lo guardado (puede ser un corte puntual) pero
       // tampoco se aplica el descuento, para no mostrar un total que el server
       // no va a cobrar. A diferencia del 429 no bloquea el pedido: sin cupón el
-      // cliente puede seguir comprando.
+      // cliente puede seguir comprando. Se conserva también en el input para que
+      // pueda reintentar la validación sin tener que navegar o escribirlo otra vez.
       setCupon(null);
-      setCouponCode('');
+      setCouponCode(guardado.codigo);
       setVerificacionPendiente(false);
       setAviso({ tono: 'aviso', texto: `No pudimos verificar el cupón ${guardado.codigo}: ${resultado.mensaje}. El total va sin descuento.` });
     });
@@ -340,6 +376,7 @@ export function Cart({
         divisa_preferida: divisaPreferida,
         cupon_id: cuponUsado?.id || null,
         ...(usuario && direccionSeleccionada !== null ? { direccion_id: direccionSeleccionada } : {}),
+        ...(usuario && recompensasUnidades > 0 ? { recompensas_unidades: normalizarUnidadesRecompensas(recompensasUnidades) } : {}),
         items: items.map(item => ({
           id: item.vinilo.id,
           cantidad: item.cantidad,
@@ -435,6 +472,9 @@ export function Cart({
       setCupon(null);
       setCouponCode('');
       borrarCuponGuardado();
+      if (usuario && recompensasUnidades > 0) void refrescarSaldoRecompensas();
+      setRecompensasUnidades(0);
+      setCotizacionRecompensas(null);
 
       onClear();
       onBack();
@@ -618,6 +658,28 @@ export function Cart({
               )}
             </div>
 
+            {usuario && (
+              <div className="mb-6 space-y-2">
+                <label htmlFor="cart-recompensas" className="flex items-center gap-2 text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest"><Feather size={14} className="text-violet-400" /> Usar Plumas</label>
+                {saldoRecompensas === null ? (
+                  <p className="text-[10px] text-amber-400" role="status">No pudimos consultar tu saldo de Plumas.</p>
+                ) : saldoRecompensas.unidades === 0 ? (
+                  <p className="text-[10px] text-slate-400">No tenés Plumas disponibles todavía.</p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <input id="cart-recompensas" type="range" min="0" max={saldoRecompensas.unidades} step="1" value={recompensasUnidades} onChange={(e) => setRecompensasUnidades(normalizarUnidadesRecompensas(Number(e.target.value)))} className="flex-1 accent-violet-400" />
+                      <output htmlFor="cart-recompensas" className="w-12 text-right text-sm font-black text-violet-300">{recompensasUnidades}</output>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Saldo: {saldoRecompensas.unidades} Plumas. El servidor calcula el descuento final.</p>
+                    {cargandoCotizacion && <p className="text-[10px] text-violet-300" role="status">Cotizando...</p>}
+                    {cotizacionRecompensas && !cargandoCotizacion && <p className="text-[10px] font-black text-emerald-400">Ahorro estimado: {importeUsd(cotizacionRecompensas.descuentoUsd)}</p>}
+                    {errorRecompensas && <p className="text-[10px] text-amber-400" role="alert">No pudimos cotizar las Plumas: {errorRecompensas}</p>}
+                  </>
+                )}
+              </div>
+            )}
+
             {aviso && (
               <div
                 role="alert"
@@ -659,19 +721,26 @@ export function Cart({
                   ) : direcciones.length === 0 ? (
                     <p className="text-xs text-slate-400">No tenés direcciones guardadas. Podés completar el pedido igual.</p>
                   ) : (
-                    <select
-                      id="carrito-direccion"
-                      value={direccionSeleccionada ?? ''}
-                      onChange={(e) => setDireccionSeleccionada(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 px-5 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
-                    >
-                      <option value="">Elegí una dirección (opcional)</option>
-                      {direcciones.map((direccion) => (
-                        <option key={direccion.id} value={direccion.id}>
-                          {direccion.apodo} · {direccion.direccion}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      <select
+                        id="carrito-direccion"
+                        value={direccionSeleccionada ?? ''}
+                        onChange={(e) => setDireccionSeleccionada(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 px-5 text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                      >
+                        <option value="">Elegí una dirección (opcional)</option>
+                        {direcciones.map((direccion) => (
+                          <option key={direccion.id} value={direccion.id}>
+                            {direccion.apodo} · {direccion.direccion}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-2 ml-1 text-[9px] font-bold uppercase tracking-wider text-emerald-400" role="status">
+                        {direccionActiva
+                          ? `Dirección seleccionada: ${direccionActiva.apodo}`
+                          : 'Sin dirección seleccionada: el envío se coordina por WhatsApp.'}
+                      </p>
+                    </>
                   )}
                 </div>
               )}
