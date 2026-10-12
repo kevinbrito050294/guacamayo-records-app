@@ -4,7 +4,8 @@ node_modules/
 dist/
 
 # Archivos de entorno reales: nunca se commitean. .env.* cubre .env.production,
-# .env.local, .env.development, etc. (en Railway el de produccion es .env.production).
+# .env.local, .env.development, etc. Railway inyecta las variables directamente;
+# ignorar estos archivos no afecta ese mecanismo.
 .env
 .env.*
 
@@ -16,3 +17,11 @@ dist/
 *.jks
 *.keystore
 GUACAMAYO_KEYSTORE_*
+android/app/google-services.json
+android/.idea/
+
+# Artefactos locales de publicación y análisis. El APK se publica mediante el
+# script oficial y Graphify conserva solo sus salidas principales versionadas.
+downloads/
+graphify-out/cache/
+graphify-out/20??-??-??/
