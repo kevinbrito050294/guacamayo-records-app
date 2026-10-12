@@ -2,25 +2,38 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { 
   Settings, Plus, Upload, Book, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle, Power, RotateCcw
+  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle, Power, RotateCcw, Feather, Bell, UserCog
 } from 'lucide-react';
 
 // Componentes administrativos externos
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
-import { ViniloCatalogo, Cupon, CalidadVinilo, TipoCupon } from '../types/database';
+import { ViniloCatalogo, Cupon, CalidadVinilo, TipoCupon, MonedaPrecio, TasasCambio } from '../types/database';
 import { apiUrl } from '../lib/api';
+import { convertirAUsd, convertirDesdeUsd, formatearPrecio, obtenerTasasDisponibles } from '../lib/currency';
 // Los DECIMAL (`total_pago`, `descuento_aplicado`, `cupones.valor`) llegan como
 // string desde mysql2: `importeUsd` es el helper que ya usan "mis pedidos", el
 // catálogo y los favoritos, así que el panel no inventa otro formato.
-import { importeUsd } from '../lib/cuenta';
+import { importeUsd, itemsDePedido, type ItemPedido } from '../lib/cuenta';
 
-type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons';
+type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons' | 'rewards' | 'notifications' | 'administrators';
 
 interface AdminPanelProps {
   onBack: () => void;
 }
+
+type AdminRole = 'admin' | 'editor';
+interface AdminAccount {
+  id: number;
+  email: string;
+  nombre: string;
+  rol: AdminRole;
+  activo: number | boolean;
+  ultimo_acceso: string | null;
+}
+
+type ViniloConVersion = ViniloCatalogo & { version?: number };
 
 // Refleja la fila que devuelve GET /api/pedidos (tabla `pedidos`).
 interface PedidoItem {
@@ -29,6 +42,9 @@ interface PedidoItem {
   vinilo?: { id?: number };
   cantidad?: number;
   qty?: number;
+  titulo?: string;
+  precio_unitario?: number | string | null;
+  subtotal?: number | string | null;
 }
 
 interface PedidoApi {
@@ -51,6 +67,8 @@ interface PedidoApi {
   cupon_codigo?: string | null;
   descuento_aplicado?: number | string | null;
   usuario_id?: number | null;
+  recompensas_ganadas?: number | string | null;
+  recompensas_usadas?: number | string | null;
 }
 
 const ETIQUETAS_ESTADO_PEDIDO: Record<string, string> = {
@@ -76,6 +94,29 @@ function mensajeDeError(cuerpo: unknown, porDefecto: string): string {
   return porDefecto;
 }
 
+async function optimizarImagen(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maximo = 1800;
+    const escala = Math.min(1, maximo / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * escala));
+    canvas.height = Math.max(1, Math.round(bitmap.height * escala));
+    const contexto = canvas.getContext('2d');
+    if (!contexto) return file;
+    contexto.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/webp', 0.86));
+    if (!blob) return file;
+    const nombre = file.name.replace(/\.[^.]+$/, '') || 'vinilo';
+    return new File([blob], `${nombre}.webp`, { type: 'image/webp', lastModified: Date.now() });
+  } catch {
+    // Si el navegador no puede decodificar el formato, conserva el original.
+    return file;
+  }
+}
+
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [vinilos, setVinilos] = useState<ViniloCatalogo[]>([]);
@@ -85,11 +126,55 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [subiendo, setSubiendo] = useState(false);
   const [busquedaInv, setBusquedaInv] = useState('');
   const [sessionError, setSessionError] = useState(false);
+  const [monedaPrecio, setMonedaPrecio] = useState<MonedaPrecio>('USD');
+  const [tasas, setTasas] = useState<TasasCambio | null>(null);
+  const [errorTasas, setErrorTasas] = useState('');
+  const [pedidosNotificaciones, setPedidosNotificaciones] = useState<PedidoApi[]>([]);
+  const [ultimoPedidoRevisado, setUltimoPedidoRevisado] = useState(() => Number(localStorage.getItem('admin_ultimo_pedido_revisado') || 0));
+  const [rolAdmin, setRolAdmin] = useState<AdminRole | null>(null);
+  const [conflictoVinilo, setConflictoVinilo] = useState('');
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getApiUrl = useCallback(() => apiUrl(), []);
+
+  const cargarNotificaciones = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/pedidos`, { credentials: 'include' });
+      if (!res.ok) {
+        if (res.status === 401) setSessionError(true);
+        return;
+      }
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) return;
+      const pedidos = data as PedidoApi[];
+      setPedidosNotificaciones(pedidos);
+
+      // La primera lectura establece el punto de partida y no avisa pedidos históricos.
+      if (localStorage.getItem('admin_ultimo_pedido_revisado') === null) {
+        const mayorId = pedidos.reduce((mayor, pedido) => Math.max(mayor, pedido.id_pedido), 0);
+        localStorage.setItem('admin_ultimo_pedido_revisado', String(mayorId));
+        setUltimoPedidoRevisado(mayorId);
+      }
+    } catch {
+      // El panel de notificaciones se actualizará en el siguiente intervalo.
+    }
+  }, [getApiUrl]);
+
+  useEffect(() => {
+    if (sessionError) return;
+    void cargarNotificaciones();
+    const intervalo = setInterval(() => void cargarNotificaciones(), 20000);
+    return () => clearInterval(intervalo);
+  }, [cargarNotificaciones, sessionError]);
+
+  const pedidosSinRevisar = pedidosNotificaciones.filter(pedido => pedido.id_pedido > ultimoPedidoRevisado && pedido.estado === 'pendiente');
+  const marcarNotificacionesRevisadas = () => {
+    const mayorId = pedidosNotificaciones.reduce((mayor, pedido) => Math.max(mayor, pedido.id_pedido), ultimoPedidoRevisado);
+    localStorage.setItem('admin_ultimo_pedido_revisado', String(mayorId));
+    setUltimoPedidoRevisado(mayorId);
+  };
 
   // --- LÓGICA DE SESIÓN Y SEGURIDAD ---
   // La sesión vive en una cookie httpOnly: acá no hay token que guardar.
@@ -113,8 +198,12 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   useEffect(() => {
     // Si la cookie ya no es válida (expiró, se cerró en otro lado), se vuelve al login.
-    fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' }).then(res => {
-      if (!res.ok) onBack();
+    fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' }).then(async res => {
+      if (!res.ok) { onBack(); return; }
+      const data: unknown = await res.json();
+      const admin = typeof data === 'object' && data !== null ? (data as { admin?: { rol?: unknown } }).admin : undefined;
+      // La identidad se deriva del endpoint actual porque App solo conserva el booleano autenticado.
+      setRolAdmin(admin?.rol === 'admin' || admin?.rol === 'editor' ? admin.rol : null);
     }).catch(() => onBack());
 
     const sendHeartbeat = async () => {
@@ -168,21 +257,49 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     if (!sessionError) cargarVinilos(); 
   }, [sessionError]);
 
+  useEffect(() => {
+    obtenerTasasDisponibles().then(setTasas).catch(error => {
+      setErrorTasas(error instanceof Error ? error.message : 'No se pudieron cargar las tasas');
+    });
+  }, []);
+
+  const precioVisible = (precioUsd: number | string) => {
+    if (monedaPrecio === 'USD' || !tasas) return Number(precioUsd);
+    return convertirDesdeUsd(Number(precioUsd), monedaPrecio, tasas);
+  };
+
+  const precioEtiquetado = (precioUsd: number | string) => {
+    const formateado = formatearPrecio(precioVisible(precioUsd), monedaPrecio);
+    return `${monedaPrecio} ${formateado.replace(/^(\$|₮)\s*/, '')}`;
+  };
+
+  const actualizarPrecioEditado = (valor: string) => {
+    const numero = Number(valor);
+    setFormEdit({
+        ...formEdit,
+        precio_venta: valor === '' ? '' : (Number.isFinite(numero) && tasas
+        ? String(convertirAUsd(numero, monedaPrecio, tasas))
+        : String(numero)),
+    });
+  };
+
   const vinilosFiltrados = vinilos.filter(v => 
   v.titulo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
   v.artista?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
-  v.codigo?.toLowerCase().includes(busquedaInv.toLowerCase())
+  v.codigo?.toLowerCase().includes(busquedaInv.toLowerCase()) ||
+  v.genero?.toLowerCase().includes(busquedaInv.toLowerCase())
 );
 
   // --- MANEJO DE IMÁGENES ---
   const handleMultipleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const formData = new FormData();
-    Array.from(files).forEach(file => { formData.append('imagenes', file); });
 
     try {
       setSubiendo(true);
+      const formData = new FormData();
+      const imagenesOptimizadas = await Promise.all(Array.from(files).map(optimizarImagen));
+      imagenesOptimizadas.forEach(file => { formData.append('imagenes', file); });
       const res = await fetch(`${getApiUrl()}/api/upload-multiple`, { method: 'POST', body: formData, credentials: 'include' });
       if (!res.ok) throw new Error("Error en la subida");
       const data = await res.json(); 
@@ -191,8 +308,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       const mixFinal = [...fotosActuales, ...nuevasFotos].filter(url => url !== '').join(',');
       setFormEdit(prev => ({ ...prev, imagen_url: mixFinal }));
       alert(`✅ ${nuevasFotos.length} imágenes añadidas`);
-    } catch { alert("❌ Error al subir imagen"); } 
-    finally { setSubiendo(false); }
+    } catch { alert("❌ Error al subir imagen"); }
+    finally {
+      setSubiendo(false);
+      e.target.value = '';
+    }
   };
 
   const hacerPrincipal = (index: number) => {
@@ -214,7 +334,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       const payload = { 
         ...formEdit,
         precio_venta: Number(formEdit.precio_venta || 0),
-        stock_actual: Number(formEdit.stock_actual || 0)
+        stock_actual: Number(formEdit.stock_actual || 0),
+        version: (formEdit as Partial<ViniloConVersion>).version
       };
       const res = await fetch(`${getApiUrl()}/api/vinilos/${id}`, {
         method: 'PUT',
@@ -227,16 +348,23 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         // una fila de la base y `precio_venta` es DECIMAL: vuelve como string.
         // Sin el String() el tipo mintiría y el próximo que lo formatee sin
         // Number() lo descubre en producción.
-        const guardado = { ...formEdit, precio_venta: String(payload.precio_venta), stock_actual: payload.stock_actual };
+        const respuesta: unknown = await res.json().catch(() => null);
+        const versionNueva = typeof respuesta === 'object' && respuesta !== null && typeof (respuesta as { version?: unknown }).version === 'number'
+          ? (respuesta as { version: number }).version
+          : (typeof payload.version === 'number' ? payload.version + 1 : undefined);
+        const guardado = { ...formEdit, precio_venta: String(payload.precio_venta), stock_actual: payload.stock_actual, version: versionNueva };
         setVinilos(vinilos.map(v => v.id === id ? { ...v, ...guardado } : v));
         setEditandoId(null);
         alert("✅ Cambios guardados");
+      } else if (res.status === 409) {
+        const data: unknown = await res.json().catch(() => null);
+        setConflictoVinilo(mensajeDeError(data, 'Otro admin modificó este vinilo. Recargá los datos antes de guardar.'));
       }
     } catch { alert("❌ Error de conexión"); }
   };
 
   const iniciarEdicion = (vinilo: ViniloCatalogo) => {
-    setFormEdit({ ...vinilo });
+    setFormEdit({ ...(vinilo as ViniloConVersion) });
     setEditandoId(vinilo.id);
   };
 
@@ -279,18 +407,22 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4 mb-4 sm:mb-8">
-          <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
-          <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
+       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-10 gap-2 sm:gap-4 mb-4 sm:mb-8">
+           <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Bell />} title="Notificaciones" sub={pedidosSinRevisar.length > 0 ? `${pedidosSinRevisar.length} nuevas` : 'Al día'} badge={pedidosSinRevisar.length} />
+           <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
+           <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
+           <TabButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Feather />} title="Plumas" sub="Ledger" />
           <TabButton active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} icon={<Ticket />} title="Cupones" sub="Promos" />
           <TabButton active={activeTab === 'form'} onClick={() => setActiveTab('form')} icon={<Plus />} title="Nuevo" sub="Carga" />
           <TabButton active={activeTab === 'bulk'} onClick={() => setActiveTab('bulk')} icon={<Upload />} title="Importar" sub="CSV" />
           <TabButton active={activeTab === 'currency'} onClick={() => setActiveTab('currency')} icon={<Settings />} title="Tasas" sub="Dólar/ARS" />
-          <TabButton active={activeTab === 'manual'} onClick={() => setActiveTab('manual')} icon={<Book />} title="Manual" sub="Ayuda" />
-        </div>
+           <TabButton active={activeTab === 'manual'} onClick={() => setActiveTab('manual')} icon={<Book />} title="Manual" sub="Ayuda" />
+           {rolAdmin === 'admin' && <TabButton active={activeTab === 'administrators'} onClick={() => setActiveTab('administrators')} icon={<UserCog />} title="Administradores" sub="Admin máximo" />}
+         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 sm:p-6">
+         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 sm:p-6">
+           {conflictoVinilo && <div className="mb-5"><BannerAviso texto={conflictoVinilo} onCerrar={() => setConflictoVinilo('')} onReintentar={() => { setConflictoVinilo(''); void cargarVinilos(); }} /></div>}
           {activeTab === 'list' && (
             <div className="space-y-6">
               <div className="relative w-full md:w-1/3">
@@ -303,6 +435,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                   className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border-none rounded-2xl focus:ring-2 focus:ring-amber-500 outline-none text-sm font-medium"
                 />
               </div>
+              <CurrencySelector moneda={monedaPrecio} onChange={setMonedaPrecio} tasas={tasas} error={errorTasas} />
 
               <div className="space-y-3 md:hidden">
                 {loading ? (
@@ -324,7 +457,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                         <input aria-label="País de origen" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="País de origen" value={formEdit.pais_origen || ''} onChange={e => setFormEdit({ ...formEdit, pais_origen: e.target.value })} />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <input aria-label="Precio USD" type="number" step="0.01" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="USD" value={formEdit.precio_venta ?? ''} onChange={e => setFormEdit({ ...formEdit, precio_venta: e.target.value })} />
+                        <input aria-label={`Precio ${monedaPrecio}`} type="number" step="0.01" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder={monedaPrecio} value={formEdit.precio_venta === '' ? '' : precioVisible(formEdit.precio_venta ?? 0)} onChange={e => actualizarPrecioEditado(e.target.value)} />
                         <input aria-label="Stock" type="number" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" placeholder="Stock" value={formEdit.stock_actual || 0} onChange={e => setFormEdit({ ...formEdit, stock_actual: Number(e.target.value) })} />
                         <select aria-label="Calidad" className="w-full rounded-xl p-3 dark:bg-slate-900 dark:text-white text-sm" value={formEdit.calidad || ''} onChange={e => setFormEdit({ ...formEdit, calidad: e.target.value as CalidadVinilo })}>
                           {['NM', 'EX', 'VG+', 'VG', 'G'].map(c => <option key={c} value={c}>{c}</option>)}
@@ -373,7 +506,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                       </div>
                       <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                         <div>
-                          <div className="text-amber-500 font-black font-mono">USD {Number(v.precio_venta).toLocaleString()}</div>
+                           <div className="text-amber-500 font-black font-mono">{precioEtiquetado(v.precio_venta)}</div>
                           <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>{v.stock_actual} en stock</div>
                         </div>
                         <div className="flex gap-1">
@@ -429,12 +562,12 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                 </div>
                                   <div className="flex gap-4">
                                     <div className="flex-1">
-                                      <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio USD</label>
+                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Precio {monedaPrecio}</label>
                                       {/* El input guarda el texto tal cual (como el resto del
                                           formulario): `precio_venta` es DECIMAL y llega como
                                           string, y al mandar el PUT se convierte con Number()
                                           en handleSave. */}
-                                      <input type="number" step="0.01" className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold" value={formEdit.precio_venta ?? ''} onChange={e => setFormEdit({...formEdit, precio_venta: e.target.value})} />
+                                       <input aria-label={`Precio ${monedaPrecio}`} type="number" step="0.01" className="w-full border-none rounded-xl p-3 dark:bg-slate-900 text-sm font-bold" value={formEdit.precio_venta === '' ? '' : precioVisible(formEdit.precio_venta ?? 0)} onChange={e => actualizarPrecioEditado(e.target.value)} />
                                     </div>
                                     <div className="flex-1">
                                       <label className="text-[10px] font-black uppercase text-slate-500 mb-1 block">Stock</label>
@@ -494,7 +627,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                 </div>
                               </td>
                               <td className="text-center">
-                                <div className="text-amber-500 font-black text-lg font-mono">${Number(v.precio_venta).toLocaleString()}</div>
+                                 <div className="text-amber-500 font-black text-lg font-mono">{precioEtiquetado(v.precio_venta)}</div>
                                 <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>{v.stock_actual} EN STOCK</div>
                               </td>
                               <td className="text-right px-2">
@@ -534,12 +667,15 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             </div>
           )}
 
-          {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} setSessionError={setSessionError} />}
+           {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} setSessionError={setSessionError} />}
+           {activeTab === 'notifications' && <NotificationsPanel orders={pedidosSinRevisar} onMarkRead={marcarNotificacionesRevisadas} onOpenOrders={() => setActiveTab('orders')} />}
+           {activeTab === 'rewards' && <RewardsLedger getApiUrl={getApiUrl} setSessionError={setSessionError} />}
           {activeTab === 'coupons' && <CouponManager getApiUrl={getApiUrl} />}
           {activeTab === 'form' && <VinylForm onSuccess={cargarVinilos} />}
           {activeTab === 'bulk' && <BulkImporter />}
           {activeTab === 'currency' && <CurrencyManager getApiUrl={getApiUrl} />}
-          {activeTab === 'manual' && <UserManual />}
+           {activeTab === 'manual' && <UserManual />}
+           {activeTab === 'administrators' && rolAdmin === 'admin' && <AdministratorsManager getApiUrl={getApiUrl} />}
         </div>
       </main>
     </div>
@@ -547,6 +683,27 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 }
 
 // --- SUBCOMPONENTES ---
+
+function CurrencySelector({ moneda, onChange, tasas, error }: {
+  moneda: MonedaPrecio;
+  onChange: (moneda: MonedaPrecio) => void;
+  tasas: TasasCambio | null;
+  error: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 dark:bg-slate-800/50 p-3">
+      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mostrar precios en</span>
+      <div className="flex gap-1 rounded-xl bg-white dark:bg-slate-900 p-1">
+        {(['USD', 'ARS', 'USDT'] as MonedaPrecio[]).map(opcion => (
+          <button key={opcion} type="button" disabled={opcion !== 'USD' && !tasas} onClick={() => onChange(opcion)} className={`rounded-lg px-3 py-2 text-[10px] font-black transition-colors ${moneda === opcion ? 'bg-amber-500 text-slate-950' : 'text-slate-500 hover:text-amber-600'} disabled:cursor-not-allowed disabled:opacity-40`}>
+            {opcion}
+          </button>
+        ))}
+      </div>
+      {error && <span className="basis-full text-[10px] font-bold text-amber-600">{error}. Solo USD disponible hasta actualizar las tasas.</span>}
+    </div>
+  );
+}
 
 // Banner de error del panel. Estaba duplicado cuatro veces (alta/listado de
 // cupones, acciones sobre un cupón y los dos errores de la lista de pedidos) y
@@ -574,13 +731,56 @@ function BannerAviso({ texto, onCerrar, onReintentar }: {
   );
 }
 
-function TabButton({ active, onClick, icon, title, sub }: { active: boolean; onClick: () => void; icon: ReactNode; title: string; sub: string }) {
+function TabButton({ active, onClick, icon, title, sub, badge }: { active: boolean; onClick: () => void; icon: ReactNode; title: string; sub: string; badge?: number }) {
   return (
     <button onClick={onClick} className={`p-2 sm:p-4 rounded-2xl border-2 text-left transition-all ${active ? 'border-slate-900 dark:border-amber-500 bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-md' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-amber-500/50'}`}>
-      <div className={`mb-1 sm:mb-2 p-1.5 sm:p-2 rounded-lg inline-block [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-5 sm:[&>svg]:h-5 ${active ? 'bg-slate-800 dark:bg-amber-600/20' : 'bg-slate-100 dark:bg-slate-800'}`}>{icon}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className={`mb-1 sm:mb-2 p-1.5 sm:p-2 rounded-lg inline-block [&>svg]:w-4 [&>svg]:h-4 sm:[&>svg]:w-5 sm:[&>svg]:h-5 ${active ? 'bg-slate-800 dark:bg-amber-600/20' : 'bg-slate-100 dark:bg-slate-800'}`}>{icon}</div>
+        {badge ? <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{badge > 99 ? '99+' : badge}</span> : null}
+      </div>
       <p className="font-bold text-[11px] sm:text-xs">{title}</p>
       <p className="text-[10px] uppercase opacity-60 tracking-tighter">{sub}</p>
     </button>
+  );
+}
+
+function NotificationsPanel({ orders, onMarkRead, onOpenOrders }: { orders: PedidoApi[]; onMarkRead: () => void; onOpenOrders: () => void }) {
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black dark:text-white uppercase">Notificaciones</h2>
+          <p className="text-xs text-slate-500 mt-1">Pedidos nuevos que todavía no fueron revisados.</p>
+        </div>
+        {orders.length > 0 && (
+          <button onClick={onMarkRead} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-[10px] font-black uppercase hover:bg-amber-600 transition-colors">
+            Marcar como revisados
+          </button>
+        )}
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="py-16 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-700">
+          <Bell className="mx-auto mb-3 text-emerald-500" size={30} />
+          <p className="text-xs font-black uppercase tracking-widest text-slate-500">No hay pedidos nuevos</p>
+          <p className="text-xs text-slate-400 mt-2">Las notificaciones nuevas aparecerán aquí automáticamente.</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {orders.map(order => (
+            <div key={order.id_pedido} className="p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-black dark:text-white">Nuevo pedido #{order.numero_orden || order.id_pedido}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{order.nombre_cliente || 'Cliente invitado'} · {formatearFechaHora(order.fecha) || 'Fecha no disponible'}</p>
+              </div>
+              <button onClick={onOpenOrders} className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-950 text-white text-[10px] font-black uppercase whitespace-nowrap">
+                Ver pedido
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1117,6 +1317,9 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
   // ver la lista vieja mientras llega la nueva.
   const [cargado, setCargado] = useState(false);
   const [errorListado, setErrorListado] = useState('');
+  const [avisoNuevoPedido, setAvisoNuevoPedido] = useState('');
+  const ultimoPedidoVisto = useRef(Number(localStorage.getItem('admin_ultimo_pedido_visto') || 0));
+  const novedadesInicializadas = useRef(false);
 
   const fetchOrders = async () => {
     try {
@@ -1130,8 +1333,26 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
         return;
       }
       const data: unknown = await res.json();
-      setOrders(Array.isArray(data) ? (data as PedidoApi[]) : []);
-      setErrorListado('');
+      if (!Array.isArray(data)) {
+        setErrorListado('el servidor no devolvió una lista de pedidos válida');
+        return;
+      }
+       const pedidos = data as PedidoApi[];
+       setOrders(pedidos);
+       const mayorId = pedidos.reduce((mayor, pedido) => Math.max(mayor, pedido.id_pedido), ultimoPedidoVisto.current);
+       if (!novedadesInicializadas.current) {
+         ultimoPedidoVisto.current = mayorId;
+         localStorage.setItem('admin_ultimo_pedido_visto', String(mayorId));
+         novedadesInicializadas.current = true;
+       } else if (mayorId > ultimoPedidoVisto.current) {
+         const nuevos = pedidos.filter(pedido => pedido.id_pedido > ultimoPedidoVisto.current && pedido.estado === 'pendiente');
+         ultimoPedidoVisto.current = mayorId;
+         localStorage.setItem('admin_ultimo_pedido_visto', String(mayorId));
+         if (nuevos.length > 0) {
+           setAvisoNuevoPedido(`Nuevo pedido recibido: ${nuevos[0].numero_orden || `#${nuevos[0].id_pedido}`}${nuevos.length > 1 ? ` (+${nuevos.length - 1})` : ''}`);
+         }
+       }
+       setErrorListado('');
     } catch {
       setErrorListado('No se pudo cargar el listado de pedidos: error de conexión con el servidor.');
     } finally {
@@ -1139,7 +1360,11 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
       setCargado(true);
     }
   };
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => {
+    fetchOrders();
+    const intervalo = setInterval(fetchOrders, 20000);
+    return () => clearInterval(intervalo);
+  }, []);
 
   const finalizarPedido = async (order: PedidoApi) => {
     if (!confirm("¿Finalizar?")) return;
@@ -1201,6 +1426,7 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
         <button onClick={() => setFilterTab('history')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${filterTab === 'history' ? 'bg-white dark:bg-slate-700 text-emerald-500' : 'text-slate-500'}`}>HISTORIAL</button>
       </div>
       {errorPedidos && <BannerAviso texto={errorPedidos} onCerrar={() => setErrorPedidos('')} />}
+      {avisoNuevoPedido && <BannerAviso texto={avisoNuevoPedido} onCerrar={() => setAvisoNuevoPedido('')} />}
       {errorListado && (
         <BannerAviso
           texto={`No se pudo leer el listado de pedidos: ${errorListado}`}
@@ -1214,16 +1440,21 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
             {orders.length === 0 ? 'Todavía no hay pedidos' : 'No hay pedidos en esta pestaña'}
           </p>
         ) : currentOrders.map(order => (
-          <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex justify-between items-center">
-            <div>
-              <p className="font-bold text-lg dark:text-white">{order.nombre_cliente}</p>
-              <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-500 font-black uppercase">
-                <span className="flex items-center gap-1"><Hash size={10} className="text-amber-500"/><span>Orden #{order.numero_orden}</span></span>
+          <div key={order.id_pedido} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 flex flex-col gap-3">
+            <div className="flex flex-wrap justify-between items-start gap-3">
+              <div>
+               <p className="font-bold text-lg dark:text-white">{order.nombre_cliente}</p>
+               <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-500 font-black uppercase">
+                 <span className="flex items-center gap-1"><Hash size={10} className="text-amber-500"/><span>Orden #{order.numero_orden}</span></span>
                 {/* usuario_id null = pedido de invitado (se puede comprar sin cuenta). */}
                 {order.usuario_id !== null && order.usuario_id !== undefined && (
-                  <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-500">Cliente #{order.usuario_id}</span>
-                )}
-              </div>
+                   <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-500">Cliente #{order.usuario_id}</span>
+                 )}
+               </div>
+               <p className="mt-1 flex items-center gap-1 text-xs font-bold text-slate-600 dark:text-slate-300">
+                 <MessageCircle size={13} className="text-emerald-500" />
+                 Teléfono: {order.whatsapp_cliente || 'No informado'}
+               </p>
               {(order.cupon_codigo || Number(order.descuento_aplicado) > 0) && (
                 <div className="flex items-center gap-2 flex-wrap mt-1 text-[10px] font-black uppercase">
                   {order.cupon_codigo && (
@@ -1234,6 +1465,13 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
                   )}
                 </div>
               )}
+              {(order.recompensas_ganadas !== undefined || order.recompensas_usadas !== undefined) && (
+                <div className="flex items-center gap-2 flex-wrap mt-1 text-[10px] font-black uppercase">
+                  <span className="text-emerald-500">Ganadas: {order.recompensas_ganadas ?? 0}</span>
+                  <span className="text-violet-500">Usadas: {order.recompensas_usadas ?? 0}</span>
+                </div>
+              )}
+              <p className="mt-2 text-xs font-bold text-slate-500">Fecha y hora: {formatearFechaHora(order.fecha) || 'No disponible'}</p>
             </div>
             <div className="flex items-center gap-3">
               <p className="font-mono font-black text-amber-500">{importeUsd(order.total_pago)}</p>
@@ -1247,11 +1485,181 @@ function OrdersList({ getApiUrl, onOrderUpdate, setSessionError }: { getApiUrl: 
                 </div>
               ) : <span className={`text-[8px] font-black px-2 py-1 rounded uppercase ${order.estado === 'finalizado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{etiquetaEstadoPedido(order.estado)}</span>}
             </div>
+            </div>
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Artículos</p>
+              {itemsDePedido(order).length > 0 ? (
+                <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                  {itemsDePedido(order).map((item: ItemPedido, index) => (
+                    <li key={index} className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold">{item.titulo || 'Artículo sin nombre'}</span>
+                      <span>x{item.cantidad ?? 1}</span>
+                      {item.precio_unitario != null && <span>{importeUsd(item.precio_unitario)} unitario</span>}
+                      {item.subtotal != null && <span>{importeUsd(item.subtotal)} subtotal</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-xs italic text-slate-400">No hay detalle de artículos disponible.</p>}
+            </div>
           </div>
         ))}
         {currentOrders.length === 0 && (
           <div className="text-center py-10 text-slate-400 uppercase text-[10px] font-black italic">No hay pedidos en esta sección</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface RewardMovement {
+  id?: number | string;
+  usuario_id: number;
+  pedido_id?: number | null;
+  tipo?: string;
+  unidades: number | string;
+  motivo?: string | null;
+  creado_en?: string;
+  vence_en?: string | null;
+  idempotency_key?: string | null;
+}
+
+function RewardsLedger({ getApiUrl, setSessionError }: { getApiUrl: () => string; setSessionError: (val: boolean) => void }) {
+  const [movimientos, setMovimientos] = useState<RewardMovement[]>([]);
+  const [usuarioFiltro, setUsuarioFiltro] = useState('');
+  const [pedidoFiltro, setPedidoFiltro] = useState('');
+  const [usuarioAjuste, setUsuarioAjuste] = useState('');
+  const [pedidoAjuste, setPedidoAjuste] = useState('');
+  const [unidades, setUnidades] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const idempotencyKeyRef = useRef<string | null>(null);
+
+  const cargarLedger = async () => {
+    setCargando(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (usuarioFiltro.trim()) params.set('usuario_id', usuarioFiltro.trim());
+      if (pedidoFiltro.trim()) params.set('pedido_id', pedidoFiltro.trim());
+      const res = await fetch(`${getApiUrl()}/api/admin/recompensas/ledger?${params}`, { credentials: 'include' });
+      if (res.status === 401) {
+        setSessionError(true);
+        return;
+      }
+      if (!res.ok) {
+        setError(res.status === 404 || res.status === 405
+          ? 'El backend todavía no expone el ledger de Plumas (GET /api/admin/recompensas/ledger).'
+          : mensajeDeError(await res.json().catch(() => null), `el servidor respondió ${res.status}`));
+        return;
+      }
+      const data: unknown = await res.json();
+      const rows = Array.isArray(data) ? data : (typeof data === 'object' && data !== null && Array.isArray((data as { movimientos?: unknown }).movimientos) ? (data as { movimientos: RewardMovement[] }).movimientos : null);
+      if (!rows) {
+        setError('El backend no devolvió una lista de movimientos válida.');
+        return;
+      }
+      setMovimientos(rows as RewardMovement[]);
+    } catch {
+      setError('No se pudo cargar el ledger: error de conexión con el servidor.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  useEffect(() => { void cargarLedger(); }, []);
+
+  const ajustar = async () => {
+    const usuarioId = Number(usuarioAjuste);
+    const cantidad = Number(unidades);
+    const razon = motivo.trim();
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      setError('Indicá un usuario_id entero positivo.');
+      return;
+    }
+    if (!Number.isInteger(cantidad) || cantidad === 0 || Math.abs(cantidad) > 100000) {
+      setError('Las unidades deben ser un entero distinto de cero, entre -100000 y 100000.');
+      return;
+    }
+    if (razon.length < 10 || razon.length > 500) {
+      setError('El motivo es obligatorio y debe tener entre 10 y 500 caracteres.');
+      return;
+    }
+
+    setGuardando(true);
+    setError('');
+    setMensaje('');
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/recompensas/ajustes`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usuario_id: usuarioId,
+          pedido_id: pedidoAjuste.trim() ? Number(pedidoAjuste) : undefined,
+          unidades: cantidad,
+          motivo: razon,
+          idempotency_key: idempotencyKeyRef.current ?? (idempotencyKeyRef.current = crypto.randomUUID()),
+        }),
+      });
+      if (res.status === 401) {
+        setSessionError(true);
+        return;
+      }
+      if (!res.ok) {
+        setError(res.status === 404 || res.status === 405
+          ? 'El backend todavía no expone el ajuste de Plumas (POST /api/admin/recompensas/ajustes).'
+          : mensajeDeError(await res.json().catch(() => null), `el servidor respondió ${res.status}`));
+        return;
+      }
+      setMensaje('Ajuste registrado en el ledger. El saldo fue calculado por el servidor.');
+      setUnidades('');
+      setMotivo('');
+      idempotencyKeyRef.current = null;
+      await cargarLedger();
+    } catch {
+      setError('No se pudo registrar el ajuste: error de conexión con el servidor.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-black uppercase dark:text-white"><Feather size={20} className="text-amber-500" /> Ledger de Plumas</h2>
+        <p className="mt-1 text-xs text-slate-500">Movimientos inmutables por usuario y pedido. El panel no edita saldos directamente.</p>
+      </div>
+
+      <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/40 md:grid-cols-[1fr_1fr_auto]">
+        <input aria-label="Filtrar por usuario" inputMode="numeric" placeholder="Usuario ID" value={usuarioFiltro} onChange={e => setUsuarioFiltro(e.target.value)} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        <input aria-label="Filtrar por pedido" inputMode="numeric" placeholder="Pedido ID" value={pedidoFiltro} onChange={e => setPedidoFiltro(e.target.value)} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        <button type="button" onClick={() => void cargarLedger()} disabled={cargando} className="rounded-xl bg-slate-900 px-5 py-3 text-xs font-black uppercase text-white disabled:opacity-40 dark:bg-amber-500 dark:text-slate-950">{cargando ? 'Cargando...' : 'Buscar'}</button>
+      </div>
+
+      {error && <BannerAviso texto={error} onCerrar={() => setError('')} onReintentar={() => void cargarLedger()} />}
+      {mensaje && <p role="status" className="rounded-2xl bg-emerald-500/10 p-4 text-xs font-bold text-emerald-600">{mensaje}</p>}
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+        <table className="w-full min-w-[760px] text-left text-xs">
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 dark:bg-slate-800/60"><tr><th className="p-3">Usuario</th><th className="p-3">Pedido</th><th className="p-3">Movimiento</th><th className="p-3">Plumas</th><th className="p-3">Motivo</th><th className="p-3">Vence</th></tr></thead>
+          <tbody>{movimientos.map((movimiento, index) => <tr key={String(movimiento.id ?? `${movimiento.usuario_id}-${movimiento.creado_en}-${index}`)} className="border-t border-slate-100 dark:border-slate-800 dark:text-slate-300"><td className="p-3 font-bold">#{movimiento.usuario_id}</td><td className="p-3">{movimiento.pedido_id ?? '—'}</td><td className="p-3 uppercase">{movimiento.tipo ?? '—'}</td><td className={`p-3 font-mono font-black ${Number(movimiento.unidades) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{Number(movimiento.unidades) > 0 ? '+' : ''}{movimiento.unidades}</td><td className="max-w-xs p-3">{movimiento.motivo ?? '—'}</td><td className="p-3">{movimiento.vence_en ?? '—'}</td></tr>)}</tbody>
+        </table>
+        {!cargando && movimientos.length === 0 && <p className="p-8 text-center text-[10px] font-black uppercase text-slate-400">No hay movimientos para estos filtros</p>}
+      </div>
+
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <h3 className="mb-3 text-xs font-black uppercase text-amber-600">Ajuste manual auditado</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <input aria-label="Usuario del ajuste" inputMode="numeric" placeholder="Usuario ID *" value={usuarioAjuste} onChange={e => setUsuarioAjuste(e.target.value)} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+          <input aria-label="Pedido del ajuste" inputMode="numeric" placeholder="Pedido ID (opcional)" value={pedidoAjuste} onChange={e => setPedidoAjuste(e.target.value)} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+          <input aria-label="Unidades del ajuste" type="number" step="1" min="-100000" max="100000" placeholder="Unidades (+/-) *" value={unidades} onChange={e => setUnidades(e.target.value)} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+          <textarea aria-label="Motivo del ajuste" minLength={10} maxLength={500} placeholder="Motivo obligatorio (10 a 500 caracteres) *" value={motivo} onChange={e => setMotivo(e.target.value)} className="min-h-12 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        </div>
+        <button type="button" onClick={() => void ajustar()} disabled={guardando} className="mt-3 rounded-xl bg-amber-500 px-5 py-3 text-xs font-black uppercase text-slate-950 disabled:opacity-40">{guardando ? 'Registrando...' : 'Registrar movimiento'}</button>
+        <p className="mt-3 text-[10px] text-slate-500">No ingreses un saldo final. Una unidad positiva acredita y una negativa debita; el servidor valida límites, saldo y duplicados.</p>
       </div>
     </div>
   );
@@ -1264,6 +1672,101 @@ function UserManual() {
       <p>• El buscador filtra por título o artista en tiempo real.</p>
       <p>• Los iconos de <strong>Música</strong> y <strong>Escudo</strong> indican el género y calidad cargados.</p>
       <p>• <strong>Sesión Robusta:</strong> El sistema envía un "latido" cada 10s para mantener tu acceso exclusivo y liberar la sesión al cerrar.</p>
+    </div>
+  );
+}
+
+function AdministratorsManager({ getApiUrl }: { getApiUrl: () => string }) {
+  const [administradores, setAdministradores] = useState<AdminAccount[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const [editando, setEditando] = useState<number | null>(null);
+  const [nuevo, setNuevo] = useState({ email: '', nombre: '', password: '', rol: 'editor' as AdminRole });
+
+  const cargar = async () => {
+    setCargando(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/administradores`, { credentials: 'include' });
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(mensajeDeError(data, `No se pudo cargar el listado (${res.status})`));
+      setAdministradores(Array.isArray(data) ? data as AdminAccount[] : []);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el listado');
+    } finally { setCargando(false); }
+  };
+
+  useEffect(() => { void cargar(); }, []);
+
+  const crear = async () => {
+    setError(''); setMensaje('');
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/administradores`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevo)
+      });
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok) { setError(mensajeDeError(data, 'No se pudo crear el administrador')); return; }
+      // La contraseña solo vive mientras se completa el alta y se descarta inmediatamente.
+      setNuevo({ email: '', nombre: '', password: '', rol: 'editor' });
+      setMensaje('Administrador creado. La contraseña no se vuelve a mostrar ni conservar.');
+      await cargar();
+    } catch { setError('No se pudo crear el administrador: error de conexión.'); }
+  };
+
+  const actualizar = async (admin: AdminAccount, cambios: Partial<AdminAccount>) => {
+    setError(''); setMensaje('');
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/administradores/${admin.id}`, {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cambios)
+      });
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok) { setError(mensajeDeError(data, 'No se pudo actualizar el administrador')); return; }
+      setEditando(null);
+      await cargar();
+    } catch { setError('No se pudo actualizar el administrador: error de conexión.'); }
+  };
+
+  const revocar = async (admin: AdminAccount) => {
+    if (!confirm(`¿Revocar todas las sesiones de ${admin.email}?`)) return;
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/administradores/${admin.id}/revocar-sesiones`, { method: 'POST', credentials: 'include' });
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok) { setError(mensajeDeError(data, 'No se pudieron revocar las sesiones')); return; }
+      setMensaje(`Sesiones revocadas: ${admin.email}.`);
+    } catch { setError('No se pudieron revocar las sesiones: error de conexión.'); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-black uppercase dark:text-white"><UserCog size={20} className="text-amber-500" /> Administradores</h2>
+        <p className="mt-1 text-xs text-slate-500">Solo el rol <strong>admin</strong> puede gestionar cuentas. Admin es el máximo nivel; editor es el rol normal.</p>
+      </div>
+      <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/40 md:grid-cols-5">
+        <input aria-label="Email del administrador" type="email" placeholder="Email" value={nuevo.email} onChange={e => setNuevo({ ...nuevo, email: e.target.value })} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        <input aria-label="Nombre del administrador" placeholder="Nombre" value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        <input aria-label="Contraseña del administrador" type="password" autoComplete="new-password" placeholder="Contraseña (8+)" value={nuevo.password} onChange={e => setNuevo({ ...nuevo, password: e.target.value })} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white" />
+        <select aria-label="Rol del administrador" value={nuevo.rol} onChange={e => setNuevo({ ...nuevo, rol: e.target.value as AdminRole })} className="rounded-xl bg-white p-3 text-sm dark:bg-slate-900 dark:text-white"><option value="editor">Editor (normal)</option><option value="admin">Admin (máximo)</option></select>
+        <button type="button" onClick={() => void crear()} className="rounded-xl bg-amber-500 px-4 py-3 text-xs font-black uppercase text-slate-950"><Plus size={16} className="mr-1 inline" /> Crear</button>
+      </div>
+      {error && <BannerAviso texto={error} onCerrar={() => setError('')} onReintentar={() => void cargar()} />}
+      {mensaje && <p role="status" className="rounded-2xl bg-emerald-500/10 p-4 text-xs font-bold text-emerald-600">{mensaje}</p>}
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+        <table className="w-full min-w-[760px] text-left text-xs">
+          <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 dark:bg-slate-800/60"><tr><th className="p-3">Nombre / Email</th><th className="p-3">Rol</th><th className="p-3">Estado</th><th className="p-3">Último acceso</th><th className="p-3 text-right">Acciones</th></tr></thead>
+          <tbody>{cargando ? <tr><td colSpan={5} className="p-8 text-center">Cargando administradores...</td></tr> : administradores.map(admin => (
+            <tr key={admin.id} className="border-t border-slate-100 dark:border-slate-800 dark:text-slate-300">
+              <td className="p-3">{editando === admin.id ? <input aria-label="Editar nombre" value={admin.nombre} onChange={e => setAdministradores(rows => rows.map(row => row.id === admin.id ? { ...row, nombre: e.target.value } : row))} className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800" /> : <><strong>{admin.nombre}</strong><div className="text-slate-500">{admin.email}</div></>}</td>
+              <td className="p-3">{editando === admin.id ? <select aria-label="Editar rol" value={admin.rol} onChange={e => setAdministradores(rows => rows.map(row => row.id === admin.id ? { ...row, rol: e.target.value as AdminRole } : row))} className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800"><option value="editor">Editor</option><option value="admin">Admin</option></select> : <span className={admin.rol === 'admin' ? 'font-black text-amber-600' : 'text-slate-500'}>{admin.rol === 'admin' ? 'Admin · máximo' : 'Editor · normal'}</span>}</td>
+              <td className="p-3"><button type="button" onClick={() => void actualizar(admin, { activo: Number(admin.activo) ? 0 : 1 })} className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${Number(admin.activo) ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}`}>{Number(admin.activo) ? 'Activo' : 'Inactivo'}</button></td>
+              <td className="p-3">{admin.ultimo_acceso ? formatearFechaHora(admin.ultimo_acceso) : 'Nunca'}</td>
+              <td className="p-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => editando === admin.id ? void actualizar(admin, { nombre: admin.nombre, rol: admin.rol }) : setEditando(admin.id)} className="rounded-lg bg-blue-500/10 p-2 text-blue-500" title={editando === admin.id ? 'Guardar cambios' : 'Editar'}>{editando === admin.id ? <Save size={14} /> : <Edit2 size={14} />}</button><button type="button" onClick={() => void revocar(admin)} className="rounded-lg bg-amber-500/10 p-2 text-amber-600" title="Revocar sesiones"><RotateCcw size={14} /></button></div></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
