@@ -2,7 +2,9 @@ export type CalidadVinilo = 'NM' | 'EX' | 'VG+' | 'VG' | 'G';
 export type EstadoPedido = 'pendiente' | 'confirmado' | 'enviado' | 'entregado' | 'finalizado' | 'cancelado';
 
 export type TipoDivisa = 'DOLAR_BLUE' | 'USDT';
+export type MonedaPrecio = 'USD' | 'ARS' | 'USDT';
 export type TipoCupon = 'porcentaje' | 'fijo';
+export type DecimalValue = string | number;
 
 // POR QUÉ ESTE ARCHIVO NO DEFINE NI `Pedido`, NI `DetallePedido`, NI `Cliente`,
 // aunque sí conserva `EstadoPedido` como unión reutilizable:
@@ -39,9 +41,9 @@ export interface Cupon {
   // `usos_actuales + 1` quedara en NULL y el cupón nunca se agotaba en silencio.
   activo: number;
   uso_maximo: number | null;
-  // INT NOT NULL DEFAULT 0: lo mueve POST /api/pedidos (dentro de la
-  // transacción, con FOR UPDATE) y lo devuelve a cero o menos
-  // PUT /api/pedidos/:id/cancelar con GREATEST(0, usos_actuales - 1).
+  // INT NOT NULL DEFAULT 0: POST /api/pedidos lo incrementa dentro de la
+  // transacción y con FOR UPDATE cuando hay uso_maximo; cancelar lo decrementa
+  // con GREATEST(0, usos_actuales - 1). El panel puede corregirlo manualmente.
   usos_actuales: number;
   creado_en: string;
 }
@@ -73,9 +75,15 @@ export interface ViniloCatalogo {
 export interface ConfiguracionDivisa {
   id: string;
   tipo: TipoDivisa;
+  // La API puede entregar DECIMAL como string; los consumidores reciben la
+  // tasa normalizada a number después de parsear la respuesta.
   tasa: number;
-  ultima_actualizacion: string;
+  ultima_actualizacion: string | null;
   updated_by: string | null;
+  modo?: 'manual' | 'binance';
+  fuente?: string | null;
+  ultima_sincronizacion?: string | null;
+  estado?: 'activo' | 'error' | 'sincronizando' | 'pendiente' | string | null;
 }
 
 export interface CarritoItem {
@@ -87,4 +95,23 @@ export interface PreciosConvertidos {
   usd: number;
   ars: number;
   usdt: number;
+}
+
+export interface TasasCambio {
+  DOLAR_BLUE: number;
+  USDT: number;
+}
+
+export interface RecompensasPedido {
+  recompensas_ganadas?: DecimalValue | null;
+  recompensas_usadas?: DecimalValue | null;
+  descuento_recompensas_usd?: DecimalValue | null;
+}
+
+export interface ItemPedido {
+  id?: number;
+  cantidad?: number;
+  titulo?: string;
+  precio_unitario?: DecimalValue | null;
+  subtotal?: DecimalValue | null;
 }
