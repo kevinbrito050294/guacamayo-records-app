@@ -10,13 +10,14 @@ interface AccesoProps {
   onVolver: () => void;
   onAccesoAdmin: () => void;
   modoInicial?: Modo;
+  onOlvidePassword: () => void;
 }
 
 /**
  * Login y registro en la misma pantalla (tabs), con el mismo lenguaje visual
  * que el AdminLogin. El error que devuelve el server se muestra tal cual.
  */
-export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: AccesoProps) {
+export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login', onOlvidePassword }: AccesoProps) {
   const { login, registro, loginConGoogle, cargando: cargandoSesion } = useCuenta();
 
   const [modo, setModo] = useState<Modo>(modoInicial);
@@ -177,6 +178,15 @@ export function Acceso({ onVolver, onAccesoAdmin, modoInicial = 'login' }: Acces
             </div>
           )}
 
+          {modo === 'login' && (
+            <button
+              type="button"
+              onClick={onOlvidePassword}
+              className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-amber-500 transition-colors"
+            >
+              Olvidé mi contraseña
+            </button>
+          )}
           <button
             type="submit"
             disabled={enviando || cargandoSesion}
