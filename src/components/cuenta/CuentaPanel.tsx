@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Heart, LogOut, MapPin, ShoppingBag, X } from 'lucide-react';
-import { useCuenta, imgUrl } from '../../lib/cuenta';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Heart, LogOut, MapPin, ShoppingBag, X, Feather, Clock3 } from 'lucide-react';
+import { pedir, useCuenta, imgUrl, type Direccion, type PedidoCliente } from '../../lib/cuenta';
 import type { ConfiguracionDivisa } from '../../types/database';
 import { PestanaBoton } from './ui';
 import { Pedidos } from './Pedidos';
@@ -16,8 +16,20 @@ interface CuentaPanelProps {
 }
 
 export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
-  const { usuario, favoritos, logout } = useCuenta();
+  const { usuario, favoritos, logout, saldoRecompensas } = useCuenta();
   const [pestana, setPestana] = useState<Pestana>('pedidos');
+  const [resumen, setResumen] = useState<{ pedidos: PedidoCliente[]; direcciones: Direccion[] } | null>(null);
+  const [errorResumen, setErrorResumen] = useState('');
+
+  useEffect(() => {
+    let vigente = true;
+    void Promise.all([pedir<PedidoCliente[]>('/api/mis-pedidos'), pedir<Direccion[]>('/api/direcciones')]).then(([pedidos, direcciones]) => {
+      if (!vigente) return;
+      if (!pedidos.ok || !direcciones.ok) setErrorResumen(pedidos.error || direcciones.error);
+      setResumen({ pedidos: pedidos.ok && Array.isArray(pedidos.data) ? pedidos.data : [], direcciones: direcciones.ok && Array.isArray(direcciones.data) ? direcciones.data : [] });
+    });
+    return () => { vigente = false; };
+  }, []);
 
   if (!usuario) return null;
 
@@ -66,6 +78,17 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
         </div>
       </header>
 
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Resumen de cuenta">
+        <Resumen icono={<ShoppingBag size={17} />} titulo="Pedidos" valor={resumen ? String(resumen.pedidos.length) : '...'} />
+        <Resumen icono={<Clock3 size={17} />} titulo="Pendientes" valor={resumen ? String(resumen.pedidos.filter((p) => p.estado === 'pendiente').length) : '...'} />
+        <Resumen icono={<Heart size={17} />} titulo="Favoritos" valor={String(favoritos.length)} />
+        <Resumen icono={<Feather size={17} />} titulo="Plumas" valor={saldoRecompensas ? String(saldoRecompensas.unidades) : errorResumen ? '--' : '...'} />
+      </section>
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <span className="inline-flex items-center gap-2"><MapPin size={14} className="text-amber-500" /> Dirección principal: {resumen?.direcciones.find((d) => Number(d.es_default) === 1)?.apodo || (resumen ? 'Sin definir' : 'Cargando...')}</span>
+        {errorResumen && <span className="text-amber-600 dark:text-amber-400" role="status">No pudimos completar el resumen: {errorResumen}</span>}
+      </div>
+
       {/* PESTAÑAS */}
       <div role="tablist" aria-label="Secciones de la cuenta" className="grid grid-cols-3 gap-3 sm:gap-4">
         <PestanaBoton
@@ -99,4 +122,8 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
       </div>
     </div>
   );
+}
+
+function Resumen({ icono, titulo, valor }: { icono: ReactNode; titulo: string; valor: string }) {
+  return <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4"><div className="flex items-center gap-2 text-amber-500">{icono}<span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{titulo}</span></div><p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{valor}</p></div>;
 }
