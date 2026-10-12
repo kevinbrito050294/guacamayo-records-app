@@ -7,6 +7,11 @@ interface ImportMetaEnv {
 
 interface Window {
   AndroidBiometric?: {
-    saveAdminCredentials: (email: string, password: string) => void;
+    // La contraseña solo entra al bridge para cifrarse; ningún método la devuelve.
+    saveAdminCredentials: (adminId: string, email: string, nombre: string, password: string) => void;
+    // Devuelve exclusivamente id, email, nombre y lastUsed.
+    listAdminCredentials: () => string;
+    selectAdmin: (adminId: string) => void;
+    registerPushToken: () => void;
   };
 }
