@@ -9,16 +9,8 @@ type FormDireccion = typeof FORM_VACIO;
 // MySQL devuelve TINYINT en es_default, no boolean.
 const esPrincipal = (d: Direccion) => Number(d.es_default) === 1;
 
-// DEUDA VISIBLE (no implementada a propósito): la dirección que se guarda acá
-// NO viaja al pedido. `POST /api/pedidos` (server.js) no recibe `direccion_id`
-// y la tabla `pedidos` no guarda ningún snapshot de envío, así que no hay
-// trazabilidad de a dónde se manda cada pedido: hoy el admin le pide la
-// dirección al cliente por WhatsApp (el mensaje del checkout cierra en "¿Me
-// pasan los datos para la transferencia?"), y cuando se confirma el pedido el
-// panel muestra el WhatsApp para buscarla. Esta pantalla existe porque el
-// envío real (migración + server + enganche en el checkout) está pendiente;
-// mientras tanto guarda direcciones "para tenerlas", no para que se usen en la
-// compra.
+// Estas direcciones también se ofrecen en el checkout: Cart envía solo el id de
+// una dirección perteneciente a la sesión y el backend guarda su snapshot.
 
 export function Direcciones() {
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
