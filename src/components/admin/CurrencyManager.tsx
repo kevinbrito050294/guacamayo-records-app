@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ConfiguracionDivisa } from '../../types/database';
-import { Save, AlertCircle, Check, TrendingUp, Clock } from 'lucide-react';
+import { Save, AlertCircle, Check, TrendingUp, Clock, RefreshCw } from 'lucide-react';
 
 interface CurrencyManagerProps {
   getApiUrl: () => string;
@@ -10,6 +10,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
   const [tasas, setTasas] = useState<ConfiguracionDivisa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,10 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
 
       // Forzamos que data sea un array para evitar errores de renderizado
       if (Array.isArray(data)) {
-        setTasas(data);
+        setTasas(data.map((tasa) => ({
+          ...tasa,
+          tasa: Number(tasa.tasa),
+        })));
       } else {
         console.error('La API no devolvió un array:', data);
         setTasas([]);
@@ -52,7 +56,7 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tasa: nuevaTasa })
+        body: JSON.stringify({ tasa: Number(nuevaTasa), modo: 'manual' })
       });
 
       if (!response.ok) throw new Error('No se pudo actualizar');
@@ -62,13 +66,45 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
       // Limpiamos el mensaje después de 3 segundos
       setTimeout(() => setMessage(null), 3000);
       
-      // Recargamos para ver la fecha de actualización nueva
-      await cargarTasas(); 
+      // El guardado manual siempre devuelve el control al modo manual.
+      await cargarTasas();
+      setTasas(prev => prev.map(t => t.tipo === tipo ? { ...t, modo: 'manual', fuente: 'Manual', estado: 'activo' } : t));
     } catch (error) {
       console.error('Error saving rate:', error);
       setMessage({ type: 'error', text: 'Error al guardar la tasa' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sincronizarBinance() {
+    try {
+      setSyncing(true);
+      setMessage(null);
+      const response = await fetch(`${getApiUrl()}/api/configuracion_divisas/sincronizar-binance`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error || 'No se pudo sincronizar Binance');
+      }
+
+      const data = await response.json();
+      const nuevasTasas = Array.isArray(data) ? data : data.tasas;
+      if (Array.isArray(nuevasTasas)) {
+        setTasas(nuevasTasas.map((tasa: ConfiguracionDivisa) => ({ ...tasa, tasa: Number(tasa.tasa) })));
+      } else {
+        await cargarTasas();
+      }
+      setMessage({ type: 'success', text: 'Tasas sincronizadas desde Binance correctamente' });
+    } catch (error) {
+      console.error('Error syncing Binance rates:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error al sincronizar Binance' });
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -110,6 +146,23 @@ export function CurrencyManager({ getApiUrl }: CurrencyManagerProps) {
           <span className="text-xs font-black uppercase tracking-tight">{message.text}</span>
         </div>
       )}
+
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-800/40 md:flex-row md:items-center md:justify-between">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <span>Modo: <strong className="text-slate-900 dark:text-white">{tasas.some(t => t.modo === 'binance') ? 'Binance' : 'Manual'}</strong></span>
+          <span>Fuente: <strong className="text-slate-900 dark:text-white">{tasas.find(t => t.fuente)?.fuente || 'Manual'}</strong></span>
+          <span>Última sincronización: <strong className="text-slate-900 dark:text-white">{tasas.find(t => t.ultima_sincronizacion)?.ultima_sincronizacion ? new Date(tasas.find(t => t.ultima_sincronizacion)?.ultima_sincronizacion as string).toLocaleString('es-AR') : 'Nunca'}</strong></span>
+          <span>Estado: <strong className="text-emerald-500">{tasas.some(t => t.estado === 'error') ? 'Error' : 'Activo'}</strong></span>
+        </div>
+        <button
+          onClick={sincronizarBinance}
+          disabled={syncing || saving}
+          className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-[10px] font-black tracking-widest text-slate-950 shadow-lg transition-all hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw className={syncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+          {syncing ? 'SINCRONIZANDO...' : 'SINCRONIZAR BINANCE AHORA'}
+        </button>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {tasas.map((tasa) => (
