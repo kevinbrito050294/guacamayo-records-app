@@ -10,6 +10,7 @@ import {
 // preguntar si hay sesión: de eso depende qué nombre y qué WhatsApp van a quedar
 // guardados en el pedido (ver `nombreEfectivo` más abajo).
 import { pedir, useCuenta, importeUsd, cotizarRecompensas, normalizarUnidadesRecompensas, type Direccion } from '../lib/cuenta';
+import { WHATSAPP_PEDIDOS } from '../lib/contacto';
 
 interface CartProps {
   items: CarritoItem[];
@@ -464,7 +465,7 @@ export function Cart({
         `_(Ref: ${importeUsd(totalServidorUsd)})_\n\n` +
         `¿Me pasan los datos para la transferencia?`;
 
-      const telTienda = "5491164475028";
+      const telTienda = WHATSAPP_PEDIDOS;
       window.open(`https://wa.me/${telTienda}?text=${encodeURIComponent(mensajeWA)}`, '_blank');
 
       // El uso del cupón ya lo consumió el server: dejarlo guardado llevaría al

@@ -13,10 +13,12 @@ import { Acceso } from './components/cuenta/Acceso';
 import { Recuperacion } from './components/cuenta/Recuperacion';
 import { CuentaPanel } from './components/cuenta/CuentaPanel';
 import { Aviso } from './components/cuenta/ui';
+import { LegalPage } from './components/LegalPage';
+import { EMAIL_CONTACTO } from './lib/contacto';
 
 import logoImg from './assets/logo.webp';
 
-type Page = 'catalog' | 'cart' | 'admin' | 'cuenta' | 'recuperar';
+type Page = 'catalog' | 'cart' | 'admin' | 'cuenta' | 'recuperar' | 'legal';
 type Divisa = 'USD' | 'ARS' | 'USDT';
 type AdminCredentialMetadata = { id: string; email: string; nombre: string; lastUsed: number };
 
@@ -33,16 +35,17 @@ function AppShell() {
   const esModoAdmin = new URLSearchParams(window.location.search).get('admin') === '1';
   const parametrosIniciales = new URLSearchParams(window.location.search);
   const esRutaRecuperacion = window.location.pathname === '/restablecer-contrasena';
+  const esPaginaLegal = window.location.pathname === '/legal';
   const esRecuperacionInicial = esRutaRecuperacion || parametrosIniciales.get('recuperar') === '1';
   const tokenRecuperacion = esRecuperacionInicial ? parametrosIniciales.get('token') || undefined : undefined;
 
   const [currentPage, setCurrentPage] = useState<Page>(() => (
-    esModoAdmin ? 'admin' : esRecuperacionInicial ? 'recuperar' : 'catalog'
+    esModoAdmin ? 'admin' : esRecuperacionInicial ? 'recuperar' : esPaginaLegal ? 'legal' : 'catalog'
   ));
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
   const [vinilos, setVinilos] = useState<ViniloCatalogo[]>([]);
   const [tasas, setTasas] = useState<ConfiguracionDivisa[]>([]);
-  const [loading, setLoading] = useState(!esRecuperacionInicial);
+  const [loading, setLoading] = useState(!esRecuperacionInicial && !esPaginaLegal);
   const [catalogoError, setCatalogoError] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [loginCargando, setLoginCargando] = useState(false);
@@ -58,7 +61,7 @@ function AppShell() {
 
   useEffect(() => {
     const paginaValida = (valor: unknown): valor is Page =>
-      valor === 'catalog' || valor === 'cart' || valor === 'admin' || valor === 'cuenta' || valor === 'recuperar';
+      valor === 'catalog' || valor === 'cart' || valor === 'admin' || valor === 'cuenta' || valor === 'recuperar' || valor === 'legal';
     const paginaInicial = currentPage;
     window.history.replaceState({ ...(window.history.state || {}), page: paginaInicial }, '', window.location.href);
     // Deja una entrada gemela para que el primer Atrás vuelva al estado actual
@@ -116,8 +119,8 @@ function AppShell() {
   }, [getApiUrl]);
 
   useEffect(() => {
-    if (!esRecuperacionInicial) void cargarDatosIniciales();
-  }, [cargarDatosIniciales, esRecuperacionInicial]);
+    if (!esRecuperacionInicial && !esPaginaLegal) void cargarDatosIniciales();
+  }, [cargarDatosIniciales, esPaginaLegal, esRecuperacionInicial]);
 
   useEffect(() => {
     if (!esModoAdmin) return;
@@ -136,7 +139,7 @@ function AppShell() {
   }, [esModoAdmin, getApiUrl]);
 
   useEffect(() => {
-    if (esRecuperacionInicial) return;
+    if (esRecuperacionInicial || esPaginaLegal) return;
     const actualizarDisponibilidad = async () => {
       try {
         const res = await fetch(`${getApiUrl()}/api/vinilos`);
@@ -149,7 +152,7 @@ function AppShell() {
     };
     const intervalo = setInterval(() => void actualizarDisponibilidad(), 20000);
     return () => clearInterval(intervalo);
-  }, [esRecuperacionInicial, getApiUrl]);
+  }, [esPaginaLegal, esRecuperacionInicial, getApiUrl]);
 
   // --- SESIÓN ADMIN: la cookie httpOnly no se puede leer desde JS, así que al
   // --- montar preguntamos al servidor si todavía hay sesión abierta.
@@ -455,7 +458,7 @@ function AppShell() {
               )
             )}
 
-            {currentPage === 'recuperar' && (
+             {currentPage === 'recuperar' && (
               <Recuperacion
                 token={tokenRecuperacion}
                 onVolverLogin={() => { setModoAcceso('login'); setCurrentPage('cuenta'); }}
@@ -467,10 +470,26 @@ function AppShell() {
                    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
                 }}
               />
-            )}
+             )}
+
+             {currentPage === 'legal' && (
+               <LegalPage onBack={() => { window.history.pushState({ page: 'catalog' }, '', '/'); setCurrentPage('catalog'); }} />
+             )}
           </div>
         )}
       </div>
+
+      {!esModoAdmin && (
+        <footer className="border-t border-slate-200 bg-white/70 px-4 py-8 dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <p>© Guacamayo Records. Información legal y contacto.</p>
+            <div className="flex flex-wrap items-center gap-4 font-bold">
+              <button type="button" onClick={() => { window.history.pushState({ page: 'legal' }, '', '/legal'); setCurrentPage('legal'); }} className="hover:text-amber-600">Información legal</button>
+              <a href={`mailto:${EMAIL_CONTACTO}`} className="hover:text-amber-600">{EMAIL_CONTACTO}</a>
+            </div>
+          </div>
+        </footer>
+      )}
 
       {aviso && <Aviso mensaje={aviso} onCerrar={() => setAviso('')} />}
     </div>

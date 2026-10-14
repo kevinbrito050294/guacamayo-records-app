@@ -98,7 +98,7 @@ export function Catalog({ vinilos, onAddToCart, divisaActiva, carrito, tasas, id
           </div>
           
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase leading-none italic">
+            <h1 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tighter uppercase leading-none italic text-balance">
               <span className="text-slate-900 dark:text-white">GUACAMAYO</span>
               <span className="text-amber-500 block sm:inline sm:ml-2 md:ml-3">RECORDS</span>
             </h1>
@@ -247,7 +247,7 @@ function VinylSpotlight({
         <div className="order-1 flex min-w-0 flex-col justify-center p-4 sm:p-8 md:order-1 md:p-14">
           <p className="mb-2 text-[8px] font-black uppercase tracking-[0.2em] text-amber-400 sm:mb-4 sm:text-[10px] sm:tracking-[0.3em]">Disponible ahora</p>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 sm:mb-2 sm:text-xs">{vinilo.artista}</p>
-          <h2 className="line-clamp-3 min-h-[4.2rem] max-w-xl overflow-hidden text-2xl font-black uppercase italic leading-[0.95] tracking-tighter text-white sm:text-4xl md:min-h-[5.4rem] md:text-5xl">
+          <h2 className="line-clamp-2 min-h-[3.8rem] max-w-xl overflow-hidden text-2xl font-black uppercase italic leading-[0.98] tracking-tighter text-white sm:text-4xl md:min-h-[5.4rem] md:text-5xl">
             {vinilo.titulo}
           </h2>
           <div className="mt-3 flex flex-wrap items-center gap-2 sm:mt-6 sm:gap-4">

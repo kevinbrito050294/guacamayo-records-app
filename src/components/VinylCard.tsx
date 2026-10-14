@@ -132,7 +132,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
         
         {/* CONTENIDO DE LA CARD */}
           <div className="p-3 sm:p-6">
-           <h3 className="font-black text-base sm:text-2xl text-slate-900 dark:text-white truncate italic uppercase tracking-tighter leading-none mb-1">{vinilo.titulo}</h3>
+           <h3 className="line-clamp-2 h-[2.35rem] text-[15px] font-black uppercase italic leading-[1.08] tracking-tighter text-slate-900 dark:text-white sm:h-[3.4rem] sm:text-2xl">{vinilo.titulo}</h3>
            <p className="text-slate-500 dark:text-slate-400 text-[11px] sm:text-sm font-medium mb-2 sm:mb-3 truncate">{vinilo.artista}</p>
            <div className="flex gap-1 sm:gap-2 flex-wrap mb-3 sm:mb-4">
            {vinilo.pais_origen && (
@@ -221,7 +221,7 @@ export function VinylCard({ vinilo, precios, onAdd, divisaActiva, carrito, favor
             </div>
             <div className="rounded-2xl bg-white p-4 text-left dark:bg-slate-900 sm:p-6">
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-amber-500 sm:text-[10px]">Ficha del vinilo</p>
-              <h2 className="mt-2 text-xl font-black uppercase italic leading-tight tracking-tight text-slate-900 dark:text-white sm:text-2xl">{vinilo.titulo}</h2>
+              <h2 className="mt-2 line-clamp-2 text-xl font-black uppercase italic leading-tight tracking-tight text-slate-900 dark:text-white sm:text-2xl">{vinilo.titulo}</h2>
               <p className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">{vinilo.artista}</p>
               <p className="mt-4 text-2xl font-black text-amber-500 sm:mt-5">{renderPrecioPrincipal()}</p>
               <div className="mt-4 grid grid-cols-2 gap-2 text-[9px] font-black uppercase sm:mt-5 sm:text-[10px]">

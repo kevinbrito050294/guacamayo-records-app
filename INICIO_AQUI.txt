@@ -9,38 +9,53 @@
 ¡FELICIDADES! Tu plataforma de venta de vinilos está COMPLETAMENTE LISTA.
 
 Hemos creado:
-  ✅ Base de datos en Supabase con 5 tablas
+  ✅ Base de datos MySQL (MariaDB) con sus migraciones en db/migrations/
   ✅ Interfaz React moderna y responsive
-  ✅ Sistema de filtros y búsqueda
+  ✅ Búsqueda por artista o título
   ✅ Conversión automática de divisas (ARS, USD, USDT)
   ✅ Carrito de compras
   ✅ Integración con WhatsApp
   ✅ Panel de administración completo
   ✅ Importador CSV masivo
-  ✅ Documentación completa (9 archivos)
+  ✅ Documentación completa (guías .md y .txt en la raíz, más docs/COUPONS.md)
 
 
 ═════════════════════════════════════════════════════════════════════════════
- ANTES QUE NADA: 3 PASOS CLAVE (15 minutos)
+ ANTES QUE NADA: 4 PASOS CLAVE (15 minutos)
 ═════════════════════════════════════════════════════════════════════════════
 
 1️⃣  PERSONALIZA TU NÚMERO DE WHATSAPP
-    ├─ Abre: src/components/Cart.tsx
-    ├─ Busca línea 43: const numeroWhatsApp = '5491123456789';
-    ├─ Reemplaza con tu número (ej: 549-9-1234-5678)
-    └─ Guarda el archivo
+     ├─ Abre: src/components/Cart.tsx
+     ├─ Buscá la constante telTienda (se arma al confirmar el pedido)
+     ├─ Poné tu número: solo dígitos, con código de país, sin guiones ni espacios
+     │  (ej: 5491123456789)
+     └─ Guardá el archivo y después corré npm run build
 
 2️⃣  IMPORTA DATOS DE PRUEBA
-    ├─ Abre la web y haz clic "⚙️ Admin" (abajo derecha)
+    ├─ Abre la web y haz clic en el engranaje ⚙️ (barra superior)
+    ├─ Iniciá sesión con tu EMAIL y CONTRASEÑA de admin
     ├─ Ve a "Importar CSV"
     ├─ Sube el archivo: DATOS_EJEMPLO.csv
     └─ Haz clic "Importar 10 registros"
 
 3️⃣  VERIFICA LAS TASAS
     ├─ En Admin, ve a "Tasas de Cambio"
-    ├─ Verifica que Dólar Blue sea ~1185 ARS
-    ├─ Haz clic "Guardar" si necesita actualizar
-    └─ ¡Listo!
+    ├─ Mirá las dos tasas que ya están cargadas (ARS y USDT)
+    ├─ Poné el Dólar Blue de HOY y hacé clic "Guardar"
+    └─ ¡Listo! La tasa no viene de un valor fijo: la guardás vos en la base
+
+4️⃣  (SOLO LA PRIMERA VEZ) ACTIVÁ EL ACCESO AL PANEL
+    ├─ El panel pide email + contraseña: no hay contraseña única
+    ├─ Corré las migraciones pendientes: npm run migrar
+    │  (en Railway: shell del servicio MySQL, base "railway")
+    │  Ojo: el checkout necesita TODAS las migraciones, no solo la de cuentas.
+    │  Si arrancás de una base vacía, corré primero
+    │  `node scripts/migrar.mjs --archivo 2026-09-29_pedidos_cupones.sql`
+    │  y después `npm run migrar` (ver docs/COUPONS.md)
+    ├─ Creá el usuario admin (mínimo 8 caracteres):
+    │  $env:ADMIN_PASSWORD='mi-clave'; node scripts/crear-admin.mjs --email admin@guacamayorecords.com --nombre "Guacamayo"
+    ├─ Volvé a correr el mismo comando si necesitás resetear la contraseña
+    └─ Detalle: README.md → "🔐 Acceso y Cuentas"
 
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -85,11 +100,14 @@ Hemos creado:
 
 Frontend:        React 18 + TypeScript
 Estilos:         Tailwind CSS (sin dependencias extra)
-Base de Datos:   Supabase (PostgreSQL)
+Backend:         Node + Express (server.js) y auth.js para el acceso
+Base de Datos:   MariaDB / MySQL en Railway (mysql2)
 Build Tool:      Vite 5 (ultra rápido)
 Icons:           Lucide React (200+ iconos)
 
-TODO ESTÁ INTEGRADO. NADA MÁS QUE INSTALAR.
+El código está integrado. Para ponerlo en producción todavía faltan pasos que
+dependen de tu entorno: aplicar las migraciones, definir el número de WhatsApp
+(telTienda), cargar el catálogo real y revisar CHECKLIST_VERIFICACION.md.
 
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -97,18 +115,19 @@ TODO ESTÁ INTEGRADO. NADA MÁS QUE INSTALAR.
 ═════════════════════════════════════════════════════════════════════════════
 
 ✅ Catálogo de vinilos con imágenes
-✅ Filtros por género (13 géneros)
-✅ Filtros por calidad (NM, EX, VG+, VG, G)
-✅ Búsqueda por artista, título o código
+✅ Búsqueda por artista o título
 ✅ Selector de divisa (ARS, USD, USDT)
 ✅ Conversión automática de precios
 ✅ Carrito de compras
 ✅ Checkout por WhatsApp
+✅ Cupones de descuento (ver docs/COUPONS.md)
+✅ Cuenta de cliente (registro, login, Google, direcciones, favoritos, pedidos)
 ✅ Panel de administración
+✅ Acceso al panel con email y contraseña (un usuario por persona)
 ✅ Formulario para agregar vinilos
 ✅ Importador CSV (para agregar 100+ vinilos rápido)
 ✅ Gestor de tasas de cambio
-✅ Row Level Security en BD
+✅ Migraciones SQL versionadas (db/migrations/ es la fuente de verdad del esquema)
 ✅ Documentación completa
 
 
@@ -118,17 +137,18 @@ TODO ESTÁ INTEGRADO. NADA MÁS QUE INSTALAR.
 
 PASO 1: Personaliza número WhatsApp
    → Abre: src/components/Cart.tsx
-   → Línea 43: Reemplaza numero
-   → Guarda
+   → Buscá la constante telTienda y poné tu número
+   → npm run build
 
 PASO 2: Prueba con datos de ejemplo
-   → Abre panel Admin
+   → Abre el panel (engranaje ⚙️, barra superior)
+   → Iniciá sesión con tu email y contraseña
    → Importa: DATOS_EJEMPLO.csv
    → Deberías ver 10 vinilos
 
 PASO 3: Verifica tasas
    → Admin → Tasas de Cambio
-   → Actualiza si es necesario
+   → Poné el Dólar Blue de hoy y guardá
 
 PASO 4: Prueba compra
    → Abre catálogo
@@ -149,24 +169,40 @@ PASO 5: ¡Lánzalo!
 
 📁 Código
    src/components/Catalog.tsx        - Catálogo principal
-   src/components/Cart.tsx           - Carrito (EDITAR NÚMERO WHATSAPP AQUÍ)
+   src/components/Cart.tsx           - Carrito (EDITAR telTienda = NÚMERO WHATSAPP)
    src/components/AdminPanel.tsx     - Panel de admin
+   src/components/cuenta/            - Cuenta de cliente: acceso, pedidos, favoritos
    src/components/admin/             - Formulario, CSV, Tasas
 
 📁 Utilidades
    src/lib/currency.ts              - Conversión de divisas
-   src/lib/whatsapp.ts              - Integración WhatsApp
-   src/lib/supabase.ts              - Cliente BD
+   src/lib/api.ts                  - URL base de la API
+   src/lib/cuenta.ts                - Estado y formato de la cuenta de cliente
+   src/lib/cupon.ts                 - Estado del cupón del carrito
+
+📁 Cuentas y acceso
+   auth.js                         - Login y sesiones (admin y clientes)
+   server.js                       - API Express: catálogo, pedidos, cupones, backoffice
+   db/migrations/                  - Migraciones SQL (esquema real de la base)
+   └─ 2026-09-26_auth.sql           - Tablas de cuentas, sesiones y auditoría
+   scripts/crear-admin.mjs         - Crear o resetear la contraseña del admin
+   scripts/migrar.mjs              - Corre las migraciones pendientes
 
 📁 Datos
    DATOS_EJEMPLO.csv                - 10 vinilos de ejemplo
-   supabase/migrations/              - Código de la BD
+
+📁 DDL histórico (NO lo ejecutes)
+   SCRIPT_MYSQL_BACKUP.sql           - Esquema viejo, no corresponde al actual
+   supabase/migrations/              - Esquema viejo de PostgreSQL, histórico
 
 📁 Documentación
+   NOTA_IMPORTANTE.txt              - Lo mínimo antes de vender
    GUIA_RAPIDA.md                   - Intro (lee primero)
    MANUAL_OPERACIONES.md            - Guía completa
+   CHECKLIST_VERIFICACION.md        - Verificación pre-lanzamiento
    CONFIGURAR_WHATSAPP.md           - Setup WhatsApp
    ARQUITECTURA_TECNICA.md          - Para developers
+   docs/COUPONS.md                  - Cupones de descuento
 
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -180,7 +216,29 @@ PASO 5: ¡Lánzalo!
 ❌ "WhatsApp no se abre"
    → Verifica que tengas WhatsApp instalado
    → Permite pop-ups en el navegador
-   → Verifica numero en src/components/Cart.tsx
+   → Verifica la constante telTienda en src/components/Cart.tsx
+
+❌ "No me deja entrar al panel"
+   → El login pide EMAIL + contraseña (hay que tener usuario creado)
+   → Corré las migraciones pendientes: npm run migrar
+   → Creá o resetéala con scripts/crear-admin.mjs
+   → Ver README.md → "🔐 Acceso y Cuentas"
+
+❌ "El checkout no guarda el pedido / el panel no muestra los cupones"
+   → Falta una migración: el server ya escribe cupon_id, cupon_codigo y
+     descuento_aplicado, y si las columnas no existen, el pedido se cae
+   → Corré `npm run migrar` y revisá `node scripts/migrar.mjs --estado`
+   → Ver docs/COUPONS.md → "Migración y qué verificar"
+
+❌ "El botón de Google no aparece"
+   → Falta VITE_GOOGLE_CLIENT_ID en el .env, y su ausencia no tira ningún error
+   → Tiene que ser EXACTAMENTE el mismo valor que GOOGLE_CLIENT_ID del server
+   → Después de cambiarla: npm run build (las VITE_* se compilan)
+   → Ver README.md → "🔐 Acceso y Cuentas"
+
+❌ "El panel dice que ya está abierto en otro dispositivo"
+   → La sesión del admin es única: cerrá la otra pestaña
+   → Esperá 1 minuto y volvé a intentar
 
 ❌ "CSV no se importa"
    → Asegúrate de guardar como CSV (no XLSX)
@@ -221,12 +279,13 @@ PASO 5: ¡Lánzalo!
 ═════════════════════════════════════════════════════════════════════════════
 
 ✓ Proyecto compilado correctamente
-✓ Build size: 89.91 KB (gzipped)
-✓ Componentes: 12
-✓ Tablas BD: 5
-✓ Documentación: 9 archivos
+✓ Bundle: ~83 KB (gzipped, del último build; volvé a medirlo con npm run build)
+✓ Componentes: 20 .tsx + 6 .ts en src/
+✓ Tablas BD: 11 (catálogo, tasas, pedidos, cupones, cuentas, sesiones,
+  direcciones, favoritos, auditoría, historial de migraciones)
+✓ Migraciones SQL: 4 en db/migrations/
 ✓ Datos ejemplo: 10 vinilos
-✓ Status: PRODUCTION READY ✅
+✓ Status: CÓDIGO LISTO ✅ (deployment: migraciones + telTienda + catálogo)
 
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -239,7 +298,8 @@ SOLO 3 COSAS:
 2) Tus vinilos (como CSV o agrega uno por uno)
 3) ¡Comenzar a vender!
 
-TODO LO DEMÁS YA ESTÁ HECHO.
+Además de esas tres, falta correr `npm run migrar` en la base. Lo demás ya está
+en el código.
 
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -291,10 +351,10 @@ GuacamayoRecords está listo para vender tus vinilos.
 Tu tienda es:
   ✨ Moderna (React 18)
   ✨ Rápida (Vite)
-  ✨ Segura (Supabase RLS)
+  ✨ Segura (sesiones httpOnly y contraseñas con hash scrypt)
   ✨ Fácil de mantener
   ✨ Completa (todo integrado)
-  ✨ Documentada (9 guías)
+  ✨ Documentada (guías .md y .txt, más docs/COUPONS.md)
 
 AHORA SOLO NECESITAS:
   1. Tus vinilos
@@ -310,9 +370,9 @@ Si tienes preguntas, la respuesta probablemente está en:
 
 ═════════════════════════════════════════════════════════════════════════════
 
-Version: 1.0
-Date: 2026-02-28
-Status: ✅ PRODUCTION READY
+Version: 1.1
+Date: 2026-09-29
+Status: ✅ CÓDIGO LISTO (deployment: migraciones + telTienda + catálogo)
 
 Hecho con ❤️ para GuacamayoRecords
 

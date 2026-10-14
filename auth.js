@@ -549,6 +549,39 @@ export function crearAuthRouter(db) {
         }
     });
 
+    // El visor muestra actividad reciente, no tokens ni datos de red. El umbral
+    // evita convertir cada heartbeat en un historial permanente de personas.
+    router.get('/admin/sesiones', soloAdmin, soloAdminMaximo, async (req, res, next) => {
+        try {
+            const [filas] = await sql.query(
+                `SELECT s.id AS sesion_id,
+                        s.tipo,
+                        COALESCE(a.email, u.email) AS email,
+                        COALESCE(a.nombre, u.nombre) AS nombre,
+                        s.ultima_actividad,
+                        s.creado_en,
+                        s.expira_en,
+                        CASE
+                            WHEN s.tipo = 'admin' AND s.ultima_actividad >= DATE_SUB(NOW(), INTERVAL 60 SECOND) THEN 'conectado'
+                            WHEN s.tipo = 'cliente' AND s.ultima_actividad >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) THEN 'conectado'
+                            ELSE 'reciente'
+                        END AS estado
+                   FROM sesiones s
+                   LEFT JOIN admin_usuarios a ON a.id = s.admin_usuario_id
+                   LEFT JOIN usuarios u ON u.id = s.usuario_id
+                  WHERE s.expira_en > NOW()
+                    AND s.ultima_actividad >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+                    AND ((s.tipo = 'admin' AND a.activo = 1) OR (s.tipo = 'cliente' AND u.activo = 1))
+                  ORDER BY s.ultima_actividad DESC
+                  LIMIT 200`
+            );
+            res.set('Cache-Control', 'no-store');
+            res.json(filas);
+        } catch (e) {
+            next(e);
+        }
+    });
+
     router.post('/admin/administradores', soloAdmin, soloAdminMaximo, async (req, res, next) => {
         try {
             const email = limpiar(req.body?.email, 191).toLowerCase();

@@ -10,24 +10,53 @@ ANTES DE LANZAR - 3 COSAS IMPORTANTES:
 
 1. PERSONALIZAR NÚMERO DE WHATSAPP
    ├─ Archivo: src/components/Cart.tsx
-   ├─ Línea 43: const numeroWhatsApp = '5491123456789';
-   └─ Reemplaza con tu número real
-   
+   ├─ Buscá la constante telTienda (se arma al confirmar el pedido)
+   ├─ Poné tu número: solo dígitos, con código de país, sin guiones ni espacios
+   └─ Guardá y corré npm run build
+
    Guía completa en: CONFIGURAR_WHATSAPP.md
 
 2. CARGAR TUS DATOS
    ├─ Opción A: Importar CSV con tus vinilos
    ├─ Opción B: Agregar uno por uno en Admin
-   └─ Para probar: Importar DATOS_EJEMPLO.csv
+   ├─ Para probar: Importar DATOS_EJEMPLO.csv
+   └─ Ojo: el panel pide EMAIL + contraseña, no una clave única
    
    Guía en: MANUAL_OPERACIONES.md
 
 3. VERIFICAR TASAS DE CAMBIO
    ├─ Va a: Panel Admin → Tasas de Cambio
-   ├─ Actualiza Dólar Blue con valor actual
+   ├─ Poné el Dólar Blue de HOY (no hay un valor fijo: lo guardás vos)
    └─ Haz clic "Guardar"
-   
-   Ahora mismo el dólar está en ~1185 ARS
+
+   Ojo: la tasa se cachea 1 minuto en el navegador. Si no te cambia,
+   recargá con Ctrl+Shift+R.
+
+===============================================================================
+ACCESO AL PANEL - LA PRIMERA VEZ:
+===============================================================================
+
+El backoffice se entra con EMAIL + CONTRASEÑA. Cada persona del equipo
+tiene su propio usuario en la base de datos.
+
+1) Corré las migraciones pendientes (una sola vez):
+   npm run migrar
+   → En Railway: shell del servicio MySQL, con la base "railway" seleccionada
+   → Los archivos se pueden correr varias veces, no rompen nada
+   → OJO: son 4 migraciones, no solo la de cuentas. El checkout escribe
+     cupon_id / cupon_codigo / descuento_aplicado y sin esas columnas se cae.
+     Arrancando de una base VACÍA, corré primero
+     `node scripts/migrar.mjs --archivo 2026-09-29_pedidos_cupones.sql`
+     y después `npm run migrar` (ver docs/COUPONS.md)
+
+2) Creá el usuario admin (mínimo 8 caracteres):
+   $env:ADMIN_PASSWORD='mi-clave'; node scripts/crear-admin.mjs --email admin@guacamayorecords.com --nombre "Guacamayo"
+
+   Si el email ya existe, el mismo comando cambia la contraseña.
+
+3) Entrá al panel con ese email y esa contraseña.
+
+Detalle completo: README.md → "🔐 Acceso y Cuentas"
 
 ================================================================================
 DOCUMENTACIÓN DISPONIBLE:
@@ -47,10 +76,14 @@ DOCUMENTACIÓN DISPONIBLE:
 4. CHECKLIST_VERIFICACION.md
    └─ Asegúrate de que todo funcione
 
-5. README.md
+5. docs/COUPONS.md
+   └─ Cupones de descuento: reglas, cuántas veces se pueden usar y qué
+     revisar si un cupón no aplica
+
+6. README.md
    └─ Presentación general del proyecto
 
-6. ARQUITECTURA_TECNICA.md (solo si eres developer)
+7. ARQUITECTURA_TECNICA.md (solo si eres developer)
    └─ Cómo está hecho internamente
 
 ================================================================================
@@ -58,16 +91,17 @@ PARA EMPEZAR RÁPIDO:
 ================================================================================
 
 Paso 1: Personaliza número WhatsApp (2 min)
-   → Archivo: src/components/Cart.tsx, línea 43
+   → Archivo: src/components/Cart.tsx, constante telTienda
    → Guía: CONFIGURAR_WHATSAPP.md
 
 Paso 2: Importa datos de prueba (5 min)
    → Archivo: Panel Admin → Importar CSV
+   → El panel pide email + contraseña al entrar
    → Sube: DATOS_EJEMPLO.csv
 
 Paso 3: Verifica tasas (1 min)
    → Va a: Panel Admin → Tasas de Cambio
-   → Verifica que esté: Dólar Blue ~1185
+   → Poné el Dólar Blue de hoy y guardá
 
 Paso 4: Prueba compra completa (5 min)
    → Abre catálogo
@@ -86,38 +120,44 @@ STACK TECNOLÓGICO:
 
 Frontend:   React 18 + TypeScript
 Estilos:    Tailwind CSS
-Base Datos: Supabase (PostgreSQL)
+Backend:    Node + Express (server.js, auth.js) con sesiones y hash scrypt
+Base Datos: MariaDB / MySQL en Railway (mysql2)
 Build:      Vite 5
-Hosting:    Tu servidor / Vercel / Netlify
+Hosting:    Railway (front + API) o tu servidor
 
 Nada complicado. Nada que no entendías.
-Todo está listo para producción.
+Todo está listo para producción, con una condición: hay que correr las
+migraciones (npm run migrar) y poner tu número de WhatsApp.
 
-================================================================================
+============================================================================
 CONTACTO Y SOPORTE:
-================================================================================
+============================================================================
 
 Si necesitas ayuda:
-1. Consulta los 6 archivos de documentación (arriba)
+1. Consulta los archivos de documentación (arriba)
 2. Busca tu problema en MANUAL_OPERACIONES.md
-3. Verifica ARQUITECTURA_TECNICA.md si es técnico
-4. Contacta al desarrollador si no lo encuentras
+3. Si es de cupones, mira docs/COUPONS.md
+4. Verifica ARQUITECTURA_TECNICA.md si es técnico
+5. Contacta al desarrollador si no lo encuentras
 
 La mayoría de problemas se resuelven recargando la página (F5).
 
-================================================================================
+============================================================================
 ¡IMPORTANTE!
-================================================================================
+============================================================================
 
-✓ El proyecto está compilado y funcionando
-✓ La base de datos está creada con datos iniciales
+✓ El proyecto está compilado y el código corre
+✓ El esquema de cuentas, cupones y pedidos se crea con `npm run migrar`
+   (OJO: inventario_vinilos y configuracion_divisas NO los crea ninguna
+   migración; si la base está vacía, hay que crearlas a mano)
 ✓ Todos los componentes están integrados
 ✓ La documentación es completa
-✓ Está listo para producción
+✓ Para producción falta: definir telTienda, aplicar las migraciones, cargar el
+  catálogo real y revisar los checks de CHECKLIST_VERIFICACION.md
 
 SOLO NECESITAS:
-1. Tu número de WhatsApp (para el checkout)
-2. Tus datos de vinilos (CSv o manual)
+1. El número de WhatsApp (va en telTienda, en src/components/Cart.tsx)
+2. Tus datos de vinilos (CSV o manual)
 3. ¡Empezar a vender!
 
 ================================================================================
@@ -126,6 +166,7 @@ PRÓXIMOS PASOS:
 
 HOY:
 └─ Lee GUIA_RAPIDA.md (5 minutos)
+└─ Corré `npm run migrar` y creá tu usuario admin
 └─ Personaliza número WhatsApp (2 minutos)
 └─ Importa DATOS_EJEMPLO.csv (5 minutos)
 └─ Prueba todo (5 minutos)
@@ -156,6 +197,17 @@ RECORDATORIOS:
   → Aparece en el código fuente
   → Si no quieres, pídele al dev que lo oculte
 
+- No se comparte la contraseña del admin
+  → Cada persona tiene su propio usuario
+  → Si alguien se va del equipo, se desactiva su usuario
+  → Si se pierde la clave, se resetea con scripts/crear-admin.mjs
+
+- El login con Google necesita DOS variables que tienen que coincidir
+  → GOOGLE_CLIENT_ID (server) y VITE_GOOGLE_CLIENT_ID (front), mismo valor exacto
+  → Si falta la del front, el botón NO APARECE y no da ningún error
+  → Hay que registrar http://localhost:5173 en la consola de Google (en dev)
+  → Detalle: README.md → "🔐 Acceso y Cuentas"
+
 - Responde rápido los mensajes de WhatsApp
   → Los clientes esperan confirmación
   → Máximo 1 hora de respuesta
@@ -167,9 +219,9 @@ RECORDATORIOS:
 Si todo va bien, tus primeras ventas llegarán pronto.
 Cuando necesites ayuda, consulta la documentación.
 
-Versión: 1.0
-Fecha: 2026-02-28
-Status: ✅ PRODUCTION READY
+Versión: 1.1
+Fecha: 2026-09-29
+Status: ✅ CÓDIGO LISTO - deployment pendiente de migraciones, telTienda y catálogo
 
 Hecho con ❤️
 

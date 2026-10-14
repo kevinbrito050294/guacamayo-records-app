@@ -1,4 +1,21 @@
 /*
+  =============================================================================
+  HISTÓRICO — NO EJECUTAR CONTRA UNA BASE NUEVA
+  =============================================================================
+  Esta migración es de febrero de 2026, cuando el backend usaba Supabase. Se
+  conserva como registro, pero NO reproduce el esquema actual. Contraste con
+  `db/migrations/2026-09-29_pedidos_cupones.sql`:
+    - `pedidos` acá: `id uuid`, `numero_pedido`, `cliente_id`, `precio_total_usd` y una
+      tabla `detalles_pedido` normalizada. Hoy: `id_pedido INT AUTO_INCREMENT`,
+      `numero_orden`, `nombre_cliente`, `total_pago`, y el detalle va como JSON en
+      `items` (LONGTEXT). No hay tabla de líneas de pedido.
+    - Declara `clientes`, que ninguna migración crea y ningún handler lee.
+  El RLS que define abajo tampoco aplica: el control de acceso actual es código
+  (middleware por handler en auth.js / server.js).
+
+  La fuente de verdad del esquema es `db/migrations/`, aplicada con `npm run migrar`.
+  =============================================================================
+
   # GuacamayoRecords E-commerce Database Schema
   
   1. New Tables

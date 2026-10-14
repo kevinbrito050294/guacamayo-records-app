@@ -1,13 +1,17 @@
 # 📁 Lista Completa de Archivos Creados - GuacamayoRecords
 
+> ⚠️ **Este archivo es una foto del 2026-02-28**, del primer build. Se conserva por
+> historial, y hay que leerlo sabiendo eso: el proyecto cambió bastante después (backend
+> Express + MariaDB, cuentas de cliente, cupones, panel con 7 pestañas) y algunos de los
+> archivos que lista acá ya no existen. Para el estado real, [README.md](README.md) y
+> [ARQUITECTURA_TECNICA.md](ARQUITECTURA_TECNICA.md).
+
 ## 📊 Resumen Ejecutivo
 
 ```
 ✅ Total de archivos creados: 40+
-✅ Líneas de código: ~2000+
-✅ Componentes React: 12
-✅ Documentación: 9 archivos
-✅ Estado: PRODUCTION READY
+✅ Componentes React: 20 .tsx + 6 .ts en src/
+✅ Estado: código listo (deployment pendiente de migraciones, telTienda y catálogo)
 ```
 
 ---
@@ -22,23 +26,26 @@ src/
 │
 ├── components/
 │   ├── Catalog.tsx (130 líneas)
-│   │   └─ Página principal del catálogo
+│   │   └─ Página principal del catálogo (y la búsqueda por texto)
 │   │
 │   ├── Cart.tsx (150 líneas)
-│   │   └─ Carrito de compras
+│   │   └─ Carrito de compras (y el mensaje de WhatsApp)
+│   │
+│   ├── VinylCard.tsx (80 líneas)
+│   │   └─ Tarjeta de vinilo individual
 │   │
 │   ├── CurrencySelector.tsx (25 líneas)
 │   │   └─ Selector de divisa
 │   │
+│   ├── AdminLogin.tsx (92 líneas)
+│   │   └─ Login del panel: email + contraseña
+│   │
 │   ├── AdminPanel.tsx (180 líneas)
 │   │   └─ Panel de administración principal
 │   │
-│   ├── catalog/
-│   │   ├── VinylCard.tsx (80 líneas)
-│   │   │   └─ Tarjeta de vinilo individual
-│   │   │
-│   │   └── FilterPanel.tsx (95 líneas)
-│   │       └─ Panel de filtros
+│   ├── cuenta/                    # Account de cliente (agregada después)
+│   │   ├─ Acceso.tsx, CuentaPanel.tsx, Direcciones.tsx,
+│   │   ├─ Favoritos.tsx, Pedidos.tsx, BotonGoogle.tsx, CuentaProvider.tsx
 │   │
 │   └── admin/
 │       ├── VinylForm.tsx (150 líneas)
@@ -51,14 +58,14 @@ src/
 │           └─ Gestor de tasas de cambio
 │
 ├── lib/
-│   ├── supabase.ts (9 líneas)
-│   │   └─ Cliente Supabase
+│   ├── api.ts                   # URL base de la API
 │   │
 │   ├── currency.ts (70 líneas)
-│   │   └─ Lógica de conversión de divisas
+│   │   └─ Tasas y conversión de divisas
 │   │
-│   └── whatsapp.ts (30 líneas)
-│       └─ Integración con WhatsApp
+│   ├── cuenta.ts                # Estado, tipos y formato de la cuenta de cliente
+│   │
+│   └── cupon.ts                 # Estado del cupón del carrito
 │
 ├── types/
 │   └── database.ts (65 líneas)
@@ -68,16 +75,46 @@ src/
     └─ Estilos globales
 ```
 
+> En el primer build había además una carpeta `components/catalog/` con una copia de la
+> tarjeta y un panel de filtros, y un `lib/whatsapp.ts`. Eran código muerto (copias
+> duplicadas o sin imports) y se borraron: hoy la tarjeta vive en
+> `components/VinylCard.tsx`, la búsqueda está dentro de `Catalog.tsx` y el mensaje de
+> WhatsApp se arma inline en `Cart.tsx`.
+
+### Backend (Node + Express + MariaDB)
+```
+├── auth.js
+│   └─ Sesiones con token en cookie httpOnly, hash scrypt, endpoints
+│      /api/admin/* y /api/auth/*, direcciones, favoritos
+│
+├── server.js
+│   └─ API Express: catálogo, pedidos, backoffice y montaje del router de auth
+│
+├── db/migrations/
+│   ├── 2026-09-26_auth.sql        # Tablas de cuentas, sesiones y auditoría
+│   ├── 2026-09-27_cupones.sql     # Tabla `cupones`
+│   ├── 2026-09-28_cupones_schema.sql
+│   ├── 2026-09-29_pedidos_cupones.sql
+│   └─ ESTOS SON EL ESQUEMA REAL. `npm run migrar` los corre en orden.
+│
+└── scripts/
+    ├── crear-admin.mjs         # Crea o resetea la contraseña de un usuario del panel
+    └── migrar.mjs              # Corre los .sql pendientes y anota el historial
+```
+
 ### Archivos Compilados
 ```
 dist/
 ├── index.html
-├── assets/
-│   ├── index-C1vnyWG4.css (16.41 KB)
-│   └── index-ByXGXwUj.js (309.56 KB)
+└── assets/
+    ├── index-*.css (39 KB raw → 7 KB gzip)
+    ├── index-*.js  (277 KB raw → 76 KB gzip)
+    └── logo-*.webp
 ```
+Los nombres con hash cambian en cada build: no los compares con lo que está
+trackeado en git, se regeneran siempre.
 
-**Tamaño total:** ~90 KB gzipped
+**Tamaño total del código:** ~83 KB gzipped (sin contar el logo)
 
 ---
 
@@ -85,14 +122,17 @@ dist/
 
 ### Para el Propietario
 ```
-├── NOTA_IMPORTANTE.txt (!!!!! Lee esto primero)
-│   └─ Instrucciones de 3 puntos críticos
+├── INICIO_AQUI.txt (!!!!! Lee esto primero)
+│   └─ Onboarding: base, migración, usuario admin, primer catálogo
+│
+├── NOTA_IMPORTANTE.txt
+│   └─ Lo mínimo antes de vender
 │
 ├── GUIA_RAPIDA.md (5 minutos)
 │   └─ Intro rápida para empezar
 │
 └── README.md (Presentación)
-    └─ Descripción general del proyecto
+    └─ Descripción general y acceso
 ```
 
 ### Para Colaboradores
@@ -118,8 +158,11 @@ dist/
 │   ├─ Performance
 │   └─ Extensiones futuras
 │
-└── RESUMEN_IMPLEMENTACION.md
-    └─ Qué se implementó y estado
+├── RESUMEN_IMPLEMENTACION.md
+│   └─ Qué se implementó y estado
+│
+└── docs/COUPONS.md
+    └─ Contrato de la API de cupones
 ```
 
 ### Para Verificación
@@ -130,33 +173,51 @@ dist/
     └─ Pre-lanzamiento
 ```
 
-**Total de documentación:** 9 archivos, ~15,000 palabras
+### Acceso (si no entrás al panel)
+```
+├── README.md → sección "🔐 Acceso y Cuentas"
+│   └─ Migración + creación/reset del usuario admin
+│
+└── ARQUITECTURA_TECNICA.md → sección "🔐 Autenticación y Cuentas"
+    └─ Cómo funcionan las sesiones, variables de entorno y endpoints
+```
+
+**Total de documentación:** 11 `.md` en la raíz, 1 en `docs/` y 2 `.txt`
 
 ---
 
 ## 💾 Base de Datos
 
-### Archivos de Migración
+### El esquema real
 ```
-supabase/migrations/
-└── 20260228193834_create_guacamayo_schema.sql
-    ├─ Tablas: 5
-    │   ├─ inventario_vinilos
-    │   ├─ configuracion_divisas
-    │   ├─ clientes
-    │   ├─ pedidos
-    │   └─ detalles_pedido
-    │
-    ├─ RLS policies: 7
-    ├─ Índices: 8
-    └─ Datos iniciales: 2 tasas
+db/migrations/                 # Esto es lo que define la base
+├── 2026-09-26_auth.sql
+├── 2026-09-27_cupones.sql
+├── 2026-09-28_cupones_schema.sql
+└── 2026-09-29_pedidos_cupones.sql
 ```
+Se aplican con `npm run migrar`, que las corre en orden y anota el historial en la tabla
+`migraciones`. Para una base nueva, este es el único camino.
 
-### Scripts de Referencia
+> **Excepción que hay que conocer:** las migraciones crean las tablas de cuentas, cupones
+> y pedidos, pero **no** crean `inventario_vinilos` ni `configuracion_divisas`: esas dos ya
+> existían. En una base realmente vacía hay que crearlas a mano. Ver
+> [ARQUITECTURA_TECNICA.md](ARQUITECTURA_TECNICA.md) → "Base de Datos - Schema".
+
+### DDL histórico (no lo ejecutes)
 ```
-├── SCRIPT_MYSQL_BACKUP.sql
-│   └─ Versión MySQL compatible
+├── supabase/migrations/20260228193834_create_guacamayo_schema.sql
+│   └─ ⚠️ PostgreSQL. Declara clientes y detalles_pedido, y usa id/numero_pedido/
+│      cliente_id, que el server no reconoce.
 │
+└── SCRIPT_MYSQL_BACKUP.sql
+    └─ ⚠️ MySQL, pero con los mismos nombres de columna viejos.
+```
+Los dos son anteriores a que el backend pasara a Express. Sobreviven como registro; no
+reproducen la base y no sirven para levantar una nueva.
+
+### Datos de ejemplo
+```
 └── DATOS_EJEMPLO.csv
     └─ 10 vinilos para probar
 ```
@@ -165,26 +226,30 @@ supabase/migrations/
 
 ## 📊 Estadísticas de Archivos
 
+> Números contados sobre el árbol actual (2026-09-29). Los "líneas" del primer build que
+> se listan arriba quedaron como registro de esa foto.
+
 ### Por Tipo
 
 | Tipo | Cantidad | Tamaño |
 |------|----------|--------|
-| .tsx (React) | 9 | ~1200 líneas |
-| .ts (TypeScript) | 3 | ~150 líneas |
-| .css (Estilos) | 1 | ~30 líneas |
-| .md (Documentación) | 9 | ~15,000 palabras |
+| .tsx (React) | 20 | — |
+| .ts (TypeScript) | 6 | — |
+| .css (Estilos) | 1 | ~20 líneas |
+| .md (Documentación) | 11 en la raíz + 1 en `docs/` | — |
 | .csv (Datos) | 1 | 10 registros |
-| .sql (BD) | 2 | ~300 líneas |
-| .txt (Notas) | 1 | ~200 líneas |
+| .sql (BD) | 6 | 4 en `db/migrations/` + 2 históricos |
+| .txt (Notas) | 2 | INICIO_AQUI, NOTA_IMPORTANTE |
 | Config | 6 | (vite, tailwind, etc) |
 
 ### Por Propósito
 
 | Propósito | Archivos | Detalles |
 |-----------|----------|----------|
-| Frontend | 12 | Componentes React + utilidades |
-| Documentación | 9 | Guías para distintos públicos |
-| Base Datos | 2 | Schema + datos ejemplo |
+| Frontend | 26 | Componentes React + utilidades |
+| Backend | 2 | `server.js`, `auth.js` |
+| Documentación | 14 | Guías para distintos públicos |
+| Base Datos | 6 | 4 migraciones reales + 2 DDL históricos + datos ejemplo |
 | Configuración | 6 | Vite, TypeScript, Tailwind, etc |
 
 ---
@@ -230,8 +295,8 @@ supabase/migrations/
 
 ### 🟢 AVANZADOS (Si necesitas)
 7. **ARQUITECTURA_TECNICA.md** ← Para developers
-8. **RESUMEN_IMPLEMENTACION.md** ← Qué se hizo
-9. **ARQUITECTURA_TECNICA.md** ← Detalles técnicos
+8. **RESUMEN_IMPLEMENTACION.md** ← Qué se hizo (foto del 2026-02-28)
+9. **docs/COUPONS.md** ← Cupones de descuento
 
 ---
 
@@ -243,21 +308,36 @@ supabase/migrations/
 cat NOTA_IMPORTANTE.txt
 cat GUIA_RAPIDA.md
 cat MANUAL_OPERACIONES.md
+cat docs/COUPONS.md
 
 # Código
 src/components/Catalog.tsx
+src/components/VinylCard.tsx
 src/components/Cart.tsx
 src/components/AdminPanel.tsx
 
+# Cuenta de cliente
+src/components/cuenta/Acceso.tsx
+src/lib/cuenta.ts
+src/lib/cupon.ts
+
 # Admin
+src/components/AdminLogin.tsx
 src/components/admin/BulkImporter.tsx
 src/components/admin/CurrencyManager.tsx
 
+# Backend y acceso
+server.js
+auth.js
+db/migrations/
+scripts/crear-admin.mjs
+scripts/migrar.mjs
+
 # Datos
 DATOS_EJEMPLO.csv
-SCRIPT_MYSQL_BACKUP.sql
 
-# Base de datos
+# Histórico (no lo ejecutes)
+SCRIPT_MYSQL_BACKUP.sql
 supabase/migrations/20260228193834_create_guacamayo_schema.sql
 ```
 
@@ -266,11 +346,8 @@ supabase/migrations/20260228193834_create_guacamayo_schema.sql
 ## 💾 Tamaño Total de Archivos
 
 ```
-Código React:        ~1200 líneas
-Documentación:       ~15,000 palabras (9 archivos)
-Base de Datos:       ~300 líneas SQL
-Build Compilado:     ~90 KB (gzipped)
-Total del Proyecto:  ~250 MB (incluyendo node_modules)
+Documentación:       11 .md + 2 .txt
+Base de Datos:       4 migraciones en db/migrations/ + 2 DDL históricos
 ```
 
 ---
@@ -280,11 +357,11 @@ Total del Proyecto:  ~250 MB (incluyendo node_modules)
 - [x] Componentes React funcionales
 - [x] Estilos Tailwind CSS
 - [x] Tipos TypeScript completos
-- [x] Utilities para divisas, WhatsApp, etc.
-- [x] Base de datos con RLS
+- [x] Utilities para divisas, cuentas y cupones
+- [x] Esquema de la base en migraciones versionadas
 - [x] Documentación exhaustiva
 - [x] Datos de ejemplo
-- [x] Scripts SQL de backup
+- [x] Migraciones SQL idempotentes
 - [x] Guías paso a paso
 - [x] Checklists de verificación
 
@@ -293,12 +370,13 @@ Total del Proyecto:  ~250 MB (incluyendo node_modules)
 ## 🎯 Próximas Acciones
 
 1. Lee **NOTA_IMPORTANTE.txt**
-2. Lee **GUIA_RAPIDA.md**
-3. Personaliza número WhatsApp en `src/components/Cart.tsx`
-4. Importa **DATOS_EJEMPLO.csv** en el panel admin
-5. Prueba una compra completa
-6. Cuando esté listo, importa tus vinilos reales
-7. ¡Comienza a vender!
+2. Corré `npm run migrar` y creá tu usuario admin con `scripts/crear-admin.mjs`
+3. Lee **GUIA_RAPIDA.md**
+4. Poné tu número de WhatsApp en `telTienda`, en `src/components/Cart.tsx`
+5. Importá **DATOS_EJEMPLO.csv** en el panel admin
+6. Probá una compra completa
+7. Cuando esté listo, importá tus vinilos reales
+8. ¡Comienza a vender!
 
 ---
 
@@ -323,7 +401,6 @@ Solo necesitas personalizar y lanzar.
 
 ---
 
-**Generado:** 2026-02-28
-**Versión:** 1.0 (Production Ready)
-**Archivos totales:** 40+
-**Status:** ✅ COMPLETADO
+**Generado:** 2026-02-28 (actualizado 2026-09-29)
+**Versión:** 1.1
+**Status:** ✅ CÓDIGO COMPLETADO - checks de despliegue en CHECKLIST_VERIFICACION.md

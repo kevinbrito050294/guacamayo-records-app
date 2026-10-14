@@ -4,10 +4,21 @@ This project maintains a persistent knowledge graph of its code, docs, and image
 
 ## At session start (context loading)
 
-0. **Si hay trabajo pendiente de una sesión anterior, leé `PLAN_SIGUIENTE_SESION.md` primero.** Contiene el estado de lo hecho sin commitear, el bloqueante de la migración, y el plan de agentes en paralelo con un dueño por archivo. No commitees sin leerlo.
-1. Read `graphify-out/GRAPH_REPORT.md` for broad architecture context (communities, god nodes, surprising connections).
-2. Read `graphify-out/reflections/LESSONS.md` for prior session learnings (preferred sources, dead ends, corrections).
-3. If the user asks a focused question about code, architecture, or how things connect, run `graphify query "<question>"` (or a subgraph traversal) instead of grepping raw files — the scoped subgraph is smaller and answers directly.
+0. **Primero comprobá lo publicado, antes de inspeccionar o modificar lo local:** ejecutá `powershell -File scripts/verificar-estado-publicado.ps1`. El control compara `HEAD` local contra `main` de GitHub, hashes de archivos críticos, working tree, versión Android y bundle público.
+1. Si el control muestra diferencias, **detenete y compará**. No uses `git reset`, `git checkout`, `git restore`, `git clean` ni sobrescribas archivos para “igualar” una copia. Guardá el diagnóstico y decidí explícitamente si se conserva lo local, lo publicado o se hace una integración.
+2. **Si hay trabajo pendiente de una sesión anterior, leé `PLAN_SIGUIENTE_SESION.md` primero.** No commitees sin leerlo.
+3. Read `graphify-out/GRAPH_REPORT.md` for broad architecture context (communities, god nodes, surprising connections).
+4. Read `graphify-out/reflections/LESSONS.md` for prior session learnings (preferred sources, dead ends, corrections).
+5. If the user asks a focused question about code, architecture, or how things connect, run `graphify query "<question>"` (or a subgraph traversal) instead of grepping raw files — the scoped subgraph is smaller and answers directly.
+
+### Control obligatorio antes de editar o publicar
+
+- El `HEAD` local y el SHA de GitHub pueden ser distintos aunque el contenido crítico coincida, porque el repositorio se publica ocasionalmente mediante GitHub Contents API. Por eso se comparan también hashes de `server.js`, `auth.js`, `src/App.tsx`, `AdminPanel.tsx`, `Catalog.tsx`, `Cart.tsx`, `src/lib/contacto.ts`, `android-update.json` y `package.json`.
+- `git status --short` debe revisarse antes de editar. Si hay cambios ajenos, no se descartan: se documentan y se asigna un dueño por archivo.
+- Antes de un commit: revisar `git diff`, `git diff --cached`, `git diff --check` y `git log --oneline -10`.
+- Antes de un deploy: volver a ejecutar `powershell -File scripts/verificar-estado-publicado.ps1 -Strict`; si falla, no publicar hasta resolver la divergencia.
+- El control también descarga el APK indicado por `android-update.json`, comprueba HTTP 200, HTTPS, tamaño, MIME, SHA-256 contra `downloads/guacamayo-admin.apk` si existe y la firma con `apksigner` si está disponible.
+- Después de publicar, comprobar nuevamente el bundle público, `android-update.json`, APK/hash/firma y el estado de Railway. La publicación no se considera terminada solo porque un comando haya finalizado sin error.
 
 The reminder string "knowledge graph at graphify-out/" is injected before bash commands by the opencode plugin `.opencode/plugins/graphify.js`.
 

@@ -7,7 +7,6 @@ export default {
   
   theme: {
     extend: {
-      // 2. CONFIGURAMOS LA FUENTE: Para que "font-guacamayo" funcione
       fontFamily: {
         guacamayo: ['"Bebas Neue"', 'sans-serif'],
       },

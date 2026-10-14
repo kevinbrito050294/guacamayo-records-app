@@ -1,7 +1,18 @@
--- Script de Base de Datos para GuacamayoRecords
--- Compatible con MySQL 8.0+
--- ¡IMPORTANTE! Este es solo un backup de referencia.
--- Estamos usando Supabase (PostgreSQL), pero aquí está la versión MySQL si la necesitas.
+-- ============================================================================
+-- HISTÓRICO — NO EJECUTAR CONTRA UNA BASE NUEVA
+-- ============================================================================
+-- Este script es de febrero de 2026, cuando el backend todavía usaba Supabase.
+-- Se conserva como registro y porque es la traducción MySQL de aquel esquema, pero
+-- NO reproduce la base actual. Contraste con `db/migrations/2026-09-29_pedidos_cupones.sql`:
+--   - `pedidos` acá: `id CHAR(36)` (UUID), `numero_pedido`, `cliente_id`, `precio_total_usd`
+--     y una tabla `detalles_pedido` normalizada. Hoy: `id_pedido INT AUTO_INCREMENT`,
+--     `numero_orden`, `nombre_cliente`, `total_pago`, y el detalle va como JSON en
+--     `items` (LONGTEXT). No hay tabla de líneas de pedido.
+--   - Declara `clientes`, que ninguna migración crea y ningún handler lee.
+--
+-- La fuente de verdad del esquema es `db/migrations/`, aplicada con
+-- `npm run migrar`. Para una base nueva o para arreglar una existente, usá eso.
+-- ============================================================================
 
 -- Crear base de datos
 CREATE DATABASE IF NOT EXISTS guacamayo_records;

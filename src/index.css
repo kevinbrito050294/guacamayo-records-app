@@ -10,7 +10,6 @@
   }
 
   body {
-    /* Deep Dark y transiciones suaves */
     @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300 antialiased;
     min-height: 100vh;
   }

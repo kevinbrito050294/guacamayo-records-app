@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { 
   Settings, Plus, Upload, Book, List, 
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
-  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle, Power, RotateCcw, Feather, Bell, UserCog
+  Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle, Power, RotateCcw, Feather, Bell, UserCog, Activity
 } from 'lucide-react';
 
 // Componentes administrativos externos
@@ -17,7 +17,7 @@ import { convertirAUsd, convertirDesdeUsd, formatearPrecio, obtenerTasasDisponib
 // catálogo y los favoritos, así que el panel no inventa otro formato.
 import { importeUsd, itemsDePedido, type ItemPedido } from '../lib/cuenta';
 
-type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons' | 'rewards' | 'notifications' | 'administrators';
+type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons' | 'rewards' | 'notifications' | 'administrators' | 'sessions';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -31,6 +31,17 @@ interface AdminAccount {
   rol: AdminRole;
   activo: number | boolean;
   ultimo_acceso: string | null;
+}
+
+interface SesionReciente {
+  sesion_id: number;
+  tipo: 'admin' | 'cliente';
+  email: string | null;
+  nombre: string | null;
+  ultima_actividad: string;
+  creado_en: string;
+  expira_en: string;
+  estado: 'conectado' | 'reciente';
 }
 
 type ViniloConVersion = ViniloCatalogo & { version?: number };
@@ -133,6 +144,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [ultimoPedidoRevisado, setUltimoPedidoRevisado] = useState(() => Number(localStorage.getItem('admin_ultimo_pedido_revisado') || 0));
   const [rolAdmin, setRolAdmin] = useState<AdminRole | null>(null);
   const [conflictoVinilo, setConflictoVinilo] = useState('');
+  const [sesiones, setSesiones] = useState<SesionReciente[]>([]);
+  const [cargandoSesiones, setCargandoSesiones] = useState(false);
+  const [errorSesiones, setErrorSesiones] = useState('');
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -175,6 +189,32 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     localStorage.setItem('admin_ultimo_pedido_revisado', String(mayorId));
     setUltimoPedidoRevisado(mayorId);
   };
+
+  const cargarSesiones = useCallback(async () => {
+    if (rolAdmin !== 'admin') return;
+    try {
+      setCargandoSesiones(true);
+      const res = await fetch(`${getApiUrl()}/api/admin/sesiones`, { credentials: 'include', cache: 'no-store' });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorSesiones(mensajeDeError(data, 'No se pudieron cargar las sesiones'));
+        return;
+      }
+      setErrorSesiones('');
+      setSesiones(Array.isArray(data) ? data as SesionReciente[] : []);
+    } catch {
+      setErrorSesiones('No se pudieron cargar las sesiones: error de conexión.');
+    } finally {
+      setCargandoSesiones(false);
+    }
+  }, [getApiUrl, rolAdmin]);
+
+  useEffect(() => {
+    if (activeTab !== 'sessions' || rolAdmin !== 'admin') return;
+    void cargarSesiones();
+    const intervalo = setInterval(() => void cargarSesiones(), 30000);
+    return () => clearInterval(intervalo);
+  }, [activeTab, cargarSesiones, rolAdmin]);
 
   // --- LÓGICA DE SESIÓN Y SEGURIDAD ---
   // La sesión vive en una cookie httpOnly: acá no hay token que guardar.
@@ -408,7 +448,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
       </header>
 
        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-10 gap-2 sm:gap-4 mb-4 sm:mb-8">
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-11 gap-2 sm:gap-4 mb-4 sm:mb-8">
            <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Bell />} title="Notificaciones" sub={pedidosSinRevisar.length > 0 ? `${pedidosSinRevisar.length} nuevas` : 'Al día'} badge={pedidosSinRevisar.length} />
            <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
            <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
@@ -418,7 +458,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           <TabButton active={activeTab === 'bulk'} onClick={() => setActiveTab('bulk')} icon={<Upload />} title="Importar" sub="CSV" />
           <TabButton active={activeTab === 'currency'} onClick={() => setActiveTab('currency')} icon={<Settings />} title="Tasas" sub="Dólar/ARS" />
            <TabButton active={activeTab === 'manual'} onClick={() => setActiveTab('manual')} icon={<Book />} title="Manual" sub="Ayuda" />
-           {rolAdmin === 'admin' && <TabButton active={activeTab === 'administrators'} onClick={() => setActiveTab('administrators')} icon={<UserCog />} title="Administradores" sub="Admin máximo" />}
+            {rolAdmin === 'admin' && <TabButton active={activeTab === 'administrators'} onClick={() => setActiveTab('administrators')} icon={<UserCog />} title="Administradores" sub="Admin máximo" />}
+            {rolAdmin === 'admin' && <TabButton active={activeTab === 'sessions'} onClick={() => setActiveTab('sessions')} icon={<Activity />} title="Conectados" sub="Sesiones" />}
          </div>
 
          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 sm:p-6">
@@ -676,6 +717,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           {activeTab === 'currency' && <CurrencyManager getApiUrl={getApiUrl} />}
            {activeTab === 'manual' && <UserManual />}
            {activeTab === 'administrators' && rolAdmin === 'admin' && <AdministratorsManager getApiUrl={getApiUrl} />}
+           {activeTab === 'sessions' && rolAdmin === 'admin' && <SessionsViewer sesiones={sesiones} cargando={cargandoSesiones} error={errorSesiones} onRecargar={() => void cargarSesiones()} />}
         </div>
       </main>
     </div>
@@ -702,6 +744,49 @@ function CurrencySelector({ moneda, onChange, tasas, error }: {
       </div>
       {error && <span className="basis-full text-[10px] font-bold text-amber-600">{error}. Solo USD disponible hasta actualizar las tasas.</span>}
     </div>
+  );
+}
+
+function SessionsViewer({ sesiones, cargando, error, onRecargar }: {
+  sesiones: SesionReciente[];
+  cargando: boolean;
+  error: string;
+  onRecargar: () => void;
+}) {
+  const formatearFecha = (valor: string) => {
+    const fecha = new Date(valor);
+    return Number.isNaN(fecha.getTime()) ? 'No disponible' : fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+  };
+  const ocultarEmail = (email: string | null) => {
+    if (!email) return 'Cuenta sin email';
+    const [usuario, dominio] = email.split('@');
+    return dominio ? `${usuario.slice(0, 2)}${usuario.length > 2 ? '***' : ''}@${dominio}` : email;
+  };
+
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-black uppercase dark:text-white"><Activity size={20} className="text-amber-500" /> Sesiones recientes</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Actividad reciente de administradores y clientes. No se exponen tokens, IP ni user-agent.</p>
+        </div>
+        <button type="button" onClick={onRecargar} disabled={cargando} className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black uppercase text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50">{cargando ? 'Actualizando...' : 'Actualizar'}</button>
+      </div>
+      {error && <BannerAviso texto={error} onCerrar={() => undefined} onReintentar={onRecargar} />}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl bg-emerald-500/10 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Conectados</p><p className="mt-1 text-2xl font-black text-emerald-600">{sesiones.filter(sesion => sesion.estado === 'conectado').length}</p></div>
+        <div className="rounded-2xl bg-blue-500/10 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Administradores</p><p className="mt-1 text-2xl font-black text-blue-600">{sesiones.filter(sesion => sesion.tipo === 'admin').length}</p></div>
+        <div className="rounded-2xl bg-slate-500/10 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Actividad visible</p><p className="mt-1 text-2xl font-black text-slate-600 dark:text-slate-300">{sesiones.length}</p></div>
+      </div>
+      {sesiones.length === 0 && !cargando ? <div className="rounded-2xl border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500 dark:border-slate-700">No hay sesiones activas o recientes.</div> : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+          <table className="w-full min-w-[680px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800/60"><tr><th className="p-3">Cuenta</th><th className="p-3">Tipo</th><th className="p-3">Última actividad</th><th className="p-3">Expira</th><th className="p-3">Estado</th></tr></thead>
+            <tbody>{sesiones.map(sesion => <tr key={sesion.sesion_id} className="border-t border-slate-100 dark:border-slate-800"><td className="p-3"><strong className="dark:text-white">{sesion.nombre || 'Sin nombre'}</strong><div className="text-xs text-slate-500">{ocultarEmail(sesion.email)}</div></td><td className="p-3 text-xs font-bold uppercase text-slate-500">{sesion.tipo === 'admin' ? 'Admin' : 'Cliente'}</td><td className="p-3 text-xs text-slate-500">{formatearFecha(sesion.ultima_actividad)}</td><td className="p-3 text-xs text-slate-500">{formatearFecha(sesion.expira_en)}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${sesion.estado === 'conectado' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-slate-500'}`}>{sesion.estado}</span></td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

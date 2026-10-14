@@ -51,7 +51,7 @@
 
 ### Android
 
-- Versión vigente: `versionCode 16`, `versionName 1.15`.
+- Versión vigente: `versionCode 17`, `versionName 1.16`.
 - Coincide en `android/app/build.gradle` y `android-update.json`.
 - APK público verificado con HTTP 200, firma válida y hash coincidente con el APK local.
 - Biometría/PIN, credenciales cifradas con AES/GCM + Android Keystore y soporte para varias cuentas.

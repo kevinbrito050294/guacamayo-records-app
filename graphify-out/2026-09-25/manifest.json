@@ -143,12 +143,6 @@
     "ast_hash": "36a4d8ca506a8f5550d4208e05422a28",
     "semantic_hash": "36a4d8ca506a8f5550d4208e05422a28"
   },
-  "src/lib/supabase.ts": {
-    "mtime": 1790306369.0561233,
-    "seen": 1790306444.5737123,
-    "ast_hash": "a8e8abd0434bbe4390657611c1bd0318",
-    "semantic_hash": ""
-  },
   "src/lib/whatsapp.ts": {
     "mtime": 1772329486.0,
     "seen": 1790209001.2818258,
