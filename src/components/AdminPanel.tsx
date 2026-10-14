@@ -545,7 +545,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                       <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                         <div>
                            <div className="text-amber-500 font-black font-mono">{precioEtiquetado(v.precio_venta)}</div>
                           <div className={`text-[10px] font-black uppercase ${v.stock_actual > 0 ? 'text-slate-400' : 'text-red-500'}`}>{v.stock_actual} en stock</div>
@@ -553,9 +553,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                         <div className="flex gap-1">
                          <button type="button" onClick={() => iniciarEdicion(v)} className="p-3 rounded-xl bg-amber-500/10 text-amber-600" aria-label="Editar vinilo"><Edit2 size={18} /></button>
                           <button type="button" onClick={() => handleDelete(v.id)} className="p-3 rounded-xl bg-red-500/10 text-red-500" aria-label="Eliminar vinilo"><Trash2 size={18} /></button>
-                        </div>
-                      </div>
-                    </div>
+                         </div>
+                       </div>
+                       <UltimaModificacionInventario vinilo={v} />
+                     </div>
                   ))
                 ) : <div className="text-center py-16 text-slate-400 uppercase text-[10px] font-black">No hay resultados</div>}
               </div>
@@ -656,9 +657,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                                     )}
                                   </div>
                                   <div>
-                                    <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
-                                    <div className="text-xs text-slate-500 font-medium mb-1">{v.artista}</div>
-                                    <div className="flex gap-2 flex-wrap">
+                                     <div className="font-bold dark:text-white uppercase tracking-tighter italic">{v.titulo}</div>
+                                     <div className="text-xs text-slate-500 font-medium mb-1">{v.artista}</div>
+                                     <UltimaModificacionInventario vinilo={v} />
+                                     <div className="flex gap-2 flex-wrap">
                                     {v.codigo && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Hash size={8}/> {v.codigo}</span>}
                                     {v.pais_origen && <span className="text-[8px] px-1.5 py-0.5 bg-blue-500/10 text-blue-500 rounded flex items-center gap-1 font-black uppercase"><Disc size={8}/> {v.pais_origen}</span>}
                                     {v.genero && <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded flex items-center gap-1 font-black uppercase"><Music size={8}/> {v.genero}</span>}
@@ -743,6 +745,18 @@ function CurrencySelector({ moneda, onChange, tasas, error }: {
         ))}
       </div>
       {error && <span className="basis-full text-[10px] font-bold text-amber-600">{error}. Solo USD disponible hasta actualizar las tasas.</span>}
+    </div>
+  );
+}
+
+function UltimaModificacionInventario({ vinilo }: { vinilo: ViniloConVersion }) {
+  const fecha = formatearFechaHora(vinilo.ultima_modificacion_en);
+  const responsable = vinilo.ultima_modificacion_admin_nombre || vinilo.ultima_modificacion_admin_email;
+  return (
+    <div className="mt-2 rounded-lg bg-slate-100/80 px-2 py-1.5 text-[9px] leading-4 text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">
+      <span className="font-black uppercase tracking-wider">Última modificación</span>
+      <span className="ml-1">{fecha || 'Sin registro histórico'}</span>
+      {responsable && <><span className="mx-1">·</span><strong className="font-black text-slate-700 dark:text-slate-300">{responsable}</strong></>}
     </div>
   );
 }
