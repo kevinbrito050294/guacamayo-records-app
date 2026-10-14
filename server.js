@@ -526,6 +526,21 @@ revisarSincronizacionBinance().catch(error => console.error('Error iniciando sch
 // 2. GESTIÓN DE VINILOS
 // ==========================================
 // GET es publico (catalogo). Todo lo que escribe es solo backoffice.
+const ALIAS_ADMIN_INVENTARIO = {
+    'guacamayorecords.info@gmail.com': 'Hoffer Tabares',
+    'kevinbrito5553@gmail.com': 'Kevin Brito',
+};
+
+function responsableInventario(req) {
+    const admin = req.auth?.admin || {};
+    const email = String(admin.email || '').trim().toLowerCase();
+    return {
+        id: Number.isInteger(Number(admin.id)) ? Number(admin.id) : null,
+        email: email || null,
+        nombre: ALIAS_ADMIN_INVENTARIO[email] || String(admin.nombre || email || 'Administrador').trim(),
+    };
+}
+
 app.get('/api/vinilos', (req, res, next) => {
     db.query('SELECT * FROM inventario_vinilos ORDER BY id DESC', (err, results) => {
         // Mismo criterio que en divisas: el detalle del error queda en el log del
@@ -537,8 +552,9 @@ app.get('/api/vinilos', (req, res, next) => {
 
 app.post('/api/vinilos', requiereAdmin, (req, res, next) => {
     const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
-    const query = `INSERT INTO inventario_vinilos (codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion], (err) => {
+    const responsable = responsableInventario(req);
+    const query = `INSERT INTO inventario_vinilos (codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, ultima_modificacion_en, ultima_modificacion_admin_id, ultima_modificacion_admin_email, ultima_modificacion_admin_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`;
+    db.query(query, [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, responsable.id, responsable.email, responsable.nombre], (err) => {
         if (err) return next(err);
         res.json({ success: true });
     });
@@ -572,6 +588,7 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
             const tareas = entradas.map(item => new Promise((resolve, reject) => {
                 const sets = [];
                 const vals = [];
+                const responsable = responsableInventario(req);
 
                 // Solo se actualizan los campos presentes: las celdas vacias del CSV no borran datos.
                 if (item.imagen_url !== null && item.imagen_url !== undefined && item.imagen_url !== '') {
@@ -584,6 +601,9 @@ app.put('/api/vinilos/bulk-update', requiereAdmin, (req, res, next) => {
                 }
 
                 if (sets.length === 0) return resolve({ actualizados: 0, omitidos: 1 });
+
+                sets.push('ultima_modificacion_en = NOW()', 'ultima_modificacion_admin_id = ?', 'ultima_modificacion_admin_email = ?', 'ultima_modificacion_admin_nombre = ?');
+                vals.push(responsable.id, responsable.email, responsable.nombre);
 
                 const tieneVersion = Object.prototype.hasOwnProperty.call(item, 'version')
                     && item.version !== null && item.version !== undefined && item.version !== '';
@@ -629,11 +649,12 @@ app.put('/api/vinilos/:id', requiereAdmin, (req, res, next) => {
     if (tieneVersion && (!Number.isInteger(Number(req.body.version)) || Number(req.body.version) < 0)) {
         return res.status(400).json({ error: 'version debe ser un entero mayor o igual a 0' });
     }
-    const campos = 'codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=?, destacado=?';
+    const responsable = responsableInventario(req);
+    const campos = 'codigo=?, titulo=?, artista=?, precio_venta=?, stock_actual=?, imagen_url=?, genero=?, calidad=?, descripcion=?, destacado=?, ultima_modificacion_en=NOW(), ultima_modificacion_admin_id=?, ultima_modificacion_admin_email=?, ultima_modificacion_admin_nombre=?';
     const query = tieneVersion
         ? `UPDATE inventario_vinilos SET ${campos}, version=version+1 WHERE id=? AND version=?`
         : `UPDATE inventario_vinilos SET ${campos} WHERE id=?`;
-    const valores = [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, Number(destacado) === 1 ? 1 : 0, id];
+    const valores = [codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, Number(destacado) === 1 ? 1 : 0, responsable.id, responsable.email, responsable.nombre, id];
     if (tieneVersion) valores.push(Number(req.body.version));
     db.query(query, valores, (err, resultado) => {
         if (err) return next(err);
@@ -662,10 +683,11 @@ app.put('/api/vinilos/:id/destacado', requiereAdmin, (req, res, next) => {
     if (tieneVersion && (!Number.isInteger(Number(req.body.version)) || Number(req.body.version) < 0)) {
         return res.status(400).json({ error: 'version debe ser un entero mayor o igual a 0' });
     }
+    const responsable = responsableInventario(req);
     const query = tieneVersion
-        ? 'UPDATE inventario_vinilos SET destacado = ?, version = version + 1 WHERE id = ? AND version = ?'
-        : 'UPDATE inventario_vinilos SET destacado = ? WHERE id = ?';
-    const valores = [destacado, id];
+        ? 'UPDATE inventario_vinilos SET destacado = ?, version = version + 1, ultima_modificacion_en = NOW(), ultima_modificacion_admin_id = ?, ultima_modificacion_admin_email = ?, ultima_modificacion_admin_nombre = ? WHERE id = ? AND version = ?'
+        : 'UPDATE inventario_vinilos SET destacado = ?, ultima_modificacion_en = NOW(), ultima_modificacion_admin_id = ?, ultima_modificacion_admin_email = ?, ultima_modificacion_admin_nombre = ? WHERE id = ?';
+    const valores = [destacado, responsable.id, responsable.email, responsable.nombre, id];
     if (tieneVersion) valores.push(Number(req.body.version));
     db.query(query, valores, (err, resultado) => {
         if (err) return next(err);
