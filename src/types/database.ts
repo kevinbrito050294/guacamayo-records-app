@@ -70,6 +70,10 @@ export interface ViniloCatalogo {
   descripcion: string | null;
   created_at: string;
   updated_at: string;
+  ultima_modificacion_en?: string | null;
+  ultima_modificacion_admin_id?: number | null;
+  ultima_modificacion_admin_email?: string | null;
+  ultima_modificacion_admin_nombre?: string | null;
 }
 
 export interface ConfiguracionDivisa {
