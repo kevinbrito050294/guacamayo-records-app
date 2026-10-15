@@ -54,13 +54,26 @@ try {
   $manifestPayload = @{ message = "release: manifiesto Android $nextName"; content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($manifestFile)); sha = $manifestSha; branch = 'main' } | ConvertTo-Json -Compress
   $manifestPayload | gh api "repos/$repo/contents/android-update-nuevo.json" --method PUT --input - | Out-Null
 
-  $publicManifest = Invoke-RestMethod "$($manifest.apkUrl)?version=$nextCode"
-  $temp = Join-Path $env:TEMP "guacamayo-admin-$nextCode.apk"
-  Invoke-WebRequest "$($manifest.apkUrl)?version=$nextCode" -OutFile $temp -UseBasicParsing
-  $localHash = (Get-FileHash $apk -Algorithm SHA256).Hash
-  $publicHash = (Get-FileHash $temp -Algorithm SHA256).Hash
-  Remove-Item -LiteralPath $temp -Force
-  if ([int]$publicManifest.versionCode -ne $nextCode -or $publicHash.ToUpperInvariant() -ne $localHash.ToUpperInvariant()) { throw 'La verificación pública no coincide con el APK generado.' }
+   $localHash = (Get-FileHash $apk -Algorithm SHA256).Hash
+   $manifestUrl = 'https://www.guacamayorecords.com/android-update-nuevo.json'
+   $verificado = $false
+   $publicManifest = $null
+   $publicHash = ''
+   for ($intento = 1; $intento -le 12 -and -not $verificado; $intento++) {
+     $temp = Join-Path $env:TEMP "guacamayo-admin-$nextCode-$intento.apk"
+     try {
+       $publicManifest = Invoke-RestMethod "$manifestUrl?version=$nextCode&intento=$intento"
+       Invoke-WebRequest "$($publicManifest.apkUrl)?version=$nextCode&intento=$intento" -OutFile $temp -UseBasicParsing | Out-Null
+       $publicHash = (Get-FileHash $temp -Algorithm SHA256).Hash
+       $verificado = [int]$publicManifest.versionCode -eq $nextCode -and $publicHash.ToUpperInvariant() -eq $localHash.ToUpperInvariant()
+     } catch {
+       $verificado = $false
+     } finally {
+       Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+     }
+     if (-not $verificado -and $intento -lt 12) { Start-Sleep -Seconds 5 }
+   }
+   if (-not $verificado) { throw 'La verificación pública no coincide con el APK generado.' }
   Write-Output "APK publicado: versionCode=$nextCode versionName=$nextName hash=$localHash"
 } finally {
   Pop-Location
