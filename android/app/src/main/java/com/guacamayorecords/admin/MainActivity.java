@@ -51,7 +51,7 @@ import android.webkit.WebView;
 
 public class MainActivity extends BridgeActivity {
     private static final String UPDATE_URL =
-            "https://www.guacamayorecords.com/android-update.json";
+            "https://www.guacamayorecords.com/android-update-nuevo.json";
     private static final String KEY_ALIAS = "guacamayo-admin-credentials";
     private static final String CREDENTIALS_PREFS = "admin_biometric_credentials";
     private static final String CREDENTIALS_LIST = "credentials";

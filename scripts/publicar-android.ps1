@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
 $gradleFile = Join-Path $root 'android\app\build.gradle'
-$manifestFile = Join-Path $root 'android-update.json'
+$manifestFile = Join-Path $root 'android-update-nuevo.json'
 $keystore = $env:GUACAMAYO_KEYSTORE_FILE
 
 if (-not $keystore) { throw 'Falta GUACAMAYO_KEYSTORE_FILE.' }
@@ -50,9 +50,9 @@ try {
   $apkPayload = @{ message = "release: APK Android $nextName"; content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($apk)); sha = $oldSha; branch = 'main' } | ConvertTo-Json -Compress
   $apkPayload | gh api "repos/$repo/contents/downloads/guacamayo-admin.apk" --method PUT --input - | Out-Null
 
-  $manifestSha = gh api "repos/$repo/contents/android-update.json?ref=main" --jq '.sha'
+  $manifestSha = gh api "repos/$repo/contents/android-update-nuevo.json?ref=main" --jq '.sha'
   $manifestPayload = @{ message = "release: manifiesto Android $nextName"; content = [Convert]::ToBase64String([IO.File]::ReadAllBytes($manifestFile)); sha = $manifestSha; branch = 'main' } | ConvertTo-Json -Compress
-  $manifestPayload | gh api "repos/$repo/contents/android-update.json" --method PUT --input - | Out-Null
+  $manifestPayload | gh api "repos/$repo/contents/android-update-nuevo.json" --method PUT --input - | Out-Null
 
   $publicManifest = Invoke-RestMethod "$($manifest.apkUrl)?version=$nextCode"
   $temp = Join-Path $env:TEMP "guacamayo-admin-$nextCode.apk"

@@ -82,6 +82,11 @@ app.get('/android-update.json', (req, res, next) => {
         if (err) next(err);
     });
 });
+app.get('/android-update-nuevo.json', (req, res, next) => {
+    res.sendFile(path.join(__dirname, 'android-update-nuevo.json'), err => {
+        if (err) next(err);
+    });
+});
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- CONEXIÓN DB (RAILWAY) ---
