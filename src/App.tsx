@@ -154,6 +154,17 @@ function AppShell() {
     return () => clearInterval(intervalo);
   }, [esPaginaLegal, esRecuperacionInicial, getApiUrl]);
 
+  useEffect(() => {
+    if (esModoAdmin || esRecuperacionInicial || esPaginaLegal) return;
+    const eventos = new EventSource(`${getApiUrl()}/api/catalogo-eventos`);
+    const actualizarCatalogo = () => { void cargarDatosIniciales(); };
+    eventos.addEventListener('catalogo-cambio', actualizarCatalogo);
+    return () => {
+      eventos.removeEventListener('catalogo-cambio', actualizarCatalogo);
+      eventos.close();
+    };
+  }, [cargarDatosIniciales, esModoAdmin, esPaginaLegal, esRecuperacionInicial, getApiUrl]);
+
   // --- SESIÓN ADMIN: la cookie httpOnly no se puede leer desde JS, así que al
   // --- montar preguntamos al servidor si todavía hay sesión abierta.
   useEffect(() => {

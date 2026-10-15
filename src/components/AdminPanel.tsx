@@ -298,6 +298,20 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   }, [sessionError]);
 
   useEffect(() => {
+    if (sessionError) return;
+    const eventos = new EventSource(`${getApiUrl()}/api/catalogo-eventos`);
+    const actualizarCatalogo = () => {
+      // No reemplazar datos mientras el administrador está escribiendo.
+      if (!editandoId) void cargarVinilos();
+    };
+    eventos.addEventListener('catalogo-cambio', actualizarCatalogo);
+    return () => {
+      eventos.removeEventListener('catalogo-cambio', actualizarCatalogo);
+      eventos.close();
+    };
+  }, [editandoId, getApiUrl, sessionError]);
+
+  useEffect(() => {
     obtenerTasasDisponibles().then(setTasas).catch(error => {
       setErrorTasas(error instanceof Error ? error.message : 'No se pudieron cargar las tasas');
     });

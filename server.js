@@ -91,6 +91,71 @@ const db = mysql.createPool(process.env.MYSQL_URL);
 // cupones. El resto de las rutas sigue con db.query() en callbacks.
 const sql = db.promise();
 
+// Un solo watcher para todos los navegadores evita abrir un polling de base de
+// datos por cliente. SSE notifica el cambio y cada interfaz vuelve a pedir el
+// estado completo, manteniendo una sola fuente de verdad en MySQL.
+const catalogoSseClients = new Set();
+let firmaCatalogoAnterior = '';
+
+async function firmaCatalogo() {
+    const [vinilos] = await sql.query(`
+        SELECT COUNT(*) AS total, COALESCE(MAX(id), 0) AS max_id,
+               COALESCE(MAX(version), 0) AS max_version,
+               COALESCE(MAX(UNIX_TIMESTAMP(ultima_modificacion_en)), 0) AS ultima_modificacion
+          FROM inventario_vinilos
+    `);
+    const [divisas] = await sql.query(`
+        SELECT COUNT(*) AS total,
+               COALESCE(MAX(UNIX_TIMESTAMP(ultima_actualizacion)), 0) AS ultima_actualizacion,
+               COALESCE(SUM(tasa), 0) AS suma_tasas
+          FROM configuracion_divisas
+         WHERE tipo IN (?, ?)
+    `, TIPOS_DIVISA);
+    return JSON.stringify({ vinilos: vinilos[0], divisas: divisas[0] });
+}
+
+function emitirCambioCatalogo(firma) {
+    for (const cliente of catalogoSseClients) {
+        cliente.write(`event: catalogo-cambio\ndata: ${firma}\n\n`);
+    }
+}
+
+async function revisarCambiosCatalogo() {
+    try {
+        const firma = await firmaCatalogo();
+        if (!firmaCatalogoAnterior) {
+            firmaCatalogoAnterior = firma;
+            return;
+        }
+        if (firma !== firmaCatalogoAnterior) {
+            firmaCatalogoAnterior = firma;
+            emitirCambioCatalogo(firma);
+        }
+    } catch {
+        // Un fallo transitorio no debe cerrar el proceso ni las conexiones SSE.
+    }
+}
+
+setInterval(revisarCambiosCatalogo, 2000).unref();
+
+app.get('/api/catalogo-eventos', async (req, res, next) => {
+    try {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+        res.write('retry: 3000\n\n');
+        catalogoSseClients.add(res);
+        req.on('close', () => catalogoSseClients.delete(res));
+    } catch (error) {
+        next(error);
+    }
+});
+
+setInterval(() => {
+    for (const cliente of catalogoSseClients) cliente.write(': keep-alive\n\n');
+}, 25_000).unref();
+
 let firebaseTokenCache = null;
 
 function firebaseServiceAccount() {
