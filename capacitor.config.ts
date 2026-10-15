@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.guacamayorecords.admin',
+  appId: 'com.guacamayorecords.adminnuevo',
   appName: 'Guacamayo Admin',
   webDir: 'dist',
   server: {
