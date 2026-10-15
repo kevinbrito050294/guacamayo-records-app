@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Heart, HeartOff, Disc, Trash2, AlertCircle } from 'lucide-react';
-import { useCuenta, imgUrl } from '../../lib/cuenta';
+import { Heart, HeartOff, Disc, Trash2, AlertCircle, ShoppingCart, Check } from 'lucide-react';
+import { useCuenta, imgUrl, type ResultadoAccion } from '../../lib/cuenta';
 import type { ConfiguracionDivisa } from '../../types/database';
 import { Cargando, MensajeError, Vacio } from './ui';
 
@@ -10,14 +10,17 @@ interface FavoritosProps {
   divisa: Divisa;
   tasas: ConfiguracionDivisa[];
   onVerCatalogo: () => void;
+  onAgregarAlCarrito: (viniloId: number) => Promise<ResultadoAccion>;
 }
 
-export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
+export function Favoritos({ divisa, tasas, onVerCatalogo, onAgregarAlCarrito }: FavoritosProps) {
   const { favoritos, alternarFavorito, refrescarFavoritos, vaciarFavoritos } = useCuenta();
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [trabajando, setTrabajando] = useState(false);
+  const [agregandoId, setAgregandoId] = useState<number | null>(null);
+  const [agregadoId, setAgregadoId] = useState<number | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -52,6 +55,19 @@ export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
     const res = await vaciarFavoritos();
     setTrabajando(false);
     if (!res.ok) setError(res.error);
+  };
+
+  const agregarAlCarrito = async (viniloId: number) => {
+    setError('');
+    setAgregadoId(null);
+    setAgregandoId(viniloId);
+    const res = await onAgregarAlCarrito(viniloId);
+    setAgregandoId(null);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setAgregadoId(viniloId);
   };
 
   if (cargando) return <Cargando texto="Cargando favoritos..." />;
@@ -140,15 +156,30 @@ export function Favoritos({ divisa, tasas, onVerCatalogo }: FavoritosProps) {
                   <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">Agotado</p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => quitar(Number(favorito.vinilo_id))}
-                  aria-label={`Quitar ${favorito.titulo || 'vinilo'} de favoritos`}
-                  className="mt-auto flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest transition-colors"
-                >
-                  <HeartOff size={14} />
-                  Quitar
-                </button>
+                <div className="mt-auto space-y-2">
+                  {disponible && Number(favorito.stock_actual) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void agregarAlCarrito(Number(favorito.vinilo_id))}
+                      disabled={agregandoId === Number(favorito.vinilo_id)}
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-amber-500 text-slate-950 hover:bg-amber-400 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"
+                    >
+                      {agregandoId === Number(favorito.vinilo_id)
+                        ? <Disc size={14} className="animate-spin" />
+                        : agregadoId === Number(favorito.vinilo_id) ? <Check size={14} /> : <ShoppingCart size={14} />}
+                      {agregadoId === Number(favorito.vinilo_id) ? 'En el carrito' : 'Agregar al carrito'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => quitar(Number(favorito.vinilo_id))}
+                    aria-label={`Quitar ${favorito.titulo || 'vinilo'} de favoritos`}
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:border-red-500/40 text-[10px] font-black uppercase tracking-widest transition-colors"
+                  >
+                    <HeartOff size={14} />
+                    Quitar
+                  </button>
+                </div>
               </div>
             </article>
           );

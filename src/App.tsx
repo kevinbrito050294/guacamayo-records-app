@@ -7,7 +7,7 @@ import { CarritoItem, ViniloCatalogo, ConfiguracionDivisa } from './types/databa
 import { ShoppingCart, Disc, Moon, Sun, LogOut, User, UserPlus } from 'lucide-react';
 import { AdminLogin } from './components/AdminLogin';
 import { apiUrl } from './lib/api';
-import { useCuenta } from './lib/cuenta';
+import { useCuenta, type ResultadoAccion } from './lib/cuenta';
 import { CuentaProvider } from './components/cuenta/CuentaProvider';
 import { Acceso } from './components/cuenta/Acceso';
 import { Recuperacion } from './components/cuenta/Recuperacion';
@@ -288,6 +288,40 @@ function AppShell() {
     });
   };
 
+  const agregarFavoritoAlCarrito = useCallback(async (viniloId: number): Promise<ResultadoAccion> => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/vinilos`, { cache: 'no-store' });
+      if (!res.ok) return { ok: false, error: 'No se pudo comprobar la disponibilidad' };
+      const datos: unknown = await res.json();
+      const lista = Array.isArray(datos) ? datos as ViniloCatalogo[] : [];
+      const vinilo = lista.find(item => Number(item.id) === viniloId);
+      if (!vinilo) return { ok: false, error: 'Este vinilo ya no está disponible' };
+
+      const stock = Number(vinilo.stock_actual);
+      if (!Number.isInteger(stock) || stock <= 0) return { ok: false, error: 'Este vinilo está agotado' };
+
+      let agregado = true;
+      setCarrito(prev => {
+        const existente = prev.find(item => Number(item.vinilo.id) === viniloId);
+        if (existente && existente.cantidad >= stock) {
+          agregado = false;
+          return prev;
+        }
+        if (existente) {
+          return prev.map(item => Number(item.vinilo.id) === viniloId
+            ? { ...item, vinilo, cantidad: item.cantidad + 1 }
+            : item);
+        }
+        return [...prev, { vinilo, cantidad: 1 }];
+      });
+      if (!agregado) return { ok: false, error: 'Ya tenés la cantidad máxima disponible en el carrito' };
+      setVinilos(lista);
+      return { ok: true, error: '' };
+    } catch {
+      return { ok: false, error: 'No se pudo comprobar la disponibilidad' };
+    }
+  }, [getApiUrl]);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans">
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50 shadow-sm w-full">
@@ -453,11 +487,12 @@ function AppShell() {
 
             {currentPage === 'cuenta' && (
               usuario ? (
-                <CuentaPanel
-                  onVolver={() => setCurrentPage('catalog')}
-                  divisa={divisa}
-                  tasas={tasas}
-                />
+                 <CuentaPanel
+                   onVolver={() => setCurrentPage('catalog')}
+                   divisa={divisa}
+                   tasas={tasas}
+                   onAgregarAlCarrito={agregarFavoritoAlCarrito}
+                 />
               ) : (
                 <Acceso
                   key={modoAcceso}

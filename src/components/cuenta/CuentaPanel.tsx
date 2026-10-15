@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Heart, LogOut, MapPin, ShoppingBag, X, Feather, Clock3 } from 'lucide-react';
-import { pedir, useCuenta, imgUrl, type Direccion, type PedidoCliente } from '../../lib/cuenta';
+import { pedir, useCuenta, imgUrl, type Direccion, type PedidoCliente, type ResultadoAccion } from '../../lib/cuenta';
 import type { ConfiguracionDivisa } from '../../types/database';
 import { PestanaBoton } from './ui';
 import { Pedidos } from './Pedidos';
@@ -13,9 +13,10 @@ interface CuentaPanelProps {
   onVolver: () => void;
   divisa: 'USD' | 'ARS' | 'USDT';
   tasas: ConfiguracionDivisa[];
+  onAgregarAlCarrito: (viniloId: number) => Promise<ResultadoAccion>;
 }
 
-export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
+export function CuentaPanel({ onVolver, divisa, tasas, onAgregarAlCarrito }: CuentaPanelProps) {
   const { usuario, favoritos, logout, saldoRecompensas } = useCuenta();
   const [pestana, setPestana] = useState<Pestana>('pedidos');
   const [resumen, setResumen] = useState<{ pedidos: PedidoCliente[]; direcciones: Direccion[] } | null>(null);
@@ -117,7 +118,7 @@ export function CuentaPanel({ onVolver, divisa, tasas }: CuentaPanelProps) {
       {/* CONTENIDO */}
       <div role="tabpanel">
         {pestana === 'pedidos' && <Pedidos onVerCatalogo={onVolver} />}
-        {pestana === 'favoritos' && <Favoritos divisa={divisa} tasas={tasas} onVerCatalogo={onVolver} />}
+        {pestana === 'favoritos' && <Favoritos divisa={divisa} tasas={tasas} onVerCatalogo={onVolver} onAgregarAlCarrito={onAgregarAlCarrito} />}
         {pestana === 'direcciones' && <Direcciones />}
       </div>
     </div>
