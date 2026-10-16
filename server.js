@@ -1323,8 +1323,8 @@ app.post('/api/pedidos', rateLimitPedido.middleware, sesionClienteOpcional, asyn
         const tokenTemporal = () => `TMP-${randomBytes(6).toString('hex')}`;
         let numero_orden = '';
         let insertOk = false;
+        let insercion = null;
         for (let intento = 0; intento < MAX_REINTENTOS_NUMERO_ORDEN && !insertOk; intento++) {
-            let insercion;
             try {
                 [insercion] = await conn.query(
                     `INSERT INTO \`pedidos\`
