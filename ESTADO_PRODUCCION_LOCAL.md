@@ -16,7 +16,7 @@
 
 - Repositorio: `kevinbrito050294/guacamayo-records-app`.
 - Rama publicada: `main`.
-- Ultimo commit publicado verificado: `736c650172b1cac395fb61847a17590e7f37cce4` (`fix: completar notificacion despues de crear pedido`).
+- Ultimo commit publicado verificado: `1c9ac9e0722855ea76813d73d7f10e966936faae` (`feat: integrar compras y recepcion al inventario`).
 - Railway: servicio `guacamayo-records-app`, entorno `production`, estado `Online`.
 - Web publica: `https://www.guacamayorecords.com`.
 - El servidor Express sirve simultaneamente la web estatica y la API.
@@ -32,6 +32,9 @@
 - Pedidos: `POST /api/pedidos`; valida stock, precios, cupones, direccion y Plumas dentro de una transaccion.
 - El error `insercion is not defined` despues de crear pedidos fue corregido en `736c6501`.
 - FCM para nuevos pedidos se ejecuta despues del commit de la transaccion.
+- Compras: `GET/POST /api/admin/compras` y recepcion protegida por admin.
+- Recepcion: `GET /api/admin/compras/items/:id/preparar-inventario` devuelve el codigo libre segun el patron real del inventario.
+- Incorporacion: `POST /api/vinilos` con `compra_item_id` crea el vinilo, suma stock, vincula el item y actualiza su estado dentro de una transaccion.
 
 ### Android vieja, preservada
 
@@ -112,9 +115,18 @@
 - La app vieja y la nueva son aplicaciones distintas y deben conservar manifiestos de actualizacion separados.
 - Si una tarea toca Android/Firebase, verificar package, `google-services.json`, keystore, version, APK, hash y manifiesto antes de publicar.
 
+## Compras y recepcion implementadas
+
+- Migracion aplicada en MySQL de produccion: `2026-10-16_compras_abastecimiento.sql`.
+- El patron real de codigos detectado en produccion es `VIN` + tres digitos; el siguiente libre al implementar fue `VIN028`.
+- El algoritmo no fija `VIN000X`: analiza los codigos existentes, busca el primer numero libre y usa un bloqueo MySQL para evitar colisiones concurrentes.
+- La pestaña `Compras` permite registrar proveedor, tasas ARS/USDT y VES/USDT, e items de compra.
+- El item no aparece en el catalogo hasta que se pulsa `Agregar al inventario` y se completa el `VinylForm` precargado.
+- El precio de venta sigue siendo obligatorio y editable; el costo de compra permanece separado.
+
 ## Ultima tarea de mantenimiento
 
 - Indice creado y reglas persistentes agregadas a `AGENTS.md`.
 - Backup verificado en `C:\Users\kevin\Backups\guacamayo-records\20261015-222623`.
 - El backup contiene keystore, Firebase, APK y `SHA256.json` fuera del repositorio.
-- Los cambios de este indice y del script de backup son locales hasta una publicacion documental posterior; no deben confundirse con el commit productivo `736c6501`.
+- Los cambios de este indice y del script de backup deben publicarse documentalmente sin subir secretos ni mezclar cambios locales ajenos.
