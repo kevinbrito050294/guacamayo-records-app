@@ -6,6 +6,25 @@ import { convertirAUsd, convertirDesdeUsd, obtenerTasasDisponibles } from '../..
 
 interface VinylFormProps {
   onSuccess?: () => void;
+  initialData?: Partial<VinylFormData>;
+  compraRecepcion?: {
+    compraItemId: number;
+    codigoSugerido: string;
+    cantidadRecibida: number;
+  };
+}
+
+interface VinylFormData {
+  codigo: string;
+  titulo: string;
+  artista: string;
+  genero: string;
+  pais_origen: string;
+  precio_venta: string;
+  stock_actual: string;
+  calidad: CalidadVinilo;
+  imagen_url: string;
+  descripcion: string;
 }
 
 const GENEROS = [
@@ -15,24 +34,18 @@ const GENEROS = [
 
 const CALIDADES: CalidadVinilo[] = ['NM', 'EX', 'VG+', 'VG', 'G'];
 
-export function VinylForm({ onSuccess }: VinylFormProps) {
+const formularioVacio = (): VinylFormData => ({
+  codigo: '', titulo: '', artista: '', genero: 'Rock', pais_origen: '', precio_venta: '',
+  stock_actual: '', calidad: 'VG', imagen_url: '', descripcion: '',
+});
+
+export function VinylForm({ onSuccess, initialData, compraRecepcion }: VinylFormProps) {
   const [loading, setLoading] = useState(false);
   const [monedaPrecio, setMonedaPrecio] = useState<MonedaPrecio>('USD');
   const [tasas, setTasas] = useState<TasasCambio | null>(null);
   const [errorTasas, setErrorTasas] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [formData, setFormData] = useState({
-    codigo: '',
-    titulo: '',
-    artista: '',
-    genero: 'Rock',
-    pais_origen: '',
-    precio_venta: '',
-    stock_actual: '',
-    calidad: 'VG' as CalidadVinilo,
-    imagen_url: '',
-    descripcion: '',
-  });
+  const [formData, setFormData] = useState<VinylFormData>(() => ({ ...formularioVacio(), ...initialData }));
 
   const getApiUrl = () => apiUrl();
 
@@ -41,6 +54,13 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
       setErrorTasas(error instanceof Error ? error.message : 'No se pudieron cargar las tasas');
     });
   }, []);
+
+  useEffect(() => {
+    setFormData({ ...formularioVacio(), ...initialData, ...(compraRecepcion ? {
+      codigo: compraRecepcion.codigoSugerido,
+      stock_actual: String(compraRecepcion.cantidadRecibida),
+    } : {}) });
+  }, [initialData, compraRecepcion]);
 
   const precioUsd = Number(formData.precio_venta);
   const cambiarPrecio = (valor: string) => {
@@ -69,26 +89,28 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
         body: JSON.stringify({
           ...formData,
            precio_venta: Number(formData.precio_venta),
-          stock_actual: parseInt(formData.stock_actual) || 0,
-        }),
-      });
+           stock_actual: parseInt(formData.stock_actual) || 0,
+           ...(compraRecepcion ? {
+             compra_item_id: compraRecepcion.compraItemId,
+             cantidad_recibida: parseInt(formData.stock_actual) || 0,
+           } : {}),
+         }),
+       });
 
-      if (!response.ok) throw new Error('Error al guardar');
+      if (!response.ok) {
+        const detalle = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(detalle?.error || 'Error al guardar');
+      }
 
       setMessage({ type: 'success', text: 'Vinilo agregado correctamente' });
-      setFormData({
-        codigo: '', titulo: '', artista: '', genero: 'Rock',
-        pais_origen: '',
-        precio_venta: '', stock_actual: '', calidad: 'VG',
-        imagen_url: '', descripcion: '',
-      });
+      setFormData(formularioVacio());
 
       setTimeout(() => {
         setMessage(null);
         onSuccess?.();
       }, 2000);
-    } catch {
-      setMessage({ type: 'error', text: 'Error de conexión con el servidor' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error de conexión con el servidor' });
     } finally {
       setLoading(false);
     }
@@ -97,7 +119,7 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-xl p-8 border border-slate-100 dark:border-slate-800 transition-colors">
       <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-8 italic uppercase tracking-tighter">
-        AGREGAR <span className="text-amber-500">NUEVO VINILO</span>
+         {compraRecepcion ? 'INCORPORAR ' : 'AGREGAR '}<span className="text-amber-500">{compraRecepcion ? 'VINILO RECIBIDO' : 'NUEVO VINILO'}</span>
       </h2>
 
       {message && (
@@ -120,9 +142,9 @@ export function VinylForm({ onSuccess }: VinylFormProps) {
             <div className="relative">
               <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500 w-4 h-4" />
               <input
-                type="text" required value={formData.codigo}
+                 type="text" required readOnly={Boolean(compraRecepcion)} value={formData.codigo}
                 onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 dark:text-white transition-all"
+                 className={`w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 dark:text-white transition-all ${compraRecepcion ? 'opacity-70' : ''}`}
                 placeholder="LP-001"
               />
             </div>

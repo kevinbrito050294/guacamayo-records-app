@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { 
-  Settings, Plus, Upload, Book, List, 
+  Settings, Plus, Upload, Book, List, ClipboardList,
   Edit2, Save, X, Trash2, ShoppingBag, CheckCircle, 
   Hash, MessageCircle, Layers, Disc, Star, Search, Ticket, Music, ShieldCheck, LogOut, AlertTriangle, Power, RotateCcw, Feather, Bell, UserCog, Activity
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import {
 import { VinylForm } from './admin/VinylForm';
 import { BulkImporter } from './admin/BulkImporter';
 import { CurrencyManager } from './admin/CurrencyManager';
+import { ComprasPanel } from './admin/ComprasPanel';
 import { ViniloCatalogo, Cupon, CalidadVinilo, TipoCupon, MonedaPrecio, TasasCambio } from '../types/database';
 import { apiUrl } from '../lib/api';
 import { convertirAUsd, convertirDesdeUsd, formatearPrecio, obtenerTasasDisponibles } from '../lib/currency';
@@ -17,7 +18,7 @@ import { convertirAUsd, convertirDesdeUsd, formatearPrecio, obtenerTasasDisponib
 // catálogo y los favoritos, así que el panel no inventa otro formato.
 import { importeUsd, itemsDePedido, type ItemPedido } from '../lib/cuenta';
 
-type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons' | 'rewards' | 'notifications' | 'administrators' | 'sessions';
+type Tab = 'list' | 'form' | 'bulk' | 'currency' | 'manual' | 'orders' | 'coupons' | 'rewards' | 'notifications' | 'administrators' | 'sessions' | 'purchases';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -464,7 +465,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-11 gap-2 sm:gap-4 mb-4 sm:mb-8">
            <TabButton active={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')} icon={<Bell />} title="Notificaciones" sub={pedidosSinRevisar.length > 0 ? `${pedidosSinRevisar.length} nuevas` : 'Al día'} badge={pedidosSinRevisar.length} />
-           <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
+            <TabButton active={activeTab === 'list'} onClick={() => setActiveTab('list')} icon={<List />} title="Inventario" sub="Gestión" />
+            <TabButton active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} icon={<ClipboardList />} title="Compras" sub="Abastecimiento" />
            <TabButton active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon={<ShoppingBag />} title="Pedidos" sub="Ventas" />
            <TabButton active={activeTab === 'rewards'} onClick={() => setActiveTab('rewards')} icon={<Feather />} title="Plumas" sub="Ledger" />
           <TabButton active={activeTab === 'coupons'} onClick={() => setActiveTab('coupons')} icon={<Ticket />} title="Cupones" sub="Promos" />
@@ -725,6 +727,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           )}
 
            {activeTab === 'orders' && <OrdersList getApiUrl={getApiUrl} onOrderUpdate={cargarVinilos} setSessionError={setSessionError} />}
+           {activeTab === 'purchases' && <ComprasPanel getApiUrl={getApiUrl} onInventoryChanged={() => void cargarVinilos()} />}
            {activeTab === 'notifications' && <NotificationsPanel orders={pedidosSinRevisar} onMarkRead={marcarNotificacionesRevisadas} onOpenOrders={() => setActiveTab('orders')} />}
            {activeTab === 'rewards' && <RewardsLedger getApiUrl={getApiUrl} setSessionError={setSessionError} />}
           {activeTab === 'coupons' && <CouponManager getApiUrl={getApiUrl} />}

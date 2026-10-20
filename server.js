@@ -611,6 +611,179 @@ function responsableInventario(req) {
     };
 }
 
+function datosCodigo(codigo) {
+    const texto = String(codigo || '').trim();
+    const match = /^(.*?)(\d+)$/.exec(texto);
+    if (!match) return null;
+    return { prefijo: match[1], numero: Number(match[2]), ancho: match[2].length };
+}
+
+async function siguienteCodigoInventario(conn) {
+    const [filas] = await conn.query('SELECT codigo FROM inventario_vinilos WHERE codigo IS NOT NULL');
+    const datos = filas.map(fila => datosCodigo(fila.codigo)).filter(Boolean);
+    const grupos = new Map();
+    for (const dato of datos) {
+        const clave = `${dato.prefijo}\u0000${dato.ancho}`;
+        const grupo = grupos.get(clave) || { ...dato, cantidad: 0 };
+        grupo.cantidad += 1;
+        grupos.set(clave, grupo);
+    }
+    const patron = Array.from(grupos.values()).sort((a, b) => b.cantidad - a.cantidad || b.numero - a.numero)[0]
+        || { prefijo: 'VIN', ancho: 3 };
+    const usados = new Set(datos.filter(dato => dato.prefijo === patron.prefijo).map(dato => dato.numero));
+    let numero = 1;
+    while (usados.has(numero)) numero += 1;
+    return `${patron.prefijo}${String(numero).padStart(patron.ancho, '0')}`;
+}
+
+async function crearViniloDesdeCompra(req, res, next) {
+    const compraItemId = Number(req.body?.compra_item_id);
+    const cantidadRecibida = Number(req.body?.cantidad_recibida ?? req.body?.stock_actual);
+    if (!Number.isInteger(compraItemId) || compraItemId < 1) return res.status(400).json({ error: 'compra_item_id invalido' });
+    if (!Number.isInteger(cantidadRecibida) || cantidadRecibida < 1) return res.status(400).json({ error: 'cantidad_recibida invalida' });
+
+    let conn;
+    try {
+        conn = await sql.getConnection();
+        await conn.beginTransaction();
+        const [items] = await conn.query('SELECT * FROM compra_items WHERE id = ? FOR UPDATE', [compraItemId]);
+        if (items.length === 0) {
+            await conn.rollback();
+            return res.status(404).json({ error: 'Item de compra no encontrado' });
+        }
+        const item = items[0];
+        const pendiente = Number(item.cantidad_comprada) - Number(item.cantidad_recibida);
+        if (cantidadRecibida > pendiente) {
+            await conn.rollback();
+            return res.status(400).json({ error: `Solo quedan ${pendiente} unidades por recibir` });
+        }
+
+        const lock = await conn.query("SELECT GET_LOCK('guacamayo:inventario:codigo', 10) AS adquirido");
+        if (!Number(lock[0][0].adquirido)) {
+            await conn.rollback();
+            return res.status(409).json({ error: 'No se pudo reservar un codigo de inventario. Intentá de nuevo.' });
+        }
+        try {
+            const codigo = await siguienteCodigoInventario(conn);
+            const responsable = responsableInventario(req);
+            const precioVenta = Number(req.body.precio_venta || 0);
+            if (!Number.isFinite(precioVenta) || precioVenta <= 0) {
+                await conn.rollback();
+                return res.status(400).json({ error: 'El precio de venta debe ser mayor que cero' });
+            }
+            const [resultado] = await conn.query(
+                `INSERT INTO inventario_vinilos
+                    (codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, pais_origen, descripcion,
+                     ultima_modificacion_en, ultima_modificacion_admin_id, ultima_modificacion_admin_email, ultima_modificacion_admin_nombre)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+                [codigo, req.body.titulo || item.titulo, req.body.artista || item.artista, precioVenta, cantidadRecibida,
+                    req.body.imagen_url || item.imagen_url, req.body.genero || item.genero, req.body.calidad || item.calidad,
+                    req.body.pais_origen || item.pais_origen, req.body.descripcion || item.descripcion,
+                    responsable.id, responsable.email, responsable.nombre]
+            );
+            const nuevaCantidad = Number(item.cantidad_recibida) + cantidadRecibida;
+            const estado = nuevaCantidad >= Number(item.cantidad_comprada) ? 'incorporado_inventario' : 'recibido_parcial';
+            await conn.query('UPDATE compra_items SET cantidad_recibida = ?, vinilo_id = ?, estado = ? WHERE id = ?', [nuevaCantidad, resultado.insertId, estado, compraItemId]);
+            await conn.query('UPDATE compras c JOIN (SELECT compra_id, SUM(estado = \'incorporado_inventario\') AS completos, COUNT(*) AS total FROM compra_items WHERE compra_id = ? GROUP BY compra_id) x ON x.compra_id = c.id SET c.estado = IF(x.completos = x.total, \'recibida\', \'recibida_parcial\') WHERE c.id = ?', [item.compra_id, item.compra_id]);
+            await conn.commit();
+            res.json({ success: true, id: resultado.insertId, codigo, cantidad_recibida: cantidadRecibida });
+        } finally {
+            await conn.query("SELECT RELEASE_LOCK('guacamayo:inventario:codigo')").catch(() => {});
+        }
+    } catch (error) {
+        if (conn) await conn.rollback().catch(() => {});
+        next(error);
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+app.get('/api/admin/compras', requiereAdmin, async (req, res, next) => {
+    try {
+        const [compras] = await sql.query(
+            `SELECT c.*, a.nombre AS responsable_nombre
+               FROM compras c LEFT JOIN admin_usuarios a ON a.id = c.responsable_admin_id
+              ORDER BY c.id DESC`
+        );
+        const [items] = await sql.query('SELECT * FROM compra_items ORDER BY id ASC');
+        const porCompra = new Map();
+        for (const item of items) {
+            const lista = porCompra.get(Number(item.compra_id)) || [];
+            lista.push(item);
+            porCompra.set(Number(item.compra_id), lista);
+        }
+        res.json(compras.map(compra => ({ ...compra, items: porCompra.get(Number(compra.id)) || [] })));
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.post('/api/admin/compras', requiereAdmin, async (req, res, next) => {
+    const body = req.body || {};
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!String(body.proveedor || '').trim() || items.length === 0) return res.status(400).json({ error: 'Proveedor e items son obligatorios' });
+    const tasaArsUsdt = Number(body.tasa_ars_usdt || 0);
+    const tasaVesUsdt = Number(body.tasa_ves_usdt || 0);
+    if (!Number.isFinite(tasaArsUsdt) || tasaArsUsdt <= 0 || !Number.isFinite(tasaVesUsdt) || tasaVesUsdt <= 0) return res.status(400).json({ error: 'Las tasas ARS/USDT y VES/USDT deben ser mayores que cero' });
+    for (const item of items) {
+        if (!String(item.titulo || '').trim() || !String(item.artista || '').trim()) return res.status(400).json({ error: 'Cada item necesita titulo y artista' });
+        if (!Number.isInteger(Number(item.cantidad_comprada)) || Number(item.cantidad_comprada) < 1) return res.status(400).json({ error: 'La cantidad comprada debe ser un entero mayor que cero' });
+        if (!Number.isFinite(Number(item.precio_unitario_ves)) || Number(item.precio_unitario_ves) < 0) return res.status(400).json({ error: 'El precio en VES no es valido' });
+    }
+    let conn;
+    try {
+        conn = await sql.getConnection();
+        await conn.beginTransaction();
+        const responsable = responsableInventario(req);
+        let totalVes = 0;
+        let totalUsdt = 0;
+        for (const item of items) {
+            totalVes += Number(item.precio_unitario_ves) * Number(item.cantidad_comprada);
+            totalUsdt += Number(item.precio_unitario_ves) * Number(item.cantidad_comprada) / tasaVesUsdt;
+        }
+        const [compra] = await conn.query(
+            `INSERT INTO compras (proveedor, proveedor_pais, responsable_admin_id, estado, fecha_compra, tasa_ars_usdt, tasa_ves_usdt, total_productos_ves, total_productos_usdt, total_puesto_usdt, observaciones)
+             VALUES (?, ?, ?, 'pagada', ?, ?, ?, ?, ?, ?, ?)`,
+            [String(body.proveedor).trim(), String(body.proveedor_pais || 'Venezuela').trim(), responsable.id || 0,
+                body.fecha_compra || null, tasaArsUsdt, tasaVesUsdt, totalVes, totalUsdt, totalUsdt, body.observaciones || null]
+        );
+        for (const item of items) {
+            const costoUsdt = Number(item.precio_unitario_ves) / tasaVesUsdt;
+            await conn.query(
+                `INSERT INTO compra_items (compra_id, codigo_proveedor, titulo, artista, genero, calidad, pais_origen, descripcion, imagen_url, cantidad_comprada, precio_unitario_ves, costo_unitario_usdt, costo_unitario_ars)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [compra.insertId, item.codigo_proveedor || null, String(item.titulo).trim(), String(item.artista).trim(), item.genero || null,
+                    item.calidad || null, item.pais_origen || null, item.descripcion || null, item.imagen_url || null,
+                    Number(item.cantidad_comprada), Number(item.precio_unitario_ves), costoUsdt, costoUsdt * tasaArsUsdt]
+            );
+        }
+        await conn.commit();
+        res.status(201).json({ success: true, id: compra.insertId });
+    } catch (error) {
+        if (conn) await conn.rollback().catch(() => {});
+        next(error);
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+app.get('/api/admin/compras/items/:id/preparar-inventario', requiereAdmin, async (req, res, next) => {
+    try {
+        const [filas] = await sql.query(
+            `SELECT i.*, c.estado AS compra_estado
+               FROM compra_items i JOIN compras c ON c.id = i.compra_id
+              WHERE i.id = ?`, [Number(req.params.id)]
+        );
+        if (filas.length === 0) return res.status(404).json({ error: 'Item de compra no encontrado' });
+        const item = filas[0];
+        if (item.vinilo_id) return res.json({ ya_incorporado: true, vinilo_id: item.vinilo_id, item });
+        const codigoSugerido = await siguienteCodigoInventario(sql);
+        res.json({ ya_incorporado: false, codigo_sugerido: codigoSugerido, cantidad_pendiente: Number(item.cantidad_comprada) - Number(item.cantidad_recibida), item });
+    } catch (error) {
+        next(error);
+    }
+});
+
 app.get('/api/vinilos', (req, res, next) => {
     db.query('SELECT * FROM inventario_vinilos ORDER BY id DESC', (err, results) => {
         // Mismo criterio que en divisas: el detalle del error queda en el log del
@@ -621,6 +794,7 @@ app.get('/api/vinilos', (req, res, next) => {
 });
 
 app.post('/api/vinilos', requiereAdmin, (req, res, next) => {
+    if (req.body?.compra_item_id !== undefined) return crearViniloDesdeCompra(req, res, next);
     const { codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion } = req.body;
     const responsable = responsableInventario(req);
     const query = `INSERT INTO inventario_vinilos (codigo, titulo, artista, precio_venta, stock_actual, imagen_url, genero, calidad, descripcion, ultima_modificacion_en, ultima_modificacion_admin_id, ultima_modificacion_admin_email, ultima_modificacion_admin_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`;
