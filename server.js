@@ -728,7 +728,7 @@ app.post('/api/admin/compras', requiereAdmin, async (req, res, next) => {
     for (const item of items) {
         if (!String(item.titulo || '').trim() || !String(item.artista || '').trim()) return res.status(400).json({ error: 'Cada item necesita titulo y artista' });
         if (!Number.isInteger(Number(item.cantidad_comprada)) || Number(item.cantidad_comprada) < 1) return res.status(400).json({ error: 'La cantidad comprada debe ser un entero mayor que cero' });
-        if (!Number.isFinite(Number(item.precio_unitario_ves)) || Number(item.precio_unitario_ves) < 0) return res.status(400).json({ error: 'El precio en VES no es valido' });
+        if (!Number.isFinite(Number(item.precio_unitario_usdt)) || Number(item.precio_unitario_usdt) < 0) return res.status(400).json({ error: 'El precio unitario en USDT no es valido' });
     }
     let conn;
     try {
@@ -738,8 +738,8 @@ app.post('/api/admin/compras', requiereAdmin, async (req, res, next) => {
         let totalVes = 0;
         let totalUsdt = 0;
         for (const item of items) {
-            totalVes += Number(item.precio_unitario_ves) * Number(item.cantidad_comprada);
-            totalUsdt += Number(item.precio_unitario_ves) * Number(item.cantidad_comprada) / tasaVesUsdt;
+            totalUsdt += Number(item.precio_unitario_usdt) * Number(item.cantidad_comprada);
+            totalVes += Number(item.precio_unitario_usdt) * Number(item.cantidad_comprada) * tasaVesUsdt;
         }
         const [compra] = await conn.query(
             `INSERT INTO compras (proveedor, proveedor_pais, responsable_admin_id, estado, fecha_compra, tasa_ars_usdt, tasa_ves_usdt, total_productos_ves, total_productos_usdt, total_puesto_usdt, observaciones)
@@ -748,13 +748,13 @@ app.post('/api/admin/compras', requiereAdmin, async (req, res, next) => {
                 body.fecha_compra || null, tasaArsUsdt, tasaVesUsdt, totalVes, totalUsdt, totalUsdt, body.observaciones || null]
         );
         for (const item of items) {
-            const costoUsdt = Number(item.precio_unitario_ves) / tasaVesUsdt;
             await conn.query(
                 `INSERT INTO compra_items (compra_id, codigo_proveedor, titulo, artista, genero, calidad, pais_origen, descripcion, imagen_url, cantidad_comprada, precio_unitario_ves, costo_unitario_usdt, costo_unitario_ars)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [compra.insertId, item.codigo_proveedor || null, String(item.titulo).trim(), String(item.artista).trim(), item.genero || null,
                     item.calidad || null, item.pais_origen || null, item.descripcion || null, item.imagen_url || null,
-                    Number(item.cantidad_comprada), Number(item.precio_unitario_ves), costoUsdt, costoUsdt * tasaArsUsdt]
+                    Number(item.cantidad_comprada), Number(item.precio_unitario_usdt) * tasaVesUsdt,
+                    Number(item.precio_unitario_usdt), Number(item.precio_unitario_usdt) * tasaArsUsdt]
             );
         }
         await conn.commit();

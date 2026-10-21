@@ -11,7 +11,7 @@ type CompraItem = {
   pais_origen: string | null;
   cantidad_comprada: number;
   cantidad_recibida: number;
-  precio_unitario_ves: number | string;
+  precio_unitario_usdt: number | string;
   costo_unitario_usdt: number | string;
   estado: string;
   vinilo_id: number | null;
@@ -38,12 +38,12 @@ type ItemDraft = {
   calidad: string;
   pais_origen: string;
   cantidad_comprada: string;
-  precio_unitario_ves: string;
+  precio_unitario_usdt: string;
   codigo_proveedor: string;
 };
 
 const itemVacio = (): ItemDraft => ({
-  titulo: '', artista: '', genero: '', calidad: 'VG', pais_origen: '', cantidad_comprada: '1', precio_unitario_ves: '', codigo_proveedor: '',
+  titulo: '', artista: '', genero: '', calidad: 'VG', pais_origen: '', cantidad_comprada: '1', precio_unitario_usdt: '', codigo_proveedor: '',
 });
 
 export function ComprasPanel({ getApiUrl, onInventoryChanged }: { getApiUrl: () => string; onInventoryChanged: () => void }) {
@@ -89,7 +89,7 @@ export function ComprasPanel({ getApiUrl, onInventoryChanged }: { getApiUrl: () 
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           proveedor, fecha_compra: fechaCompra, tasa_ars_usdt: Number(tasaArsUsdt), tasa_ves_usdt: Number(tasaVesUsdt),
-          items: items.map(item => ({ ...item, cantidad_comprada: Number(item.cantidad_comprada), precio_unitario_ves: Number(item.precio_unitario_ves) })),
+          items: items.map(item => ({ ...item, cantidad_comprada: Number(item.cantidad_comprada), precio_unitario_usdt: Number(item.precio_unitario_usdt) })),
         }),
       });
       const data: unknown = await res.json().catch(() => null);
@@ -163,7 +163,7 @@ export function ComprasPanel({ getApiUrl, onInventoryChanged }: { getApiUrl: () 
               <select value={item.calidad} onChange={event => actualizarItem(indice, 'calidad', event.target.value)} className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white">{['NM', 'EX', 'VG+', 'VG', 'G'].map(value => <option key={value}>{value}</option>)}</select>
               <input value={item.pais_origen} onChange={event => actualizarItem(indice, 'pais_origen', event.target.value)} placeholder="País" className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white" />
               <input required type="number" min="1" value={item.cantidad_comprada} onChange={event => actualizarItem(indice, 'cantidad_comprada', event.target.value)} placeholder="Cantidad" className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white" />
-              <input required type="number" min="0" step="0.000001" value={item.precio_unitario_ves} onChange={event => actualizarItem(indice, 'precio_unitario_ves', event.target.value)} placeholder="Precio unitario VES" className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white" />
+              <input required type="number" min="0" step="0.000001" value={item.precio_unitario_usdt} onChange={event => actualizarItem(indice, 'precio_unitario_usdt', event.target.value)} placeholder="Precio unitario USDT" className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white" />
               <input value={item.codigo_proveedor} onChange={event => actualizarItem(indice, 'codigo_proveedor', event.target.value)} placeholder="Código proveedor" className="rounded-lg p-2 text-sm dark:bg-slate-900 dark:text-white" />
               {items.length > 1 && <button type="button" onClick={() => setItems(prev => prev.filter((_, actual) => actual !== indice))} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 p-2 text-xs font-black text-red-500"><X size={14} /> Quitar item</button>}
             </div>
