@@ -13,5 +13,6 @@ interface Window {
     listAdminCredentials: () => string;
     selectAdmin: (adminId: string) => void;
     registerPushToken: () => void;
+    requestBiometricLogin: () => void;
   };
 }

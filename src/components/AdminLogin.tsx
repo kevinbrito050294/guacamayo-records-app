@@ -3,11 +3,12 @@ import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 interface AdminLoginProps {
   onLogin: (email: string, password: string) => void;
+  onBiometricLogin?: () => void;
   error: string;
   cargando: boolean;
 }
 
-export function AdminLogin({ onLogin, error, cargando }: AdminLoginProps) {
+export function AdminLogin({ onLogin, onBiometricLogin, error, cargando }: AdminLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mostrarPassword, setMostrarPassword] = useState(false);
@@ -92,6 +93,16 @@ export function AdminLogin({ onLogin, error, cargando }: AdminLoginProps) {
           >
             {cargando ? 'VERIFICANDO...' : 'DESBLOQUEAR PANEL'}
           </button>
+          {onBiometricLogin && (
+            <button
+              type="button"
+              onClick={onBiometricLogin}
+              disabled={cargando}
+              className="w-full border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-500/20 transition-all disabled:opacity-60"
+            >
+              INGRESAR CON HUELLA / PIN
+            </button>
+          )}
         </form>
 
         <p className="text-[10px] text-slate-400 dark:text-slate-600 mt-10 uppercase tracking-widest">

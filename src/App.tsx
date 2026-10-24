@@ -465,7 +465,12 @@ function AppShell() {
                   </>
                 ) : (
                   <>
-                    <AdminLogin onLogin={handleAdminLogin} error={loginError} cargando={loginCargando} />
+                    <AdminLogin
+                      onLogin={handleAdminLogin}
+                      onBiometricLogin={window.AndroidBiometric ? () => window.AndroidBiometric?.requestBiometricLogin() : undefined}
+                      error={loginError}
+                      cargando={loginCargando}
+                    />
                     {adminCredentials.length > 1 && (
                       <div className="mx-auto -mt-12 mb-8 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                         <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Cambiar cuenta biométrica</p>

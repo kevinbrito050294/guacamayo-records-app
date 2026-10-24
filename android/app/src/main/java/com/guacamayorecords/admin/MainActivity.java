@@ -63,6 +63,7 @@ public class MainActivity extends BridgeActivity {
     private boolean authFlowStarted;
     private boolean updateCheckScheduled;
     private int updateCheckAttempts;
+    private boolean updateDownloadInProgress;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -159,6 +160,13 @@ public class MainActivity extends BridgeActivity {
                 .setConfirmationRequired(false)
                 .build();
         prompt.authenticate(promptInfo);
+    }
+
+    private void requestBiometricLogin() {
+        if (readAdminCredentials() == null) return;
+        if (authenticationInProgress) return;
+        authFlowStarted = false;
+        startUnlockFlow();
     }
 
     private void waitForPageReady(Runnable action) {
@@ -405,13 +413,17 @@ public class MainActivity extends BridgeActivity {
         public void registerPushToken() {
             MainActivity.this.registerPushToken();
         }
+
+        @JavascriptInterface
+        public void requestBiometricLogin() {
+            MainActivity.this.requestBiometricLogin();
+        }
     }
 
     private void checkForUpdate() {
         updateExecutor.execute(() -> {
             try {
-                // Evita que WebView/proxies entreguen un manifiesto viejo y espera a
-                // que termine la ventana biométrica antes de abrir un AlertDialog.
+                // Evita que WebView/proxies entreguen un manifiesto viejo.
                 String updateUrl = UPDATE_URL + "?t=" + System.currentTimeMillis();
                 HttpURLConnection connection = (HttpURLConnection) new URL(updateUrl).openConnection();
                 connection.setConnectTimeout(10000);
@@ -439,7 +451,7 @@ public class MainActivity extends BridgeActivity {
 
                 if (latestVersionCode <= installedVersionCode || !apkUrl.startsWith("https://")) return;
 
-                runOnUiThread(() -> showUpdateDialog(latestVersionCode, latestVersionName, apkUrl));
+                runOnUiThread(() -> downloadAndInstall(latestVersionCode, apkUrl));
             } catch (Exception error) {
                 Log.w("GuacamayoAdmin", "No se pudo consultar actualizaciones (intento "
                         + updateCheckAttempts + ")", error);
@@ -473,6 +485,8 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void downloadAndInstall(long versionCode, String apkUrl) {
+        if (updateDownloadInProgress) return;
+        updateDownloadInProgress = true;
         Toast.makeText(this, "Descargando actualización...", Toast.LENGTH_LONG).show();
         updateExecutor.execute(() -> {
             File apkFile = new File(getCacheDir(), "guacamayo-admin-" + versionCode + ".apk");
@@ -504,6 +518,7 @@ public class MainActivity extends BridgeActivity {
                 runOnUiThread(() -> installApk(apkFile));
             } catch (Exception error) {
                 apkFile.delete();
+                updateDownloadInProgress = false;
                 runOnUiThread(() -> Toast.makeText(
                         this, "No se pudo descargar la actualización.", Toast.LENGTH_LONG).show());
             }
