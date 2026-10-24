@@ -16,7 +16,7 @@
 
 - Repositorio: `kevinbrito050294/guacamayo-records-app`.
 - Rama publicada: `main`.
-- Ultimo commit publicado verificado: `2a7f56ef6d344ad79ff5670b311437c3bf4a0426` (`fix: guardar costo de compras en USDT`).
+- Ultimo commit publicado verificado: `7157bcc5ee25c03dc0b5a8810e56dff4e0968b3d` (`feat: actualizar app automaticamente y reingresar con biometria`).
 - Railway: servicio `guacamayo-records-app`, entorno `production`, estado `Online`.
 - Web publica: `https://www.guacamayorecords.com`.
 - El servidor Express sirve simultaneamente la web estatica y la API.
@@ -48,15 +48,17 @@
 ### Android nueva
 
 - Package: `com.guacamayorecords.adminnuevo`.
-- Version publica: `1.19`, `versionCode 20`.
+- Version publica: `1.21`, `versionCode 22`.
 - APK: `https://www.guacamayorecords.com/downloads/guacamayo-admin.apk`.
 - Manifiesto propio: `https://www.guacamayorecords.com/android-update-nuevo.json`.
-- APK publico verificado: HTTP 200, hash SHA-256 `B5AF08159B9D7A68D3E29E9628880B09A67AA30CC4CAD100151C79EEECAD911D`.
+- APK publico verificado: HTTP 200, hash SHA-256 `4FE3F03F593C4208376ADEEAD7817D5E9F5DD72EF4BF21295B5102F7BC6132E2`.
 - Hash del APK local y publico coinciden.
 - Keystore nueva local: `android/app/guacamayo-release-2026.jks`; nunca subirla a GitHub.
 - Firebase local: `android/app/google-services.json`; contiene el cliente nuevo y nunca subirlo a GitHub.
 - Build: `applicationId com.guacamayorecords.adminnuevo`, Firebase Messaging, permiso Android `POST_NOTIFICATIONS` y `GuacamayoMessagingService` registrados.
 - La notificacion popup requiere instalar la APK nueva, iniciar sesion, aceptar permisos y registrar el token FCM.
+- La app consulta el manifiesto al iniciar, descarga automaticamente una APK nueva y abre el instalador Android; Android sigue exigiendo confirmar la instalacion por seguridad.
+- Despues de un logout, el boton `Ingresar con huella / PIN` vuelve a autenticar usando la credencial cifrada sin pedir la contraseña.
 
 ## Funcion de cada parte
 
