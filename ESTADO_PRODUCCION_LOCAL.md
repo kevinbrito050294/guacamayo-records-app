@@ -16,7 +16,7 @@
 
 - Repositorio: `kevinbrito050294/guacamayo-records-app`.
 - Rama publicada: `main`.
-- Ultimo commit publicado verificado: `1c9ac9e0722855ea76813d73d7f10e966936faae` (`feat: integrar compras y recepcion al inventario`).
+- Ultimo commit publicado verificado: `2a7f56ef6d344ad79ff5670b311437c3bf4a0426` (`fix: guardar costo de compras en USDT`).
 - Railway: servicio `guacamayo-records-app`, entorno `production`, estado `Online`.
 - Web publica: `https://www.guacamayorecords.com`.
 - El servidor Express sirve simultaneamente la web estatica y la API.
@@ -24,7 +24,7 @@
 
 ### Web y API
 
-- Bundle publico verificado: `/assets/index-C3cNmqXU.js`.
+- Bundle publico verificado: `/assets/index-DJkzeOdx.js`.
 - Catalogo publico: `GET /api/vinilos`.
 - Cotizaciones: `GET /api/configuracion_divisas`.
 - Actualizacion en tiempo real: `GET /api/catalogo-eventos` mediante SSE.
@@ -123,6 +123,8 @@
 - La pestaña `Compras` permite registrar proveedor, tasas ARS/USDT y VES/USDT, e items de compra.
 - El item no aparece en el catalogo hasta que se pulsa `Agregar al inventario` y se completa el `VinylForm` precargado.
 - El precio de venta sigue siendo obligatorio y editable; el costo de compra permanece separado.
+- El formulario de compras carga el precio unitario en USDT; el backend calcula y guarda equivalentes VES y ARS usando las tasas snapshot.
+- La misma compra admite multiples discos/items y conserva las tasas ARS/USDT y VES/USDT de la operacion.
 
 ## Ultima tarea de mantenimiento
 
