@@ -48,10 +48,10 @@
 ### Android nueva
 
 - Package: `com.guacamayorecords.adminnuevo`.
-- Version publica: `1.21`, `versionCode 22`.
+- Version publica: `1.23`, `versionCode 24`.
 - APK: `https://www.guacamayorecords.com/downloads/guacamayo-admin.apk`.
 - Manifiesto propio: `https://www.guacamayorecords.com/android-update-nuevo.json`.
-- APK publico verificado: HTTP 200, hash SHA-256 `4FE3F03F593C4208376ADEEAD7817D5E9F5DD72EF4BF21295B5102F7BC6132E2`.
+- APK publico verificado: HTTP 200, hash SHA-256 `8E1FE9C9A444513BCE72D61F827EFFFC1A52716CED6BAA8EF54B6C6B1C1D0735`.
 - Hash del APK local y publico coinciden.
 - Keystore nueva local: `android/app/guacamayo-release-2026.jks`; nunca subirla a GitHub.
 - Firebase local: `android/app/google-services.json`; contiene el cliente nuevo y nunca subirlo a GitHub.
@@ -59,6 +59,7 @@
 - La notificacion popup requiere instalar la APK nueva, iniciar sesion, aceptar permisos y registrar el token FCM.
 - La app consulta el manifiesto al iniciar, descarga automaticamente una APK nueva y abre el instalador Android; Android sigue exigiendo confirmar la instalacion por seguridad.
 - Despues de un logout, el boton `Ingresar con huella / PIN` vuelve a autenticar usando la credencial cifrada sin pedir la contraseña.
+- La biometria no se abre automaticamente al iniciar la app; solo se solicita al pulsar el boton de reingreso.
 
 ## Funcion de cada parte
 
