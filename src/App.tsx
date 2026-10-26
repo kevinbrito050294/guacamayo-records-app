@@ -167,6 +167,17 @@ function AppShell() {
 
   // --- SESIÓN ADMIN: la cookie httpOnly no se puede leer desde JS, así que al
   // --- montar preguntamos al servidor si todavía hay sesión abierta.
+  const verificarSesionAdmin = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' });
+      setIsAdminAuthenticated(res.ok);
+      return res.ok;
+    } catch {
+      setIsAdminAuthenticated(false);
+      return false;
+    }
+  }, [getApiUrl]);
+
   useEffect(() => {
     let vigente = true;
     fetch(`${getApiUrl()}/api/admin/yo`, { credentials: 'include' })
@@ -174,6 +185,19 @@ function AppShell() {
       .catch(() => { if (vigente) setIsAdminAuthenticated(false); });
     return () => { vigente = false; };
   }, [getApiUrl]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).guacamayoRefrescarSesionAdmin = verificarSesionAdmin;
+    const onAdminLogin = () => { void verificarSesionAdmin(); };
+    window.addEventListener('admin-login-success', onAdminLogin as EventListener);
+    return () => {
+      if ((window as any).guacamayoRefrescarSesionAdmin === verificarSesionAdmin) {
+        delete (window as any).guacamayoRefrescarSesionAdmin;
+      }
+      window.removeEventListener('admin-login-success', onAdminLogin as EventListener);
+    };
+  }, [verificarSesionAdmin]);
 
   // --- LOGOUT ---
   const handleLogout = useCallback(async () => {
