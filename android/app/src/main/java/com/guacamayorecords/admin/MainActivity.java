@@ -73,9 +73,12 @@ public class MainActivity extends BridgeActivity {
         // Ocultarla desde el primer ciclo evita mostrar el panel privado durante esa ventana.
         webView.setVisibility(View.INVISIBLE);
         webView.addJavascriptInterface(new AndroidBiometricBridge(), "AndroidBiometric");
-        // WebView restores httpOnly cookies asynchronously after the activity
-        // starts; checking immediately can miss an existing admin session.
-        mainHandler.postDelayed(this::checkBiometricUnlock, 1500);
+        // La app muestra primero la web. La biometria se solicita solo cuando el
+        // usuario pulsa "Ingresar con huella / PIN" en la pantalla de acceso.
+        mainHandler.postDelayed(() -> {
+            revealWebView();
+            scheduleUpdateCheck(500);
+        }, 1500);
     }
 
     @Override
@@ -163,7 +166,12 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void requestBiometricLogin() {
-        if (readAdminCredentials() == null) return;
+        if (readAdminCredentials() == null) {
+            runOnUiThread(() -> Toast.makeText(this,
+                    "Ingresá una vez con email y contraseña para activar la huella.",
+                    Toast.LENGTH_LONG).show());
+            return;
+        }
         if (authenticationInProgress) return;
         authFlowStarted = false;
         startUnlockFlow();
@@ -416,7 +424,9 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void requestBiometricLogin() {
-            MainActivity.this.requestBiometricLogin();
+            // JavascriptInterface callbacks may arrive on a WebView worker thread;
+            // BiometricPrompt must always be created on Android's main thread.
+            runOnUiThread(MainActivity.this::requestBiometricLogin);
         }
     }
 
